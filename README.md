@@ -27,4 +27,6 @@ venv/bin/python -m pytest -q
 3. Run tests.
 4. Push the branch and open a pull request.
 
+For a minimal student workflow in Korean, see `STUDENT-GIT-GUIDE.md`.
+
 Do not commit `.env`, DB files, backups, virtualenvs, API keys, or generated cache files.

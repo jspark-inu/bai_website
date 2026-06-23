@@ -1,0 +1,27 @@
+backend/lab-feed*.db
+backend/*.db
+backend/*.db-*
+backend/*.sqlite
+backend/*.sqlite3
+backups/
+.env
+.env.*
+!.env.example
+backend/venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+*.log
+*.bak
+
+# Local/internal deployment notes are not part of the collaborator code repo.
+DEPLOY.md
+DEPLOY-hai2.md
+public-launch-checklist.md
+roadmap.md
+rule.md
+infra/
+docs/superpowers/
+scripts/test-1c41.sh

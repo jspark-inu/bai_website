@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko" class="theme-light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAI 프로젝트와 자료실 사용 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html.theme-dark{--bg:#0A0A0A;--surface:#141414;--surface-hover:#1C1C1C;--border:rgba(255,255,255,.08);--text:#EDEDED;--text-secondary:#9A9A9A;--accent:#3b82f6;--accent-secondary:#14b8a6;--positive:#10b981;--warning:#f59e0b}
+    html.theme-light{--bg:#FAFAF9;--surface:#FFFFFF;--surface-hover:#F5F5F4;--border:rgba(0,0,0,.08);--text:#0f172a;--text-secondary:#64748b;--accent:#2563eb;--accent-secondary:#0f766e;--positive:#059669;--warning:#d97706}
+    body{font-family:'Noto Sans KR','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.65;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;transition:background .3s,color .3s;scrollbar-gutter:stable}
+    h1,h2,h3,h4{color:var(--text);letter-spacing:-.03em;line-height:1.12;text-wrap:balance}
+    h1{font-weight:850;font-size:3rem}h2{font-weight:760;font-size:2rem}h3{font-weight:700;font-size:1.32rem}
+    p,li,span{color:var(--text)}code{font-family:'Inter',monospace;font-size:.92em;background:var(--surface-hover);padding:1px 6px;border-radius:5px}
+    .wrap{max-width:1120px;margin:0 auto;padding:0 24px}section{margin-bottom:62px}.sec-label{font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;font-family:'Inter'}.sec-title{font-size:1.8rem;font-weight:760;margin-bottom:8px}.sec-sub{color:var(--text-secondary);font-size:1rem;margin-bottom:26px;max-width:780px}
+    .hero{padding:82px 0 54px;position:relative}.hero::before{content:'';position:absolute;inset:0;z-index:-1;background:radial-gradient(980px 420px at 20% -10%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 72%)}.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700;color:var(--accent);border:1px solid var(--border);background:var(--surface);padding:6px 14px;border-radius:999px;margin-bottom:22px}.dot{width:7px;height:7px;border-radius:50%;background:var(--positive)}.hero h1{font-size:clamp(2.35rem,6vw,4rem);max-width:900px}.hero .ko-q{font-size:clamp(1.06rem,2.25vw,1.38rem);font-weight:500;margin-top:24px;max-width:900px;line-height:1.58}.hero .en-q{font-size:1rem;color:var(--text-secondary);margin-top:12px;max-width:880px}.hero-meta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}.pill{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:.9rem}.pill b{color:var(--accent)}
+    .grid{display:grid;gap:20px}.g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:23px;transition:box-shadow .2s ease,border-color .2s ease}.card:hover{box-shadow:0 8px 24px rgba(0,0,0,.07);border-color:var(--accent)}.card h4{font-size:1.04rem;font-weight:760;margin-bottom:7px}.card p{font-size:.92rem;color:var(--text-secondary);line-height:1.58}
+    .callout{border:1px solid var(--border);border-left:4px solid var(--accent);background:var(--surface);border-radius:12px;padding:24px 28px}.callout .q{font-size:1.22rem;font-weight:650;line-height:1.55}.callout .en{color:var(--text-secondary);margin-top:12px;font-size:.98rem}
+    .stack{display:grid;gap:10px}.stack-row{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 22px}.stack-row .k{font-size:.82rem;font-weight:800;color:var(--accent);font-family:'Inter'}.stack-row .v{font-weight:650;font-size:1.05rem}.stack-row .v small{display:block;font-weight:400;font-size:.88rem;color:var(--text-secondary);margin-top:3px;line-height:1.5}.stack-row.lead{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+    .stream-card{border-top:4px solid var(--accent)}.stream-card.b{border-top-color:var(--accent-secondary)}.stream-card.c{border-top-color:var(--positive)}.stream-card .tag{font-family:'Inter';font-weight:850;font-size:.8rem;letter-spacing:.1em;color:var(--accent)}.stream-card.b .tag{color:var(--accent-secondary)}.stream-card.c .tag{color:var(--positive)}.stream-card h4{font-size:1.14rem;margin:8px 0 11px;font-weight:760}.stream-card .ql{font-size:.92rem;color:var(--text-secondary);line-height:1.6}
+    .tl{position:relative;padding-left:28px}.tl::before{content:'';position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--border)}.tl-item{position:relative;padding-bottom:24px}.tl-item::before{content:'';position:absolute;left:-28px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:3px solid var(--accent)}.tl-item.rel::before{border-color:var(--positive);background:color-mix(in srgb,var(--positive) 18%,var(--surface))}.tl-item .ph{font-family:'Inter';font-size:.76rem;font-weight:800;color:var(--accent);letter-spacing:.05em}.tl-item h5{font-size:1.02rem;font-weight:700;margin:2px 0 5px}.tl-item p{font-size:.9rem;color:var(--text-secondary);line-height:1.6}
+    .foot{border-top:1px solid var(--border);padding:32px 0 60px;color:var(--text-secondary);font-size:.85rem;line-height:1.6}.viz-menu{position:fixed;top:16px;right:16px;z-index:9999}.viz-menu-toggle{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(12px)}.viz-menu-dropdown{position:absolute;top:52px;right:0;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px;opacity:0;visibility:hidden;transform:translateY(-8px);transition:all .2s}.viz-menu-dropdown.open{opacity:1;visibility:visible;transform:translateY(0)}.viz-menu-dropdown button{width:100%;padding:10px 14px;border:none;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-family:inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px}.viz-menu-dropdown button:hover{background:var(--surface-hover)}
+    .skip-to-content{position:absolute;top:-40px;left:6px;background:var(--accent);color:white;padding:8px 12px;text-decoration:none;border-radius:4px;opacity:0;pointer-events:none;transition:all .2s;z-index:10000}.skip-to-content:focus{top:6px;opacity:1;pointer-events:auto}@keyframes fadeInUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}.animate{animation:fadeInUp .6s ease-out both}.animate.delay-1{animation-delay:.1s}.animate.delay-2{animation-delay:.2s}.animate.delay-3{animation-delay:.3s}.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}.reveal.visible{opacity:1;transform:translateY(0)}
+    @media(max-width:768px){.wrap{padding:0 16px}.grid{gap:14px}section{margin-bottom:48px}.callout{padding:20px}.hero{padding-top:64px}.stack-row{grid-template-columns:1fr;gap:4px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}@media print{body{background:white!important;color:black!important}.viz-menu{display:none}.reveal{opacity:1!important;transform:none!important}.card,.callout{break-inside:avoid;border:1px solid #ddd;box-shadow:none}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}}@page{margin:.8in}
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon">☀️</span><span id="themeLabel">Light</span></button>
+      <button onclick="downloadImage()"><span>PNG</span><span>Download</span></button>
+      <button onclick="window.print()"><span>PDF</span><span>Print</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <header class="hero">
+      <div class="wrap">
+        <span class="eyebrow animate"><span class="dot"></span>BAI 온보딩 · 학생용 사용 가이드</span>
+        <h1 class="animate delay-1">프로젝트와 자료실은 이렇게 쓴다</h1>
+        <p class="ko-q animate delay-2"><b>프로젝트는 내가 만든 결과물을 모으는 곳이고, 자료실은 모두가 다시 볼 안내와 참고자료를 모으는 곳이다.</b> 둘을 나눠두면 나중에 내 활동이 포트폴리오처럼 남고, 다음 사람도 더 빨리 시작할 수 있다.</p>
+        <p class="en-q animate delay-2">Projects preserve your outputs. Materials help everyone participate.</p>
+        <div class="hero-meta animate delay-3">
+          <div class="pill">피드 · <b>매주 활동 기록</b></div>
+          <div class="pill">프로젝트 · <b>결과물과 링크</b></div>
+          <div class="pill">자료실 · <b>공통 안내와 템플릿</b></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <section data-reveal>
+        <div class="sec-label">Core Rule</div>
+        <h2 class="sec-title">한 줄 원칙</h2>
+        <div class="callout">
+          <p class="q">내가 만든 결과물은 <b>프로젝트</b>에, 여러 사람이 참고할 안내와 템플릿은 <b>자료실</b>에 올린다.</p>
+          <p class="en">완성작과 데모는 프로젝트. 안내문과 공통 자료는 자료실.</p>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Three Places</div>
+        <h2 class="sec-title">어디에 무엇을 남길까</h2>
+        <div class="grid g3">
+          <div class="card stream-card"><span class="tag">FEED</span><h4>진행 기록</h4><p class="ql">이번 주 한 일, 막힌 점, 다음 할 일을 짧게 남긴다. 완성 전 과정도 기록한다.</p></div>
+          <div class="card stream-card b"><span class="tag">PROJECT</span><h4>결과물 보관</h4><p class="ql">웹페이지, repo, 데모 링크, 프로젝트 설명, 관련 피드 글을 한곳에 모은다.</p></div>
+          <div class="card stream-card c"><span class="tag">MATERIALS</span><h4>공통 자료</h4><p class="ql">온보딩, 참고 링크, 길드 규칙, 체크리스트, 발표 양식처럼 다시 볼 자료를 올린다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Student Workflow</div>
+        <h2 class="sec-title">프로젝트 등록 흐름</h2>
+        <div class="tl">
+          <div class="tl-item"><div class="ph">STEP 1</div><h5>프로젝트 만들기</h5><p>프로젝트 화면에서 제목, 길드, 간단한 설명을 적는다. 개인 프로젝트도 가능하다.</p></div>
+          <div class="tl-item"><div class="ph">STEP 2</div><h5>링크 연결하기</h5><p>GitHub repo, 데모 사이트, 문서 링크가 있으면 프로젝트에 붙인다. 아직 없으면 나중에 추가해도 된다.</p></div>
+          <div class="tl-item"><div class="ph">STEP 3</div><h5>피드 글 연결하기</h5><p>피드 글을 쓸 때 관련 프로젝트를 선택하면 프로젝트 페이지에 활동 기록이 쌓인다.</p></div>
+          <div class="tl-item rel"><div class="ph">STEP 4</div><h5>학기말 정리하기</h5><p>무엇을 만들었고, 어떻게 써봤고, 다음 사람이 무엇을 참고하면 되는지 정리한다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Material Workflow</div>
+        <h2 class="sec-title">자료실에 올리기 좋은 것</h2>
+        <div class="grid g4">
+          <div class="card"><h4>온보딩</h4><p>처음 온 사람이 읽고 바로 시작할 수 있는 안내.</p></div>
+          <div class="card"><h4>체크리스트</h4><p>결과물 제출 전 확인할 항목, 검증 방법, 발표 준비 목록.</p></div>
+          <div class="card"><h4>템플릿</h4><p>프롬프트, 회고 양식, 프로젝트 소개 양식, 발표 구조.</p></div>
+          <div class="card"><h4>참고자료</h4><p>길드에서 반복해서 보는 링크, 예시, 튜토리얼.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Examples</div>
+        <h2 class="sec-title">예시로 보면 쉽다</h2>
+        <div class="grid g2">
+          <div class="card"><h4>프로젝트 예시</h4><p>면접 연습 봇, 학과 행사 모음 페이지, 과제 정리 자동화, 뉴스 요약 대시보드, 길드 포트폴리오 사이트.</p></div>
+          <div class="card"><h4>자료실 예시</h4><p>첫 로그인 안내, 프로젝트 소개 템플릿, AI 결과 검증 체크리스트, 발표 준비 가이드, 길드 공통 링크 모음.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">What Not To Do</div>
+        <h2 class="sec-title">헷갈리지 말기</h2>
+        <div class="stack">
+          <div class="stack-row lead"><span class="k">완성작</span><span class="v">프로젝트에 등록<small>내가 만든 사이트, repo, 데모, 결과물 설명.</small></span></div>
+          <div class="stack-row"><span class="k">진행상황</span><span class="v">피드에 기록<small>이번 주 한 일, 막힌 점, 다음 할 일.</small></span></div>
+          <div class="stack-row"><span class="k">공통자료</span><span class="v">자료실에 보관<small>다른 사람도 반복해서 볼 안내와 템플릿.</small></span></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">First Step</div>
+        <h2 class="sec-title">지금 할 일</h2>
+        <div class="callout">
+          <p class="q">내가 만들고 싶은 결과물이 떠오르면 먼저 <b>프로젝트</b>를 만들고, 이번 주 진행 상황을 <b>피드</b>에 남긴다.</p>
+          <p class="en">완벽하게 정리된 뒤 시작하지 않아도 된다. 프로젝트는 만들면서 다듬으면 된다.</p>
+        </div>
+      </section>
+
+      <footer class="foot">BAI 학생용 프로젝트/자료실 사용 가이드.</footer>
+    </div>
+  </main>
+
+  <script>
+    function toggleMenu(){var d=document.getElementById('vizMenuDropdown');if(d)d.classList.toggle('open');}
+    document.addEventListener('click',function(e){if(!e.target.closest('.viz-menu')){var d=document.getElementById('vizMenuDropdown');if(d)d.classList.remove('open');}});
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'){var d=document.getElementById('vizMenuDropdown');if(d)d.classList.remove('open');}});
+    var savedTheme=localStorage.getItem('viz-theme');
+    var currentTheme=savedTheme||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    function applyTheme(t){document.documentElement.className='theme-'+t;document.getElementById('themeIcon').textContent=t==='dark'?'🌙':'☀️';document.getElementById('themeLabel').textContent=t==='dark'?'Dark':'Light';localStorage.setItem('viz-theme',t);currentTheme=t;}
+    function cycleTheme(){applyTheme(currentTheme==='dark'?'light':'dark');}
+    applyTheme(currentTheme);
+    document.querySelectorAll('[data-reveal]').forEach(function(el){el.classList.add('reveal');});
+    var revealObserver=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');revealObserver.unobserve(e.target);}});},{threshold:.1});
+    document.querySelectorAll('.reveal').forEach(function(el){revealObserver.observe(el);});
+    async function downloadImage(){var menu=document.querySelector('.viz-menu');menu.style.display='none';try{var url=await htmlToImage.toPng(document.body,{quality:1,pixelRatio:2,filter:function(n){return !n.classList||!n.classList.contains('viz-menu');}});var a=document.createElement('a');a.href=url;a.download='bai-project-material-guide.png';a.click();}catch(e){console.error('Download failed:',e);}menu.style.display='';}
+  </script>
+</body>
+</html>

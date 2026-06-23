@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>검색 — BAI 피드</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+</head>
+<body>
+  <div id="nav"></div>
+  <div class="container">
+    <div class="content">
+    <div class="searchbar">
+      <input id="q" placeholder="검색어 (예: 검증셋 누수, GAN)">
+      <button class="primary" id="btn">검색</button>
+    </div>
+    <h2 class="page-title muted" id="title"></h2>
+    <div id="feed"></div>
+    </div>
+  </div>
+  <script src="/static/feed.js?v=20260601d"></script>
+  <script>
+    let me = null;
+    async function run() {
+      const q = document.getElementById("q").value.trim();
+      if (!q) return;
+      history.replaceState(null, "", "/search?q=" + encodeURIComponent(q));
+      const r = await fetch("/api/search?q=" + encodeURIComponent(q));
+      const d = await r.json();
+      document.getElementById("title").textContent = `"${q}" 결과 ${d.posts.length}건`;
+      document.getElementById("feed").innerHTML =
+        d.posts.length ? d.posts.map(p => cardHtml(p, me)).join("")
+                       : "<p class='muted'>결과가 없어요.</p>";
+      document.querySelectorAll(".reactBtn").forEach(b =>
+        b.onclick = () => toggleReact(b.dataset.id, b));
+    }
+    async function load() {
+      me = await getMe();
+      if (!me) return;
+      document.getElementById("nav").innerHTML = feedSidebar("search", me && me.role === "pi");
+      document.querySelector(".side").insertAdjacentHTML("beforeend",
+        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+      document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
+      document.getElementById("btn").onclick = run;
+      document.getElementById("q").addEventListener("keydown", e => {
+        if (e.key === "Enter") run();
+      });
+      const q0 = new URLSearchParams(location.search).get("q");
+      if (q0) { document.getElementById("q").value = q0; run(); }
+    }
+    load();
+  </script>
+</body>
+</html>

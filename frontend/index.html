@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BAI 피드</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+</head>
+<body>
+  <div id="nav"></div>
+  <div class="container">
+    <div class="home">
+      <div class="feed">
+        <div class="bar"><h1>전체 피드</h1><button class="writebtn" id="newBtn">✍️ 글쓰기</button></div>
+        <div class="editor hidden" id="editor">
+          <label>📌 한 일/결과</label><textarea id="did"></textarea>
+          <label>💡 배운 것</label><textarea id="learned"></textarea>
+          <label>❓ 막힌 점/질문</label><textarea id="blocked"></textarea>
+          <input class="tags" id="tags" placeholder="태그 (예: 논문 실험)">
+          <input class="tags" id="links" placeholder="산출물 링크 (GitHub·데모, 공백 구분)">
+          <button class="primary" id="submitBtn" style="margin-left:0">올리기</button>
+        </div>
+        <div class="filters" id="filters">
+          <button data-f="all" class="active">전체</button>
+          <button data-f="mine">내 글</button>
+          <button data-f="blocked">막힌 질문 ❓</button>
+        </div>
+        <div id="feed"></div>
+      </div>
+      <div class="rail" id="rail"></div>
+    </div>
+  </div>
+  <script src="/static/feed.js?v=20260601d"></script>
+  <script>
+    let ME = null, ALL = [], FILTER = "all";
+
+    function render() {
+      let list = ALL;
+      if (FILTER === "mine") list = ALL.filter(p => p.author_id === ME.id);
+      else if (FILTER === "blocked") list = ALL.filter(p => p.blocked);
+      document.getElementById("feed").innerHTML = list.length
+        ? list.map(p => cardHtml(p, ME)).join("")
+        : '<div class="card muted">글이 없습니다.</div>';
+      document.querySelectorAll(".reactBtn").forEach(b => b.onclick = () => toggleReact(b.dataset.id, b));
+    }
+
+    async function buildRail() {
+      const rail = document.getElementById("rail");
+      let html = "";
+      // 이번 주 보고
+      const w = await fetch("/api/weekly").then(r => r.ok ? r.json() : null).catch(() => null);
+      if (w && w.total) {
+        const miss = w.missing.map(m => `<a class="miss" href="/member/${m.id}">${esc(m.name)}</a>`).join(" ");
+        html += `<div class="w"><h3>📋 이번 주 보고</h3><div class="statbig"><span class="n">${w.reported_count}</span><span class="of">/ ${w.total}명</span></div>
+          <div style="margin-top:6px">${w.missing.length ? '<span class="muted" style="font-size:.76rem">미보고</span><br>' + miss : '<span class="muted" style="font-size:.8rem">🎉 전원 보고</span>'}</div></div>`;
+      }
+      // 미해결 질문
+      const q = await fetch("/api/questions").then(r => r.ok ? r.json() : null).catch(() => null);
+      const qs = (q && q.posts || []).slice(0, 4);
+      if (qs.length) {
+        html += `<div class="w"><h3>❓ 미해결 질문</h3>` + qs.map(p =>
+          `<div class="it"><a href="/post/${p.id}" style="text-decoration:none"><b>${esc((p.blocked || "").slice(0, 28))}</b></a><br><span class="muted">${esc(p.author_name)}</span></div>`).join("") + `</div>`;
+      }
+      // 인기 태그
+      const counts = {};
+      ALL.forEach(p => (p.tags || "").split(/[,\s]+/).filter(Boolean).forEach(t => counts[t] = (counts[t] || 0) + 1));
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+      if (top.length) {
+        html += `<div class="w"><h3>🔥 인기 태그</h3><div class="tc">` +
+          top.map(([t]) => `<a href="/tag/${encodeURIComponent(t)}">${esc(t)}</a>`).join("") + `</div></div>`;
+      }
+      rail.innerHTML = html;
+    }
+
+    async function load() {
+      ME = await getMe();
+      if (!ME) { location.href = "/login"; return; }
+      document.getElementById("nav").innerHTML = feedSidebar("home", ME.role === "pi");
+      document.querySelector(".side").insertAdjacentHTML("beforeend",
+        `<div class="who">👤 ${esc(ME.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+      document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout", { method: "POST" }); location.href = "/login"; };
+      const r = await fetch("/api/feed");
+      ALL = await r.json();
+      render();
+      buildRail();
+    }
+
+    document.getElementById("newBtn").onclick = () => document.getElementById("editor").classList.toggle("hidden");
+    document.getElementById("submitBtn").onclick = async () => {
+      const payload = {
+        did: document.getElementById("did").value.trim(),
+        learned: document.getElementById("learned").value.trim(),
+        blocked: document.getElementById("blocked").value.trim(),
+        tags: document.getElementById("tags").value.trim(),
+        links: document.getElementById("links").value.trim()
+      };
+      if (!payload.did && !payload.learned && !payload.blocked) { alert("내용을 입력하세요."); return; }
+      const r = await fetch("/api/web/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (r.ok) location.reload();
+    };
+    document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
+      document.querySelectorAll("#filters button").forEach(x => x.classList.remove("active"));
+      b.classList.add("active"); FILTER = b.dataset.f; render();
+    });
+
+    load();
+  </script>
+</body>
+</html>

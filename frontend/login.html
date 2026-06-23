@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BAI 피드 — 로그인</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260611a">
+</head>
+<body style="display:block">
+  <div class="login-box">
+    <h1>🤖 BAI 피드</h1>
+    <div class="login-note">
+      <b>계정은 운영자가 발급합니다.</b>
+      <span>진행 공유는 로그인한 BAI 멤버에게 보입니다.</span>
+      <span>매주 한 번, 한 일·배운 것·막힌 점 중 하나만 짧게 남기면 됩니다.</span>
+    </div>
+    <input id="name" placeholder="이름" autocomplete="username">
+    <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button class="primary" id="loginBtn">로그인</button>
+    <p id="err" class="err"></p>
+  </div>
+  <script>
+    document.getElementById("loginBtn").onclick = async () => {
+      const name = document.getElementById("name").value.trim();
+      const password = document.getElementById("pw").value;
+      const r = await fetch("/api/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password })
+      });
+      if (r.ok) {
+        const me = await r.json();
+        location.href = (me.role === "pi" || me.role === "professor") ? "/cockpit" : "/";
+      }
+      else { document.getElementById("err").textContent = "이름 또는 비밀번호가 틀렸습니다."; }
+    };
+    document.getElementById("pw").addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("loginBtn").click();
+    });
+  </script>
+</body>
+</html>

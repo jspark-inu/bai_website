@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>멤버 — BAI 피드</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+</head>
+<body>
+  <div id="nav"></div>
+  <div class="container">
+    <div class="content">
+    <h2 class="page-title">👥 멤버</h2>
+    <div class="member-grid" id="grid"></div>
+    </div>
+  </div>
+  <script src="/static/feed.js?v=20260601d"></script>
+  <script>
+    async function load() {
+      const me = await getMe();
+      if (!me) return;
+      document.getElementById("nav").innerHTML = feedSidebar("members", me && me.role === "pi");
+      document.querySelector(".side").insertAdjacentHTML("beforeend",
+        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+      document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
+      const rows = await (await fetch("/api/members")).json();
+      document.getElementById("grid").innerHTML = rows.map(m => {
+        const last = m.last_post_at ? ("최근 " + m.last_post_at.slice(0, 10)) : "아직 글 없음";
+        return `<a class="member-card" href="/member/${m.id}">
+          <div class="name">👤 ${esc(m.name)}${m.role === "pi" ? " 🎓" : ""}</div>
+          <div class="stat">글 ${m.post_count}개 · ${esc(last)}</div>
+        </a>`;
+      }).join("");
+    }
+    load();
+  </script>
+</body>
+</html>

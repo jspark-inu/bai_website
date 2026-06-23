@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>프로필 — BAI 피드</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+</head>
+<body>
+  <div id="nav"></div>
+  <div class="container">
+    <div class="content">
+    <div id="profile"></div>
+    <div class="journey-label">📜 진행 여정 (처음 → 최근)</div>
+    <div id="journey"></div>
+    </div>
+  </div>
+  <script src="/static/feed.js?v=20260601d"></script>
+  <script>
+    const MID = parseInt(location.pathname.split("/").pop(), 10);
+
+    async function load() {
+      const me = await getMe();
+      if (!me) return;
+      document.getElementById("nav").innerHTML = feedSidebar("", me && me.role === "pi");
+      document.querySelector(".side").insertAdjacentHTML("beforeend",
+        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+      document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
+      const r = await fetch(`/api/member/${MID}`);
+      if (!r.ok) { document.getElementById("profile").textContent = "멤버를 찾을 수 없습니다."; return; }
+      const d = await r.json();
+
+      const tags = Object.entries(d.tag_counts || {})
+        .map(([t, n]) => `<span class="tag">#${esc(t)} ${n}</span>`).join(" ");
+      const span = d.first_post_at
+        ? `${esc(d.first_post_at.slice(0,10))} ~ ${esc(d.last_post_at.slice(0,10))}`
+        : "아직 글 없음";
+      document.getElementById("profile").innerHTML = `
+        <div class="profile-head">
+          <h2>👤 ${esc(d.member.name)}</h2>
+          <div class="meta">글 ${d.post_count}개 · ${span}${d.member.role === "pi" ? " · 지도교수" : ""}</div>
+          <div class="tags">${tags}</div>
+        </div>`;
+
+      // 여정: 처음→최근 순. cardHtml은 me 기준 '수정' 링크만 다르므로 그대로 재사용.
+      document.getElementById("journey").innerHTML =
+        d.posts.length ? d.posts.map(p => cardHtml(p, me)).join("")
+                       : "<p style='color:#6e6e73'>아직 올린 글이 없어요.</p>";
+      document.querySelectorAll(".reactBtn").forEach(b =>
+        b.onclick = () => toggleReact(b.dataset.id, b));
+    }
+
+    load();
+  </script>
+</body>
+</html>

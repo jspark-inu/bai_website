@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>미해결 질문 — BAI 피드</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+</head>
+<body>
+  <div id="nav"></div>
+  <div class="container">
+    <div class="content">
+    <h2 class="page-title">❓ 아직 답 없는 질문</h2>
+    <p class="muted" style="margin-top:-8px">막혔는데 아직 댓글이 없는 글이에요. 아는 게 있으면 답을 달아주세요.</p>
+    <div id="feed"></div>
+    </div>
+  </div>
+  <script src="/static/feed.js?v=20260601d"></script>
+  <script>
+    async function load() {
+      const me = await getMe();
+      if (!me) return;
+      document.getElementById("nav").innerHTML = feedSidebar("questions", me && me.role === "pi");
+      document.querySelector(".side").insertAdjacentHTML("beforeend",
+        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+      document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
+      const r = await fetch("/api/questions");
+      const d = await r.json();
+      document.getElementById("feed").innerHTML =
+        d.posts.length ? d.posts.map(p => cardHtml(p, me)).join("")
+                       : "<p class='muted'>🎉 미해결 질문이 없어요. 모두 답을 받았네요!</p>";
+      document.querySelectorAll(".reactBtn").forEach(b =>
+        b.onclick = () => toggleReact(b.dataset.id, b));
+    }
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>태그 — BAI 피드</title>
+  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+</head>
+<body>
+  <div id="nav"></div>
+  <div class="container">
+    <div class="content">
+    <h2 class="page-title" id="title"></h2>
+    <div id="feed"></div>
+    </div>
+  </div>
+  <script src="/static/feed.js?v=20260601d"></script>
+  <script>
+    const TAG = decodeURIComponent(location.pathname.split("/").pop());
+    async function load() {
+      const me = await getMe();
+      if (!me) return;
+      document.getElementById("nav").innerHTML = feedSidebar("", me && me.role === "pi");
+      document.querySelector(".side").insertAdjacentHTML("beforeend",
+        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+      document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
+      document.getElementById("title").textContent = "#" + TAG;
+      const r = await fetch(`/api/tag/${encodeURIComponent(TAG)}`);
+      const d = await r.json();
+      document.getElementById("feed").innerHTML =
+        d.posts.length ? d.posts.map(p => cardHtml(p, me)).join("")
+                       : "<p class='muted'>이 태그의 글이 아직 없어요.</p>";
+      document.querySelectorAll(".reactBtn").forEach(b =>
+        b.onclick = () => toggleReact(b.dataset.id, b));
+    }
+    load();
+  </script>
+</body>
+</html>

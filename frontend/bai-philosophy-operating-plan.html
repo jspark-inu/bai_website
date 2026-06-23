@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko" class="theme-light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAI 운영 철학과 길드 확장 계획</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html.theme-dark{--bg:#0A0A0A;--surface:#141414;--surface-hover:#1C1C1C;--border:rgba(255,255,255,.08);--text:#EDEDED;--text-secondary:#9A9A9A;--accent:#3b82f6;--accent-secondary:#14b8a6;--positive:#10b981;--negative:#f43f5e;--warning:#f59e0b}
+    html.theme-light{--bg:#FAFAF9;--surface:#FFFFFF;--surface-hover:#F5F5F4;--border:rgba(0,0,0,.08);--text:#0f172a;--text-secondary:#64748b;--accent:#2563eb;--accent-secondary:#0f766e;--positive:#059669;--negative:#e11d48;--warning:#d97706}
+    body{font-family:'Noto Sans KR','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.65;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;transition:background .3s,color .3s;scrollbar-gutter:stable}
+    @media(max-width:375px){body{overflow-x:hidden}}
+    h1,h2,h3,h4{color:var(--text);letter-spacing:-.03em;line-height:1.12;text-wrap:balance}
+    h1{font-weight:850;font-size:3rem}h2{font-weight:760;font-size:2rem}h3{font-weight:700;font-size:1.32rem}
+    p,li,td,th,span,label{color:var(--text)}
+    code{font-family:'Inter',monospace;font-size:.92em;background:var(--surface-hover);padding:1px 6px;border-radius:5px;letter-spacing:0}
+    .wrap{max-width:1120px;margin:0 auto;padding:0 24px}section{margin-bottom:62px}
+    .sec-label{font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;font-family:'Inter'}
+    .sec-title{font-size:1.8rem;font-weight:760;margin-bottom:8px}.sec-sub{color:var(--text-secondary);font-size:1rem;margin-bottom:26px;max-width:780px}
+    .hero{padding:82px 0 54px;position:relative}.hero::before{content:'';position:absolute;inset:0;z-index:-1;background:radial-gradient(980px 420px at 20% -10%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 72%)}
+    .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700;color:var(--accent);border:1px solid var(--border);background:var(--surface);padding:6px 14px;border-radius:999px;margin-bottom:22px;letter-spacing:.02em}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--positive)}.hero h1{font-size:clamp(2.35rem,6vw,4rem);max-width:900px}
+    .hero .ko-q{font-size:clamp(1.06rem,2.25vw,1.38rem);font-weight:500;color:var(--text);margin-top:24px;max-width:900px;line-height:1.58}
+    .hero .en-q{font-size:1rem;color:var(--text-secondary);margin-top:12px;max-width:880px}
+    .hero-meta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}.pill{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:.9rem}.pill b{color:var(--accent)}
+    .grid{display:grid;gap:20px}.g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:23px;transition:box-shadow .2s ease,border-color .2s ease}.card:hover{box-shadow:0 8px 24px rgba(0,0,0,.07);border-color:var(--accent)}
+    .card h4{font-size:1.04rem;font-weight:760;margin-bottom:7px}.card p{font-size:.92rem;color:var(--text-secondary);line-height:1.58}
+    .callout{border:1px solid var(--border);border-left:4px solid var(--accent);background:var(--surface);border-radius:12px;padding:24px 28px}.callout .q{font-size:1.22rem;font-weight:650;line-height:1.55}.callout .en{color:var(--text-secondary);margin-top:12px;font-size:.98rem}
+    .stack{display:grid;gap:10px}.stack-row{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 22px}.stack-row .k{font-size:.82rem;font-weight:800;color:var(--accent);letter-spacing:.02em;font-family:'Inter'}.stack-row .v{font-weight:650;font-size:1.05rem}.stack-row .v small{display:block;font-weight:400;font-size:.88rem;color:var(--text-secondary);margin-top:3px;letter-spacing:0;line-height:1.5}.stack-row.lead{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+    @media(max-width:560px){.stack-row{grid-template-columns:1fr;gap:4px}}
+    .stream-card{border-top:4px solid var(--accent)}.stream-card.b{border-top-color:var(--accent-secondary)}.stream-card.c{border-top-color:var(--positive)}.stream-card .tag{font-family:'Inter';font-weight:850;font-size:.8rem;letter-spacing:.1em;color:var(--accent)}.stream-card.b .tag{color:var(--accent-secondary)}.stream-card.c .tag{color:var(--positive)}.stream-card h4{font-size:1.14rem;margin:8px 0 11px;font-weight:760}.stream-card .ql{font-size:.92rem;color:var(--text-secondary);line-height:1.6}
+    .tl{position:relative;padding-left:28px}.tl::before{content:'';position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--border)}.tl-item{position:relative;padding-bottom:24px}.tl-item::before{content:'';position:absolute;left:-28px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:3px solid var(--accent)}.tl-item.rel::before{border-color:var(--positive);background:color-mix(in srgb,var(--positive) 18%,var(--surface))}.tl-item .ph{font-family:'Inter';font-size:.76rem;font-weight:800;color:var(--accent);letter-spacing:.05em}.tl-item h5{font-size:1.02rem;font-weight:700;margin:2px 0 5px}.tl-item p{font-size:.9rem;color:var(--text-secondary);line-height:1.6}
+    .tier{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px}.tier.hi{border-color:color-mix(in srgb,var(--positive) 48%,var(--border))}.tier.kill{border-color:color-mix(in srgb,var(--negative) 36%,var(--border))}.tier h4{font-size:1.02rem;font-weight:750;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.tier .desc{font-size:.9rem;color:var(--text-secondary);line-height:1.6}.tier .lvl{font-size:.7rem;font-weight:850;padding:3px 8px;border-radius:5px;background:color-mix(in srgb,var(--positive) 16%,transparent);color:var(--positive)}
+    .role-card .rk{font-size:.72rem;font-weight:800;letter-spacing:.06em;color:var(--accent);font-family:'Inter';margin-bottom:6px}.role-card.adv{border-color:color-mix(in srgb,var(--accent-secondary) 42%,var(--border))}.role-card.adv .rk{color:var(--accent-secondary)}
+    .foot{border-top:1px solid var(--border);padding:32px 0 60px;color:var(--text-secondary);font-size:.85rem;line-height:1.6}.foot span,.foot code{color:var(--text-secondary)}
+    .viz-menu{position:fixed;top:16px;right:16px;z-index:9999}.viz-menu-toggle{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(12px);transition:all .2s}.viz-menu-dropdown{position:absolute;top:52px;right:0;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px;opacity:0;visibility:hidden;transform:translateY(-8px);transition:all .2s;backdrop-filter:blur(16px)}.viz-menu-dropdown.open{opacity:1;visibility:visible;transform:translateY(0)}.viz-menu-dropdown button{width:100%;padding:10px 14px;border:none;border-radius:8px;background:transparent;color:var(--text);font-size:14px;font-family:inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px}.viz-menu-dropdown button:hover{background:var(--surface-hover)}
+    .skip-to-content{position:absolute;top:-40px;left:6px;background:var(--accent);color:white;padding:8px 12px;text-decoration:none;border-radius:4px;opacity:0;pointer-events:none;transition:all .2s;z-index:10000}.skip-to-content:focus{top:6px;opacity:1;pointer-events:auto}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}.animate{animation:fadeInUp .6s ease-out both}.animate.delay-1{animation-delay:.1s}.animate.delay-2{animation-delay:.2s}.animate.delay-3{animation-delay:.3s}.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}.reveal.visible{opacity:1;transform:translateY(0)}
+    @media(max-width:768px){.wrap{padding:0 16px}.grid{gap:14px}section{margin-bottom:48px}.callout{padding:20px}.hero{padding-top:64px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}@media print{body{background:white!important;color:black!important}.viz-menu{display:none}.reveal{opacity:1!important;transform:none!important}.card,.tier,.callout{break-inside:avoid;border:1px solid #ddd;box-shadow:none}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}}@page{margin:.8in}
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-to-content">Skip to content</a>
+  <div class="viz-menu">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+    </button>
+    <div class="viz-menu-dropdown" id="vizMenuDropdown">
+      <button onclick="cycleTheme()"><span id="themeIcon">☀️</span><span id="themeLabel">Light</span></button>
+      <button onclick="downloadImage()"><span>PNG</span><span>Download</span></button>
+      <button onclick="window.print()"><span>PDF</span><span>Print</span></button>
+    </div>
+  </div>
+
+  <main id="main-content" role="main">
+    <header class="hero">
+      <div class="wrap">
+        <span class="eyebrow animate"><span class="dot"></span>BAI 온보딩 · 처음 읽는 안내서</span>
+        <h1 class="animate delay-1">BAI는 무엇을 하는 곳인가</h1>
+        <p class="ko-q animate delay-2"><b>BAI는 AI 도구를 구경하는 동아리가 아니다.</b> 각자 관심 있는 문제를 고르고, AI를 써서 실제 결과물을 만들고, 그 결과를 포트폴리오와 다음 기수의 자산으로 남기는 시즌제 길드다.</p>
+        <p class="en-q animate delay-2">Pick a real problem. Build with AI. Share what worked. Leave useful assets behind.</p>
+        <div class="hero-meta animate delay-3">
+          <div class="pill">한 학기 목표 · <b>내 결과물 1개</b></div>
+          <div class="pill">운영 방식 · <b>공통 학습 + 길드 프로젝트</b></div>
+          <div class="pill">기록 위치 · <b>피드, 프로젝트, 자료실</b></div>
+          <div class="pill">다음 기수 · <b>자산 위에서 더 빨리 시작</b></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <section data-reveal>
+        <div class="sec-label">One Sentence</div>
+        <h2 class="sec-title">한 줄로 말하면</h2>
+        <div class="callout">
+          <p class="q">BAI는 <b>같은 AI-native 역량</b>을 배우고, <b>각자의 관심 문제</b>를 AI로 해결해서, <b>보여줄 수 있는 결과물</b>로 남기는 곳이다.</p>
+          <p class="en">주제는 다 달라도 된다. 다만 결과물은 실제로 남아야 한다.</p>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Promise</div>
+        <h2 class="sec-title">한 학기 후 너에게 남는 것</h2>
+        <p class="sec-sub">BAI의 목표는 "열심히 참여했다"가 아니라, 나중에 보여줄 수 있는 결과물을 남기는 것이다.</p>
+        <div class="grid g4">
+          <div class="card"><h4>돌아가는 결과물</h4><p>봇, 대시보드, 자동화, 웹페이지, 분석 리포트, 워크플로우 중 하나.</p></div>
+          <div class="card"><h4>검증 기록</h4><p>AI가 잘한 것, 틀린 것, 다시 시켜서 나아진 과정을 남긴다.</p></div>
+          <div class="card"><h4>포트폴리오 1장</h4><p>처음 보는 사람이 30초 안에 이해할 수 있게 정리한다.</p></div>
+          <div class="card"><h4>다음 시작점</h4><p>다음 기수나 친구가 가져다 쓸 수 있는 자료를 남긴다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">How It Works</div>
+        <h2 class="sec-title">BAI는 이렇게 움직인다</h2>
+        <p class="sec-sub">먼저 만들고 싶은 것을 정하고, 비슷한 사람끼리 묶이고, 공통 방법을 배워 각자 적용한다.</p>
+        <div class="stack">
+          <div class="stack-row lead"><span class="k">1. Quest</span><span class="v">이번 학기에 내가 만들고 싶은 것 정하기<small>예: 면접 연습 봇, 과제 정리 자동화, 학과 정보 대시보드, 투자 리서치 템플릿.</small></span></div>
+          <div class="stack-row"><span class="k">2. Guild</span><span class="v">비슷한 관심을 가진 사람끼리 길드 만들기<small>길드는 팀 이름에 가깝다. 혼자 하고 싶으면 solo quest도 가능하다.</small></span></div>
+          <div class="stack-row"><span class="k">3. Common Skill</span><span class="v">모든 길드가 공통으로 AI 사용법 배우기<small>에이전트에게 일 맡기기, 자료 정리, 검증, 발표, 기록 방식을 같이 익힌다.</small></span></div>
+          <div class="stack-row"><span class="k">4. Build</span><span class="v">각자 자기 문제에 적용해서 결과물 만들기<small>완벽한 서비스가 아니라, 실제로 써보고 설명할 수 있는 결과물이 목표다.</small></span></div>
+          <div class="stack-row"><span class="k">5. Share</span><span class="v">피드와 프로젝트 페이지에 기록하기<small>무엇을 했고, 무엇이 막혔고, 다음에 뭘 할지 남긴다.</small></span></div>
+          <div class="stack-row"><span class="k">6. Release</span><span class="v">학기말에 보여줄 수 있게 정리하기<small>결과물, 사용법, 검증 기록, 다음 사람이 가져갈 자료를 묶는다.</small></span></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Where To Post</div>
+        <h2 class="sec-title">피드, 프로젝트, 자료실은 이렇게 쓴다</h2>
+        <div class="grid g3">
+          <div class="card stream-card"><span class="tag">FEED</span><h4>매주 활동 기록</h4><p class="ql">이번 주 한 일, 막힌 점, 다음 할 일을 짧게 쓴다. 완성된 결과만 올리는 곳이 아니라 진행을 남기는 곳이다.</p></div>
+          <div class="card stream-card b"><span class="tag">PROJECT</span><h4>내 결과물의 집</h4><p class="ql">길드나 개인 프로젝트를 만들고, repo/site 링크와 관련 피드 글을 연결한다. 나중에 포트폴리오처럼 볼 수 있다.</p></div>
+          <div class="card stream-card c"><span class="tag">MATERIALS</span><h4>공통 자료 창고</h4><p class="ql">온보딩, 참고자료, 길드 규칙, 템플릿처럼 여러 사람이 다시 볼 자료를 올린다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">What We Learn Together</div>
+        <h2 class="sec-title">공통으로 배우는 AI-native 기본기</h2>
+        <p class="sec-sub">주제는 자유지만, AI와 일하는 기본기는 같이 익힌다.</p>
+        <div class="grid g3">
+          <div class="card"><h4>일 맡기기</h4><p>챗봇처럼 질문만 하는 게 아니라, 폴더와 파일을 주고 실제 일을 맡기는 법을 배운다.</p></div>
+          <div class="card"><h4>스펙 쓰기</h4><p>AI가 헷갈리지 않게 목표, 기준, 예시, 금지사항을 설명하는 법을 익힌다.</p></div>
+          <div class="card"><h4>자료 정리</h4><p>흩어진 링크, PDF, 메모를 AI가 다시 쓸 수 있는 형태로 정리한다.</p></div>
+          <div class="card"><h4>검증하기</h4><p>AI가 "다 했다"고 말해도 진짜 됐는지 실행, 대조, 출처 확인으로 점검한다.</p></div>
+          <div class="card"><h4>반복 절차 만들기</h4><p>한 번 잘된 방법을 프롬프트, 체크리스트, 템플릿으로 남긴다.</p></div>
+          <div class="card"><h4>설명하기</h4><p>내가 만든 것을 남이 이해하고 써볼 수 있게 정리한다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Roles</div>
+        <h2 class="sec-title">역할은 등급이 아니라 이번에 맡는 모드다</h2>
+        <p class="sec-sub">처음부터 잘할 필요 없다. 같은 프로젝트 안에서도 각자 할 수 있는 방식으로 기여하면 된다.</p>
+        <div class="grid g3">
+          <div class="card role-card"><div class="rk">USE</div><h4>써보기</h4><p>AI를 직접 써서 결과를 만들고, 잘된 점과 불편한 점을 남긴다.</p></div>
+          <div class="card role-card"><div class="rk">EXPLORE</div><h4>찾아보기</h4><p>문제, 사례, 자료, 비슷한 도구를 찾는다.</p></div>
+          <div class="card role-card"><div class="rk">DESIGN</div><h4>설계하기</h4><p>어떤 입력을 주고 어떤 결과를 받을지 흐름을 짠다.</p></div>
+          <div class="card role-card"><div class="rk">BUILD</div><h4>만들기</h4><p>웹페이지, 봇, 자동화, 대시보드처럼 돌아가는 형태로 만든다.</p></div>
+          <div class="card role-card adv"><div class="rk">VALIDATE</div><h4>검증하기</h4><p>AI가 틀린 곳, 위험한 곳, 출처가 약한 곳을 찾아낸다.</p></div>
+          <div class="card role-card"><div class="rk">STORY</div><h4>정리하기</h4><p>결과물을 포트폴리오, 발표, 자료실 문서로 정리한다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Season Flow</div>
+        <h2 class="sec-title">한 학기 흐름</h2>
+        <div class="tl">
+          <div class="tl-item"><div class="ph">처음</div><h5>내 quest 정하기</h5><p>"이번 학기 끝에 내 포트폴리오에 어떤 AI 결과물을 넣고 싶지?"에 답한다.</p></div>
+          <div class="tl-item"><div class="ph">초반</div><h5>공통 기본기 익히기</h5><p>AI에게 일 맡기기, 자료 정리, 검증, 피드 기록 방식을 배운다.</p></div>
+          <div class="tl-item"><div class="ph">중반</div><h5>길드 프로젝트 만들기</h5><p>비슷한 관심을 가진 사람들과 만들고, 매주 피드에 진행을 남긴다.</p></div>
+          <div class="tl-item"><div class="ph">후반</div><h5>결과물 다듬기</h5><p>실제로 써보고, 부족한 점을 고치고, 설명 가능한 형태로 정리한다.</p></div>
+          <div class="tl-item rel"><div class="ph">마지막</div><h5>Release</h5><p>결과물을 공개하고, 다음 사람이 다시 쓸 수 있는 자료를 남긴다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Legacy Asset</div>
+        <h2 class="sec-title">다음 기수에게 남기는 것</h2>
+        <div class="callout">
+          <p class="q">BAI에서 legacy는 "이 프로젝트 이어서 해라"가 아니다. <b>"이 자료를 참고해서 네 프로젝트를 더 빨리 시작해라"</b>다.</p>
+          <p class="en">부담을 넘기는 것이 아니라, 출발선을 앞으로 당겨주는 것이다.</p>
+        </div>
+        <div class="grid g3" style="margin-top:20px;">
+          <div class="card"><h4>템플릿</h4><p>프롬프트, 체크리스트, 작업 흐름, 발표 양식.</p></div>
+          <div class="card"><h4>사례</h4><p>어떤 문제를 어떻게 풀었는지 보여주는 데모와 설명.</p></div>
+          <div class="card"><h4>주의점</h4><p>AI가 틀렸던 지점, 검증 방법, 다음에 바꿀 점.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Season Ladder</div>
+        <h2 class="sec-title">한 학기로 끝나지 않는다</h2>
+        <p class="sec-sub">BAI의 성장 구조는 1기, 2기, 3기라는 단순 기수 구분이 아니라 <b>시즌 1 → 시즌 2 → 시즌 3+</b> 사다리다. 목표는 Cornell AppDev처럼 학생들이 만든 서비스를 학과에서 시작해 학교 안에서 실제로 운영하는 것이다.</p>
+        <div class="grid g3">
+          <div class="tier hi"><h4><span class="lvl">시즌 1</span> 만든다</h4><p class="desc">내 관심 문제로 포트폴리오 산출물을 만든다. 핵심은 "보여줄 것"이 생기는 것이다.</p></div>
+          <div class="tier hi"><h4><span class="lvl">시즌 2</span> 학과에서 굴린다</h4><p class="desc">길드의 산출물이 학과에서 실제로 쓰이는 서비스가 된다. 후배가 사용자이고, 쓰는 사람과 찍히는 숫자가 생긴다.</p></div>
+          <div class="tier hi"><h4><span class="lvl">시즌 3+</span> 학교 서비스로 운영한다</h4><p class="desc">학과에서 검증된 서비스를 학교 안에서 계속 운영한다. 목표는 학생들이 만든 서비스가 실제 학생들의 학교생활 인프라가 되는 것이다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">Not BAI</div>
+        <h2 class="sec-title">BAI가 아닌 것</h2>
+        <div class="grid g2">
+          <div class="tier kill"><h4>AI 도구 체험반이 아니다</h4><p class="desc">새 도구를 구경만 하고 끝나는 활동이 아니다. 써보고 결과를 남겨야 한다.</p></div>
+          <div class="tier kill"><h4>누군가의 보조팀이 아니다</h4><p class="desc">BAI의 기본 활동은 각자 자기 문제를 정하고, 자기 결과물을 만드는 것이다.</p></div>
+          <div class="tier kill"><h4>출석 관리 동아리가 아니다</h4><p class="desc">핵심은 고정 출석보다 피드 업데이트, 결과물, 공유다.</p></div>
+          <div class="tier kill"><h4>유지보수 강제 조직이 아니다</h4><p class="desc">선배 프로젝트를 억지로 떠맡기지 않는다. 자료를 참고해서 자기 프로젝트를 시작한다.</p></div>
+        </div>
+      </section>
+
+      <section data-reveal>
+        <div class="sec-label">First Step</div>
+        <h2 class="sec-title">지금 할 일</h2>
+        <div class="callout">
+          <p class="q">먼저 BAI에 로그인하고, 피드에 <b>"이번 학기 내가 AI로 만들어보고 싶은 것"</b>을 한 문장으로 남긴다.</p>
+          <p class="en">답이 완벽하지 않아도 된다. 그 문장을 같이 다듬는 것부터 BAI가 시작된다.</p>
+        </div>
+      </section>
+    </div>
+
+    <footer class="foot">
+      <div class="wrap">
+        BAI 학생용 온보딩 문서.<br>
+        <span>핵심 공식 = 관심 문제 + AI-native 기본기 + 길드 프로젝트 + 피드 기록 + 학기말 release + 다음 기수를 위한 asset.</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    function toggleMenu(){var d=document.getElementById('vizMenuDropdown');if(d)d.classList.toggle('open');}
+    document.addEventListener('click',function(e){if(!e.target.closest('.viz-menu')){var d=document.getElementById('vizMenuDropdown');if(d)d.classList.remove('open');}});
+    document.addEventListener('keydown',function(e){if(e.key==='Escape'){var d=document.getElementById('vizMenuDropdown');if(d)d.classList.remove('open');}});
+    var savedTheme=localStorage.getItem('viz-theme');
+    var currentTheme=savedTheme||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    function applyTheme(t){document.documentElement.className='theme-'+t;document.getElementById('themeIcon').textContent=t==='dark'?'🌙':'☀️';document.getElementById('themeLabel').textContent=t==='dark'?'Dark':'Light';localStorage.setItem('viz-theme',t);currentTheme=t;}
+    function cycleTheme(){applyTheme(currentTheme==='dark'?'light':'dark');}
+    applyTheme(currentTheme);
+    document.querySelectorAll('[data-reveal]').forEach(function(el){el.classList.add('reveal');});
+    var revealObserver=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');revealObserver.unobserve(e.target);}});},{threshold:.1});
+    document.querySelectorAll('.reveal').forEach(function(el){revealObserver.observe(el);});
+    async function downloadImage(){var menu=document.querySelector('.viz-menu');menu.style.display='none';try{var url=await htmlToImage.toPng(document.body,{quality:1,pixelRatio:2,filter:function(n){return !n.classList||!n.classList.contains('viz-menu');}});var a=document.createElement('a');a.href=url;a.download='bai-onboarding-philosophy.png';a.click();}catch(e){console.error('Download failed:',e);}menu.style.display='';}
+  </script>
+</body>
+</html>

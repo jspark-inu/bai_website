@@ -28,5 +28,6 @@ venv/bin/python -m pytest -q
 4. Push the branch and open a pull request.
 
 For a minimal student workflow in Korean, see `STUDENT-GIT-GUIDE.md`.
+For a standalone handoff file to send directly to Park Kyung, see `PARK_STUDENT_HANDOFF.md`.
 
 Do not commit `.env`, DB files, backups, virtualenvs, API keys, or generated cache files.

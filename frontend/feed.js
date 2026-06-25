@@ -16,7 +16,7 @@ function feedSidebar(active, isPI) {
   const move = isPI ? '<div class="navsec">이동</div><a href="https://os.bai.haiinu.com/" target="_blank" rel="noopener">🛰 PI OS</a>' : "";
   return `<aside class="side"><div class="brand">📰 BAI <span class="b">Feed</span></div>
     <div class="navsec">피드</div>
-    ${tab("/", "🏠 전체 피드", "home")}${tab("/projects", "🧩 프로젝트", "projects")}${tab("/materials", "📚 자료실", "materials")}${tab("/questions", "❓ 막힌 질문", "questions")}${tab("/ask", "💬 문의/FAQ", "ask")}${tab("/members", "👥 멤버", "members")}${tab("/search", "🔍 검색", "search")}
+    ${tab("/", "🏠 전체 피드", "home")}${tab("/projects", "🧩 프로젝트", "projects")}${tab("/materials", "📚 자료실", "materials")}${tab("/questions", "❓ 막힌 질문", "questions")}${tab("/ask", "💬 문의/FAQ", "ask")}${tab("/members", "👥 멤버", "members")}${tab("/search", "🔍 검색", "search")}${tab("/account", "🔐 계정", "account")}
     ${move}</aside>`;
 }
 function tagChips(tags) {
@@ -415,6 +415,41 @@ async function renderTag(view, tag) {
   wireReacts(document.getElementById("feedlist"));
 }
 
+// ---------------- 뷰: 계정 ----------------
+async function renderAccount(view) {
+  view.innerHTML = `<div class="content">
+    <h2 class="page-title">🔐 계정</h2>
+    <p class="muted" style="margin-top:-8px">로그인 비밀번호를 직접 변경할 수 있습니다.</p>
+    <div class="editor">
+      <div class="editor-head"><b>비밀번호 변경</b><span>현재 비밀번호를 확인한 뒤 새 비밀번호로 바꿉니다.</span></div>
+      <label>현재 비밀번호</label><input class="tags" id="currentPassword" type="password" autocomplete="current-password">
+      <label>새 비밀번호</label><input class="tags" id="newPassword" type="password" autocomplete="new-password" placeholder="4자 이상">
+      <label>새 비밀번호 확인</label><input class="tags" id="newPassword2" type="password" autocomplete="new-password">
+      <div class="editor-actions"><p class="err" id="accountMsg"></p><button class="primary" id="changePasswordBtn" style="margin-left:0">비밀번호 변경</button></div>
+    </div>
+  </div>`;
+  changePasswordBtn.onclick = async () => {
+    accountMsg.textContent = "";
+    const current_password = currentPassword.value;
+    const new_password = newPassword.value;
+    if (new_password.length < 4) { accountMsg.textContent = "새 비밀번호는 4자 이상이어야 합니다."; return; }
+    if (new_password !== newPassword2.value) { accountMsg.textContent = "새 비밀번호 확인이 일치하지 않습니다."; return; }
+    const r = await fetch("/api/change-password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password, new_password })
+    });
+    if (r.ok) {
+      accountMsg.classList.remove("err");
+      accountMsg.classList.add("muted");
+      accountMsg.textContent = "비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용하세요.";
+      currentPassword.value = ""; newPassword.value = ""; newPassword2.value = "";
+    } else {
+      accountMsg.classList.add("err");
+      accountMsg.textContent = "현재 비밀번호를 확인해 주세요.";
+    }
+  };
+}
+
 // ---------------- 라우터 ----------------
 function matchRoute(path) {
   if (path === "/" || path === "") return ["home", renderHome];
@@ -424,6 +459,7 @@ function matchRoute(path) {
   if (path.startsWith("/projects/")) { const id = +path.split("/")[2]; return ["projects", v => renderProjectDetail(v, id)]; }
   if (path === "/materials") return ["materials", renderMaterials];
   if (path === "/members") return ["members", renderMembers];
+  if (path === "/account") return ["account", renderAccount];
   if (path.startsWith("/search")) return ["search", renderSearch];
   if (path.startsWith("/post/")) { const id = +path.split("/")[2]; return ["", v => renderPostDetail(v, id)]; }
   if (path.startsWith("/member/")) { const id = +path.split("/")[2]; return ["", v => renderMemberProfile(v, id)]; }
@@ -439,7 +475,7 @@ async function route(path, push) {
 }
 function navigate(path) { route(path, true); }
 
-const FEED_ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|materials|search|questions|ask|tag\/)/;
+const FEED_ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|materials|search|questions|ask|account|tag\/)/;
 async function initFeed() {
   FEED_ME = await getMe();
   if (!FEED_ME) return;

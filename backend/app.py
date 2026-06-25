@@ -164,6 +164,21 @@ def create_app(db_path=None, secret=None):
             return jsonify({"error": "not logged in"}), 401
         return jsonify({"id": m["id"], "name": m["name"], "role": m["role"]})
 
+    @app.route("/api/change-password", methods=["POST"])
+    def api_change_password():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        data = request.get_json(silent=True) or {}
+        current_password = data.get("current_password", "")
+        new_password = data.get("new_password", "")
+        if not auth.verify_password(current_password, member["password_hash"]):
+            return jsonify({"error": "current password is incorrect"}), 400
+        if len(new_password) < 4:
+            return jsonify({"error": "new password must be at least 4 characters"}), 400
+        db.update_member_password(member["id"], auth.hash_password(new_password))
+        return jsonify({"ok": True})
+
     # ---- 피드/글 조회 (읽기는 로그인 필요) ----
     @app.route("/api/feed")
     def api_feed():
@@ -531,6 +546,10 @@ def create_app(db_path=None, secret=None):
 
     @app.route("/members")
     def page_members():
+        return send_from_directory(FRONTEND_DIR, "feed.html")
+
+    @app.route("/account")
+    def page_account():
         return send_from_directory(FRONTEND_DIR, "feed.html")
 
     @app.route("/materials")

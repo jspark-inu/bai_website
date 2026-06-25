@@ -78,6 +78,46 @@ def test_login_failure(client):
     assert me.status_code == 401
 
 
+def test_change_password_requires_login(client):
+    r = client.post("/api/change-password", json={
+        "current_password": "pw",
+        "new_password": "newpass1234",
+    })
+    assert r.status_code == 401
+
+
+def test_change_password_requires_current_password(client):
+    _login(client)
+    r = client.post("/api/change-password", json={
+        "current_password": "bad",
+        "new_password": "newpass1234",
+    })
+    assert r.status_code == 400
+    assert _login(client, pw="pw").status_code == 200
+
+
+def test_change_password_updates_login_password(client):
+    _login(client)
+    r = client.post("/api/change-password", json={
+        "current_password": "pw",
+        "new_password": "newpass1234",
+    })
+    assert r.status_code == 200
+    client.post("/api/logout")
+    assert _login(client, pw="pw").status_code == 401
+    assert _login(client, pw="newpass1234").status_code == 200
+
+
+def test_change_password_rejects_too_short_new_password(client):
+    _login(client)
+    r = client.post("/api/change-password", json={
+        "current_password": "pw",
+        "new_password": "123",
+    })
+    assert r.status_code == 400
+    assert _login(client, pw="pw").status_code == 200
+
+
 def test_login_rate_limits_repeated_failures(client):
     for _ in range(5):
         assert _login(client, pw="bad").status_code == 401
@@ -116,6 +156,13 @@ def test_feed_shell_contains_project_registry_route(client):
     assert "repo_url" in body
     assert "site_url" in body
     assert "/api/projects" in body
+
+
+def test_feed_shell_contains_account_password_change_route(client):
+    body = client.get("/static/feed.js").get_data(as_text=True)
+    assert "/account" in body
+    assert "비밀번호 변경" in body
+    assert "/api/change-password" in body
 
 
 def test_feed_lists_posts(client):

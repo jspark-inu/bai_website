@@ -568,6 +568,17 @@ def create_app(db_path=None, secret=None):
     def static_files(fname):
         return send_from_directory(FRONTEND_DIR, fname)
 
+    @app.route("/index.html")
+    @app.route("/feed.html")
+    def page_legacy_index():
+        return send_from_directory(FRONTEND_DIR, "feed.html")
+
+    @app.route("/<path:path>")
+    def page_spa_fallback(path):
+        if path.startswith("api/"):
+            return jsonify({"error": "not found"}), 404
+        return send_from_directory(FRONTEND_DIR, "feed.html")
+
     return app
 
 

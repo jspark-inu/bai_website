@@ -5,6 +5,66 @@ async function getMe() {
   return r.json();
 }
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+function stripExecutableHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/<script\b[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[\s\S]*?<\/style>/gi, "")
+    .replace(/<iframe\b[\s\S]*?<\/iframe>/gi, "");
+}
+function inlineMarkdown(s) {
+  let out = esc(s);
+  out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+  out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  out = out.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label, href) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+  return out;
+}
+function markdownHtml(s) {
+  const text = stripExecutableHtml(s).replace(/\r\n?/g, "\n");
+  const lines = text.split("\n");
+  const html = [];
+  let paragraph = [];
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push(`<p>${paragraph.map(inlineMarkdown).join("<br>")}</p>`);
+    paragraph = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) { flushParagraph(); continue; }
+    let m = line.match(/^(#{1,3})\s+(.+)$/);
+    if (m) { flushParagraph(); const level = m[1].length; html.push(`<h${level}>${inlineMarkdown(m[2])}</h${level}>`); continue; }
+    if (/^>\s?/.test(line)) {
+      flushParagraph();
+      const quote = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) quote.push(lines[i++].replace(/^>\s?/, ""));
+      i--;
+      html.push(`<blockquote>${quote.map(inlineMarkdown).join("<br>")}</blockquote>`);
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      flushParagraph();
+      const items = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*[-*]\s+/, ""));
+      i--;
+      html.push(`<ul>${items.map(item => `<li>${inlineMarkdown(item)}</li>`).join("")}</ul>`);
+      continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      flushParagraph();
+      const items = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+\.\s+/, ""));
+      i--;
+      html.push(`<ol>${items.map(item => `<li>${inlineMarkdown(item)}</li>`).join("")}</ol>`);
+      continue;
+    }
+    paragraph.push(line);
+  }
+  flushParagraph();
+  return `<div class="md">${html.join("")}</div>`;
+}
+function materialMarkdownHtml(body) { return markdownHtml(body); }
 
 const AV_COLORS = ["#5E6AD2","#0EA5A4","#D97706","#DB2777","#7C3AED","#0891B2","#E11D48","#16A34A","#EA580C","#4F46E5"];
 function avColor(n){let h=0;const s=String(n||"");for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return AV_COLORS[h%AV_COLORS.length];}
@@ -33,9 +93,9 @@ function linkChips(links) {
 }
 function sectionsHtml(p) {
   let h = "";
-  if (p.did)     h += `<div class="sec"><div class="label">한 일</div><div class="body">${esc(p.did)}</div></div>`;
-  if (p.learned) h += `<div class="sec"><div class="label">배운 것</div><div class="body">${esc(p.learned)}</div></div>`;
-  if (p.blocked) h += `<div class="sec blocked"><span class="label">❓ 막힌 점</span><span class="body">${esc(p.blocked)}</span></div>`;
+  if (p.did)     h += `<div class="sec"><div class="label">한 일</div><div class="body">${markdownHtml(p.did)}</div></div>`;
+  if (p.learned) h += `<div class="sec"><div class="label">배운 것</div><div class="body">${markdownHtml(p.learned)}</div></div>`;
+  if (p.blocked) h += `<div class="sec blocked"><div class="label">❓ 막힌 점</div><div class="body">${markdownHtml(p.blocked)}</div></div>`;
   h += linkChips(p.links);
   return h;
 }
@@ -230,7 +290,7 @@ async function renderMaterials(view) {
     return `<div class="card material-card" data-material="${m.id}">
       <div class="head">${avatar(m.author_name)}<span class="author">${esc(m.title)}</span><span>· ${esc(meta)}</span><span class="spacer"></span>${canEdit ? `<button data-edit-material="${m.id}">수정</button><button data-delete-material="${m.id}">삭제</button>` : ""}</div>
       ${m.url ? `<div class="sec"><div class="label">링크</div><div class="body"><a class="linkchip" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(m.url)}</a></div></div>` : ""}
-      ${m.body ? `<div class="sec"><div class="label">본문</div><div class="body">${esc(m.body)}</div></div>` : ""}
+      ${m.body ? `<div class="sec"><div class="label">본문</div><div class="body">${materialMarkdownHtml(m.body)}</div></div>` : ""}
     </div>`;
   };
   const load = async () => {

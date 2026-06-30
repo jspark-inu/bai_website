@@ -157,12 +157,27 @@ def create_app(db_path=None, secret=None):
         session.clear()
         return jsonify({"ok": True})
 
-    @app.route("/api/me")
+    @app.route("/api/me", methods=["GET", "POST"])
     def api_me():
         m = current_member()
         if not m:
             return jsonify({"error": "not logged in"}), 401
-        return jsonify({"id": m["id"], "name": m["name"], "role": m["role"]})
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            if data.get("action") != "regenerate_api_key":
+                return jsonify({"error": "unknown action"}), 400
+            api_key = auth.make_api_key()
+            db.update_member_api_key(m["id"], api_key)
+            db.add_audit_log(m["id"], "self_regenerate_api_key", target_member_id=m["id"])
+            return jsonify({"api_key": api_key, "member_id": m["id"], "name": m["name"], "role": m["role"]})
+        payload = {"id": m["id"], "name": m["name"], "role": m["role"]}
+        if request.args.get("api_key") == "1":
+            payload.update({
+                "api_key": m["api_key"],
+                "member_id": m["id"],
+                "usage": {"endpoint": "/api/post", "method": "POST", "header": "X-API-Key"},
+            })
+        return jsonify(payload)
 
     @app.route("/api/change-password", methods=["POST"])
     def api_change_password():
@@ -380,6 +395,85 @@ def create_app(db_path=None, secret=None):
         db.set_project_members(pid, member_roles)
         return jsonify({"id": pid})
 
+    # ---- 개발자/관리자 콘솔 ----
+    @app.route("/api/members/api-key")
+    @app.route("/api/account/api-key")
+    @app.route("/api/developer/key")
+    def api_developer_key():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        return jsonify({
+            "member_id": member["id"],
+            "name": member["name"],
+            "role": member["role"],
+            "api_key": member["api_key"],
+            "usage": {
+                "endpoint": "/api/post",
+                "header": "X-API-Key",
+                "method": "POST",
+            },
+        })
+
+    @app.route("/api/members/api-key/regenerate", methods=["POST"])
+    @app.route("/api/account/api-key/regenerate", methods=["POST"])
+    @app.route("/api/developer/key/regenerate", methods=["POST"])
+    def api_developer_key_regenerate():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        api_key = auth.make_api_key()
+        db.update_member_api_key(member["id"], api_key)
+        db.add_audit_log(member["id"], "regenerate_own_api_key", target_member_id=member["id"])
+        return jsonify({"api_key": api_key})
+
+    @app.route("/api/admin/members")
+    def api_admin_members():
+        member, denied = require_pi()
+        if denied:
+            return denied
+        rows = db.list_members_admin()
+        for row in rows:
+            row.pop("api_key", None)
+        return jsonify({"members": rows})
+
+    @app.route("/api/admin/members/<int:mid>/api-key/regenerate", methods=["POST"])
+    def api_admin_member_key_regenerate(mid):
+        member, denied = require_pi()
+        if denied:
+            return denied
+        target = db.get_member_by_id(mid, include_disabled=True)
+        if not target:
+            return jsonify({"error": "not found"}), 404
+        api_key = auth.make_api_key()
+        db.update_member_api_key(mid, api_key)
+        db.add_audit_log(member["id"], "admin_regenerate_api_key", target_member_id=mid)
+        return jsonify({"member_id": mid, "api_key": api_key})
+
+    @app.route("/api/admin/members/<int:mid>", methods=["POST"])
+    def api_admin_member_update(mid):
+        member, denied = require_pi()
+        if denied:
+            return denied
+        target = db.get_member_by_id(mid, include_disabled=True)
+        if not target:
+            return jsonify({"error": "not found"}), 404
+        data = request.get_json(silent=True) or {}
+        role = data.get("role")
+        status = data.get("status")
+        allowed_roles = {"student", "admin_student", "developer", "pi"}
+        allowed_status = {"active", "disabled"}
+        if role is not None and role not in allowed_roles:
+            return jsonify({"error": "invalid role"}), 400
+        if status is not None and status not in allowed_status:
+            return jsonify({"error": "invalid status"}), 400
+        if mid == member["id"] and role is not None and role != "pi":
+            return jsonify({"error": "cannot demote yourself"}), 400
+        db.update_member_account(mid, role=role, status=status)
+        db.add_audit_log(member["id"], "admin_update_member", target_member_id=mid,
+                         detail="role=%s status=%s" % (role or "", status or ""))
+        return jsonify({"ok": True})
+
     # ---- R5: 이번 주 보고 현황 ----
     @app.route("/api/weekly")
     def api_weekly():
@@ -550,6 +644,15 @@ def create_app(db_path=None, secret=None):
 
     @app.route("/account")
     def page_account():
+        return send_from_directory(FRONTEND_DIR, "feed.html")
+
+    @app.route("/goodbai")
+    @app.route("/developer")
+    def page_developer():
+        return send_from_directory(FRONTEND_DIR, "feed.html")
+
+    @app.route("/admin/members")
+    def page_admin_members():
         return send_from_directory(FRONTEND_DIR, "feed.html")
 
     @app.route("/materials")

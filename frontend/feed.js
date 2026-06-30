@@ -13,10 +13,12 @@ function fmtDate(s){return s ? esc(String(s).slice(0,10)) : "";}
 
 function feedSidebar(active, isPI) {
   const tab = (href, label, key) => `<a href="${href}" data-view="${key}" class="${active === key ? "on" : ""}">${label}</a>`;
+  const admin = isPI ? `${tab("/admin/members", "🛡 멤버 관리", "admin")}` : "";
   const move = isPI ? '<div class="navsec">이동</div><a href="https://os.bai.haiinu.com/" target="_blank" rel="noopener">🛰 PI OS</a>' : "";
   return `<aside class="side"><div class="brand">📰 BAI <span class="b">Feed</span></div>
     <div class="navsec">피드</div>
-    ${tab("/", "🏠 전체 피드", "home")}${tab("/projects", "🧩 프로젝트", "projects")}${tab("/materials", "📚 자료실", "materials")}${tab("/questions", "❓ 막힌 질문", "questions")}${tab("/ask", "💬 문의/FAQ", "ask")}${tab("/members", "👥 멤버", "members")}${tab("/search", "🔍 검색", "search")}${tab("/account", "🔐 계정", "account")}
+    ${tab("/", "🏠 전체 피드", "home")}${tab("/projects", "🧩 프로젝트", "projects")}${tab("/materials", "📚 자료실", "materials")}${tab("/questions", "❓ 막힌 질문", "questions")}${tab("/ask", "💬 문의/FAQ", "ask")}${tab("/members", "👥 멤버", "members")}${tab("/search", "🔍 검색", "search")}
+    <div class="navsec">개발</div>${tab("/account?goodbai=1", "🔑 Goodbai API", "developer")}${admin}${tab("/account", "🔐 계정", "account")}
     ${move}</aside>`;
 }
 function tagChips(tags) {
@@ -415,6 +417,83 @@ async function renderTag(view, tag) {
   wireReacts(document.getElementById("feedlist"));
 }
 
+// ---------------- 뷰: 개발자 API ----------------
+async function renderDeveloper(view) {
+  view.innerHTML = `<div class="content">
+    <h2 class="page-title">🔑 개발자 API</h2>
+    <p class="muted" style="margin-top:-8px">Codex /goodbai 또는 개인 스크립트가 BAI 피드에 글을 올릴 때 쓰는 개인 API key입니다. 단체 채팅방이나 GitHub에 올리지 마세요.</p>
+    <div class="editor">
+      <div class="editor-head"><b>내 Goodbai API key</b><span>학생 워크스페이스의 <code>python scripts\\bai_feed_config.py</code>에 한 번 저장합니다.</span></div>
+      <label>이름</label><input class="tags" id="devName" readonly>
+      <label>API key</label><input class="tags" id="devKey" readonly>
+      <div class="editor-actions"><p class="err" id="devMsg"></p><button class="primary" id="copyDevKeyBtn" style="margin-left:0">복사</button><button id="rotateDevKeyBtn">재발급</button></div>
+    </div>
+    <div class="card">
+      <div class="sec"><div class="label">학생 설정 명령</div><div class="body"><code>python scripts\\bai_feed_config.py</code></div></div>
+      <div class="sec"><div class="label">Codex 사용</div><div class="body">작업 후 Codex에게 <b>/goodbai</b>를 실행하라고 말하면 진행 보고를 정리해 전송합니다.</div></div>
+      <div class="sec"><div class="label">API endpoint</div><div class="body"><code>POST https://bai.haiinu.com/api/post</code><br><code>X-API-Key: 내 API key</code></div></div>
+    </div>
+    <div class="card"><div class="sec"><div class="label">curl 예시</div><pre id="devCurl" style="white-space:pre-wrap;overflow:auto"></pre></div></div>
+  </div>`;
+  const load = async () => {
+    const r = await fetch("/api/me?api_key=1");
+    if (!r.ok) { devMsg.textContent = "API key를 불러오지 못했습니다."; return; }
+    const d = await r.json();
+    devName.value = d.name || "";
+    devKey.value = d.api_key || "";
+    devCurl.textContent = `curl -X POST https://bai.haiinu.com/api/post \\\n  -H 'Content-Type: application/json; charset=utf-8' \\\n  -H 'User-Agent: BAI-Goodbai-Codex/1.0 (+https://bai.haiinu.com)' \\\n  -H 'X-API-Key: ${d.api_key || "YOUR_API_KEY"}' \\\n  -d '{"did":"오늘 한 일","learned":"배운 것","blocked":"없음","tags":"goodbai","links":"","project_id":null}'`;
+  };
+  copyDevKeyBtn.onclick = async () => {
+    await navigator.clipboard.writeText(devKey.value);
+    devMsg.classList.remove("err"); devMsg.classList.add("muted"); devMsg.textContent = "복사했습니다.";
+  };
+  rotateDevKeyBtn.onclick = async () => {
+    if (!confirm("API key를 재발급하면 기존 key는 즉시 사용할 수 없습니다. 계속할까요?")) return;
+    const r = await fetch("/api/me", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "regenerate_api_key" }) });
+    if (r.ok) { await load(); devMsg.classList.remove("err"); devMsg.classList.add("muted"); devMsg.textContent = "새 API key를 발급했습니다."; }
+    else { devMsg.classList.add("err"); devMsg.textContent = "재발급 실패"; }
+  };
+  await load();
+}
+
+async function renderAdminMembers(view) {
+  view.innerHTML = `<div class="content">
+    <h2 class="page-title">🛡 멤버 관리</h2>
+    <p class="muted" style="margin-top:-8px">PI 전용입니다. 학생 API key 재발급과 role/status 변경을 관리합니다.</p>
+    <div id="adminMsg" class="muted"></div><div id="adminMembers"></div>
+  </div>`;
+  const roleOptions = ["student", "admin_student", "developer", "pi"];
+  const statusOptions = ["active", "disabled"];
+  const load = async () => {
+    const r = await fetch("/api/admin/members");
+    if (!r.ok) { adminMembers.innerHTML = '<div class="empty-card">PI 계정만 접근할 수 있습니다.</div>'; return; }
+    const data = await r.json();
+    adminMembers.innerHTML = (data.members || []).map(m => `<div class="card" data-member="${m.id}">
+      <div class="head">${avatar(m.name)}<span class="author">${esc(m.name)}</span><span>· 글 ${m.post_count || 0}개 · ${esc(m.status)}</span><span class="spacer"></span><button data-rotate-member="${m.id}">API key 재발급</button></div>
+      <div class="sec"><div class="label">권한</div><div class="body">
+        <select class="tags" data-role-member="${m.id}">${roleOptions.map(x => `<option value="${x}" ${m.role === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+        <select class="tags" data-status-member="${m.id}">${statusOptions.map(x => `<option value="${x}" ${m.status === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+        <button data-save-member="${m.id}">저장</button>
+      </div></div>
+      <div class="sec hidden" id="newkey-${m.id}"><div class="label">새 API key</div><div class="body"><code></code></div></div>
+    </div>`).join("");
+    adminMembers.querySelectorAll("[data-rotate-member]").forEach(b => b.onclick = async () => {
+      if (!confirm("이 학생의 API key를 재발급할까요? 기존 key는 무효화됩니다.")) return;
+      const r = await fetch(`/api/admin/members/${b.dataset.rotateMember}/api-key/regenerate`, { method: "POST" });
+      if (r.ok) { const d = await r.json(); const box = document.getElementById(`newkey-${b.dataset.rotateMember}`); box.classList.remove("hidden"); box.querySelector("code").textContent = d.api_key; }
+      else alert("재발급 실패");
+    });
+    adminMembers.querySelectorAll("[data-save-member]").forEach(b => b.onclick = async () => {
+      const id = b.dataset.saveMember;
+      const payload = { role: document.querySelector(`[data-role-member="${id}"]`).value, status: document.querySelector(`[data-status-member="${id}"]`).value };
+      const r = await fetch(`/api/admin/members/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (r.ok) { adminMsg.textContent = "저장했습니다."; load(); }
+      else alert("저장 실패: 자기 자신의 PI 권한은 낮출 수 없습니다.");
+    });
+  };
+  await load();
+}
+
 // ---------------- 뷰: 계정 ----------------
 async function renderAccount(view) {
   view.innerHTML = `<div class="content">
@@ -452,18 +531,22 @@ async function renderAccount(view) {
 
 // ---------------- 라우터 ----------------
 function matchRoute(path) {
-  if (path === "/" || path === "") return ["home", renderHome];
-  if (path === "/questions") return ["questions", renderQuestions];
-  if (path === "/ask") return ["ask", renderAsk];
-  if (path === "/projects") return ["projects", renderProjects];
-  if (path.startsWith("/projects/")) { const id = +path.split("/")[2]; return ["projects", v => renderProjectDetail(v, id)]; }
-  if (path === "/materials") return ["materials", renderMaterials];
-  if (path === "/members") return ["members", renderMembers];
-  if (path === "/account") return ["account", renderAccount];
-  if (path.startsWith("/search")) return ["search", renderSearch];
-  if (path.startsWith("/post/")) { const id = +path.split("/")[2]; return ["", v => renderPostDetail(v, id)]; }
-  if (path.startsWith("/member/")) { const id = +path.split("/")[2]; return ["", v => renderMemberProfile(v, id)]; }
-  if (path.startsWith("/tag/")) { const t = decodeURIComponent(path.split("/")[2] || ""); return ["", v => renderTag(v, t)]; }
+  const url = new URL(path, location.origin);
+  const pathname = url.pathname;
+  if (pathname === "/" || pathname === "") return ["home", renderHome];
+  if (pathname === "/questions") return ["questions", renderQuestions];
+  if (pathname === "/ask") return ["ask", renderAsk];
+  if (pathname === "/projects") return ["projects", renderProjects];
+  if (pathname.startsWith("/projects/")) { const id = +pathname.split("/")[2]; return ["projects", v => renderProjectDetail(v, id)]; }
+  if (pathname === "/materials") return ["materials", renderMaterials];
+  if (pathname === "/members") return ["members", renderMembers];
+  if (pathname === "/developer" || pathname === "/goodbai" || (pathname === "/account" && url.searchParams.get("goodbai") === "1")) return ["developer", renderDeveloper];
+  if (pathname === "/admin/members") return ["admin", renderAdminMembers];
+  if (pathname === "/account") return ["account", renderAccount];
+  if (pathname.startsWith("/search")) return ["search", renderSearch];
+  if (pathname.startsWith("/post/")) { const id = +pathname.split("/")[2]; return ["", v => renderPostDetail(v, id)]; }
+  if (pathname.startsWith("/member/")) { const id = +pathname.split("/")[2]; return ["", v => renderMemberProfile(v, id)]; }
+  if (pathname.startsWith("/tag/")) { const t = decodeURIComponent(pathname.split("/")[2] || ""); return ["", v => renderTag(v, t)]; }
   return ["home", renderHome];
 }
 async function route(path, push) {
@@ -475,7 +558,7 @@ async function route(path, push) {
 }
 function navigate(path) { route(path, true); }
 
-const FEED_ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|materials|search|questions|ask|account|tag\/)/;
+const FEED_ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
 async function initFeed() {
   FEED_ME = await getMe();
   if (!FEED_ME) return;

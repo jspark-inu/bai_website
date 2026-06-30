@@ -461,6 +461,67 @@ def test_project_update_requires_owner_or_pi(client):
     assert client.get(f"/api/projects/{pid}").get_json()["project"]["title"] == "데이터 길드 PI 수정"
 
 
+# ---- 개발자/관리자 콘솔 ----
+def test_developer_api_key_requires_login(client):
+    assert client.get("/api/developer/key").status_code == 401
+
+
+def test_developer_can_view_and_regenerate_own_api_key(client):
+    _login(client)
+    r = client.get("/api/developer/key")
+    assert r.status_code == 200
+    assert r.get_json()["api_key"] == "testkey123"
+
+    rotated = client.post("/api/developer/key/regenerate")
+    assert rotated.status_code == 200
+    new_key = rotated.get_json()["api_key"]
+    assert new_key and new_key != "testkey123"
+    assert client.post("/api/post", headers={"X-API-Key": "testkey123"},
+                       json={"did": "old", "learned": "", "blocked": "", "tags": ""}).status_code == 401
+    assert client.post("/api/post", headers={"X-API-Key": new_key},
+                       json={"did": "new", "learned": "", "blocked": "", "tags": ""}).status_code == 200
+
+
+def test_admin_members_requires_pi(client):
+    _login(client)
+    assert client.get("/api/admin/members").status_code == 403
+    assert client.post("/api/admin/members/1/api-key/regenerate").status_code == 403
+    assert client.post("/api/admin/members/1", json={"role": "admin_student"}).status_code == 403
+
+
+def test_pi_can_list_members_rotate_key_and_change_role(client):
+    db = client.application.extensions["lab_feed_db"]
+    pi_id = db.add_member(name="교수", password_hash=auth.hash_password("pi"),
+                          api_key="pikey", role="pi")
+    _login(client, "교수", "pi")
+
+    rows = client.get("/api/admin/members")
+    assert rows.status_code == 200
+    assert any(m["name"] == "김영희" and "api_key" not in m for m in rows.get_json()["members"])
+
+    rotated = client.post("/api/admin/members/1/api-key/regenerate")
+    assert rotated.status_code == 200
+    new_key = rotated.get_json()["api_key"]
+    assert new_key and new_key != "testkey123"
+
+    changed = client.post("/api/admin/members/1", json={"role": "admin_student", "status": "active"})
+    assert changed.status_code == 200
+    member = db.get_member_by_id(1)
+    assert member["role"] == "admin_student"
+
+    self_demote = client.post(f"/api/admin/members/{pi_id}", json={"role": "student"})
+    assert self_demote.status_code == 400
+
+
+def test_feed_shell_contains_developer_and_admin_routes(client):
+    body = client.get("/static/feed.js").get_data(as_text=True)
+    assert "/account?goodbai=1" in body
+    assert "/api/me?api_key=1" in body
+    assert "regenerate_api_key" in body
+    assert "/admin/members" in body
+    assert "/api/admin/members" in body
+
+
 # ---- R5: 이번 주 보고 현황 ----
 def test_weekly_requires_login(client):
     assert client.get("/api/weekly").status_code == 401
@@ -491,6 +552,7 @@ def test_week_start_utc_is_monday_kst():
 def test_page_routes_registered(client):
     for path in ["/", "/login", "/post/1", "/member/1",
                  "/tag/GAN", "/search", "/questions", "/members",
+                 "/goodbai", "/developer", "/admin/members",
                  "/projects", "/projects/1"]:
         r = client.get(path)
         assert r.status_code in (200, 404)

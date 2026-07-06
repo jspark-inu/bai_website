@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>태그 — BAI 피드</title>
-  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+  <link rel="stylesheet" href="/static/app.css?v=20260706pi6">
 </head>
 <body>
   <div id="nav"></div>
@@ -14,7 +14,7 @@
     <div id="feed"></div>
     </div>
   </div>
-  <script src="/static/feed.js?v=20260601d"></script>
+  <script src="/static/feed.js?v=20260706pi6"></script>
   <script>
     const TAG = decodeURIComponent(location.pathname.split("/").pop());
     async function load() {
@@ -22,7 +22,7 @@
       if (!me) return;
       document.getElementById("nav").innerHTML = feedSidebar("", me && me.role === "pi");
       document.querySelector(".side").insertAdjacentHTML("beforeend",
-        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+        `<div class="who">${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
       document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
       document.getElementById("title").textContent = "#" + TAG;
       const r = await fetch(`/api/tag/${encodeURIComponent(TAG)}`);

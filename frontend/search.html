@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>검색 — BAI 피드</title>
-  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+  <link rel="stylesheet" href="/static/app.css?v=20260706pi6">
 </head>
 <body>
   <div id="nav"></div>
@@ -18,7 +18,7 @@
     <div id="feed"></div>
     </div>
   </div>
-  <script src="/static/feed.js?v=20260601d"></script>
+  <script src="/static/feed.js?v=20260706pi6"></script>
   <script>
     let me = null;
     async function run() {
@@ -39,7 +39,7 @@
       if (!me) return;
       document.getElementById("nav").innerHTML = feedSidebar("search", me && me.role === "pi");
       document.querySelector(".side").insertAdjacentHTML("beforeend",
-        `<div class="who">👤 ${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+        `<div class="who">${esc(me.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
       document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
       document.getElementById("btn").onclick = run;
       document.getElementById("q").addEventListener("keydown", e => {

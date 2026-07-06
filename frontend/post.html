@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>글 보기 — BAI 피드</title>
-  <link rel="stylesheet" href="/static/app.css?v=20260601d">
+  <link rel="stylesheet" href="/static/app.css?v=20260706pi6">
 </head>
 <body>
   <div id="nav"></div>
@@ -12,9 +12,9 @@
     <div class="content">
     <div id="detail"></div>
     <div class="editor hidden" id="editor">
-      <label>📌 한 일/결과</label><textarea id="did"></textarea>
-      <label>💡 배운 것</label><textarea id="learned"></textarea>
-      <label>❓ 막힌 점/질문</label><textarea id="blocked"></textarea>
+      <label>한 일/결과</label><textarea id="did"></textarea>
+      <label>배운 것</label><textarea id="learned"></textarea>
+      <label>막힌 점/질문</label><textarea id="blocked"></textarea>
       <input class="tags" id="tags" placeholder="태그">
       <input class="tags" id="links" placeholder="산출물 링크 (공백으로 구분)">
       <button class="primary" id="saveBtn">저장</button>
@@ -26,7 +26,7 @@
     </div>
     </div>
   </div>
-  <script src="/static/feed.js?v=20260601d"></script>
+  <script src="/static/feed.js?v=20260706pi6"></script>
   <script>
     const PID = parseInt(location.pathname.split("/").pop(), 10);
     let ME = null, POST = null;
@@ -36,7 +36,7 @@
       if (!ME) return;
       document.getElementById("nav").innerHTML = feedSidebar("", ME && ME.role === "pi");
       document.querySelector(".side").insertAdjacentHTML("beforeend",
-        `<div class="who">👤 ${esc(ME.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
+        `<div class="who">${esc(ME.name)}</div><button class="logout" id="logoutBtn">로그아웃</button>`);
       document.getElementById("logoutBtn").onclick = async () => { await fetch("/api/logout",{method:"POST"}); location.href="/login"; };
       const r = await fetch(`/api/post/${PID}`);
       if (!r.ok) { document.getElementById("detail").textContent = "글을 찾을 수 없습니다."; return; }
@@ -45,14 +45,14 @@
       const reacted = (data.reacted_by || []).includes(ME.id);
       document.getElementById("detail").innerHTML = `
         <div class="card">
-          <div class="head"><a class="author" href="/member/${POST.author_id}">👤 ${esc(POST.author_name)}</a>
+          <div class="head"><a class="author" href="/member/${POST.author_id}">${esc(POST.author_name)}</a>
             <span>· ${esc((POST.created_at || "").slice(0, 10))}</span> ${tagChips(POST.tags)}
             <span class="spacer"></span>
             ${POST.author_id === ME.id ? '<button id="editBtn">수정</button>' : ''}
           </div>
           ${sectionsHtml(POST)}
           <div class="actions">
-            <button class="reactBtn ${reacted ? 'reacted' : ''}" data-id="${PID}">👍 <span class="rc">${POST.reaction_count}</span></button>
+            <button class="reactBtn ${reacted ? 'reacted' : ''}" data-id="${PID}">공감 <span class="rc">${POST.reaction_count}</span></button>
           </div>
         </div>`;
       document.querySelector(".reactBtn").onclick = e => toggleReact(PID, e.currentTarget);

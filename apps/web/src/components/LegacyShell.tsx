@@ -1,10 +1,10 @@
 export function LegacyFeedShell() {
   return (
     <>
-      <link rel="stylesheet" href="/static/app.css?v=20260706pi6" />
+      <link rel="stylesheet" href="/static/app.css?v=20260706pi7" />
       <div id="nav" />
       <div className="container" id="view" />
-      <script src="/static/feed.js?v=20260706pi6" />
+      <script src="/static/feed.js?v=20260706pi7" />
       <script dangerouslySetInnerHTML={{ __html: 'initFeed();' }} />
     </>
   );
@@ -13,7 +13,7 @@ export function LegacyFeedShell() {
 export function LegacyLoginShell() {
   return (
     <>
-      <link rel="stylesheet" href="/static/app.css?v=20260706pi6" />
+      <link rel="stylesheet" href="/static/app.css?v=20260706pi7" />
       <div className="login-box">
         <h1>BAI 피드</h1>
         <div className="login-note">

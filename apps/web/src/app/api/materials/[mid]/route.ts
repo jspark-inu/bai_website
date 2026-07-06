@@ -23,13 +23,18 @@ async function editableMaterial(ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const current = await editableMaterial(ctx);
   if ('error' in current) return current.error;
-  const form = await req.formData();
-  const title = String(form.get('title') ?? '').trim();
-  const body = String(form.get('body') ?? '').trim();
-  const url = String(form.get('url') ?? '').trim();
-  const category = String(form.get('category') ?? '자료').trim() || '자료';
-  const guild = String(form.get('guild') ?? '').trim();
-  const file = form.get('file');
+  const contentType = req.headers.get('content-type') ?? '';
+  const isJson = contentType.includes('application/json');
+  const data = isJson ? await req.json().catch(() => ({})) : null;
+  const form = isJson ? null : await req.formData();
+  const field = (name: string, fallback = '') =>
+    String(isJson ? (data as Record<string, unknown>)[name] ?? fallback : form?.get(name) ?? fallback).trim();
+  const title = field('title');
+  const body = field('body');
+  const url = field('url');
+  const category = field('category', '자료') || '자료';
+  const guild = field('guild');
+  const file = form?.get('file');
 
   if (!title) return Response.json({ error: 'title required' }, { status: 400 });
 

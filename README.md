@@ -14,12 +14,14 @@ npm run dev
 
 Open: http://127.0.0.1:5067
 
-For design changes, start with:
+For design changes, start with the files the live site actually serves:
 
-- Page routes: `apps/web/src/app/`
-- Shared components: `apps/web/src/components/`
-- Global styles: `apps/web/src/styles/globals.css`
-- Static legacy assets: `apps/web/public/static/`
+- Exact CSS: `apps/web/public/static/app.css`
+- Feed behavior and page rendering: `apps/web/public/static/feed.js`
+- Login shell and route wrapper: `apps/web/src/components/LegacyShell.tsx`
+- Next route entry points: `apps/web/src/app/`
+
+`frontend/` is kept as the legacy reference. Do not open a frontend-only pull request for a design change; it will not affect `bai.haiinu.com`. If you touch `frontend/app.css`, keep the same CSS in `apps/web/public/static/app.css`.
 
 Run checks before a pull request:
 
@@ -51,9 +53,11 @@ venv/bin/python -m pytest -q
 ## Work flow
 
 1. Create a branch.
-2. Change app code in `apps/web/` for the React UI, or `backend/`, `frontend/`, `scripts/` for legacy/API work.
+2. Change live UI code in `apps/web/`, or `backend/` for API work.
 3. Run tests.
 4. Push the branch and open a pull request.
+
+After a pull request is merged into `main`, the Mac mini launchd job `com.user.bai-website-autodeploy` pulls the repo, runs the React checks/build, syncs `apps/web` to the live service, and restarts `com.user.bai-next`.
 
 For a minimal student workflow in Korean, see `STUDENT-GIT-GUIDE.md`.
 For a standalone handoff file to send directly to Park Kyung, see `PARK_STUDENT_HANDOFF.md`.

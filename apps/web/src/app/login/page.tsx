@@ -1,5 +1,5 @@
-import { ModernLoginPage } from '@/components/ModernPages';
+import { LegacyLoginShell } from '@/components/LegacyShell';
 
 export default function Page() {
-  return <ModernLoginPage />;
+  return <LegacyLoginShell />;
 }

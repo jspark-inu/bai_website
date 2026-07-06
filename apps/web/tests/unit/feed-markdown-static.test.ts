@@ -57,10 +57,11 @@ describe('legacy feed markdown rendering', () => {
     expect(html).not.toContain('alert(1)');
   });
 
-  it('contains the material file upload controls in the Next-served legacy shell', () => {
-    expect(feedJs).toContain('id="materialFile" type="file"');
-    expect(feedJs).toContain('new FormData()');
-    expect(feedJs).toContain('payload.append("file", selectedFile)');
-    expect(feedJs).toContain('m.file_url');
+  it('serves Park PR page renderer strings without Next-only reinterpretation edits', () => {
+    expect(feedJs).toContain('BAI <span class="b">Feed</span>');
+    expect(feedJs).toContain('공감 <span class="rc">');
+    expect(feedJs).toContain('진행 여정 (처음 → 최근)');
+    expect(feedJs).not.toContain('id="materialFile" type="file"');
+    expect(feedJs).not.toContain('new FormData()');
   });
 });

@@ -60,15 +60,16 @@ git checkout -b park/fix-main-page
 
 ## 4. 수정 위치
 
-주로 아래 파일을 수정합니다.
+운영 사이트(`bai.haiinu.com`)는 `apps/web` 안의 Next 앱으로 뜹니다. 디자인 수정은 아래 파일을 우선 수정합니다.
 
-- React 화면: `apps/web/src/app/`
-- React 컴포넌트: `apps/web/src/components/`
-- React 스타일: `apps/web/src/styles/globals.css`
-- 기존 화면/HTML: `frontend/`
-- 기존 스타일: `frontend/app.css`
+- 전체 CSS: `apps/web/public/static/app.css`
+- 화면 동작/렌더링: `apps/web/public/static/feed.js`
+- Next 라우트 껍데기: `apps/web/src/app/`
+- 로그인/공통 shell: `apps/web/src/components/LegacyShell.tsx`
 - 백엔드/API: `backend/`
 - 운영 보조 스크립트: `scripts/`
+
+`frontend/`는 예전 Flask 화면 참고용입니다. `frontend/`만 바꾼 PR은 머지돼도 운영 사이트에 반영되지 않으므로, 디자인 PR은 반드시 `apps/web/public/static/` 또는 `apps/web/src/`도 같이 수정해야 합니다.
 
 ## 5. 테스트
 
@@ -92,7 +93,7 @@ npm run build
 
 ```bash
 git status
-git add apps/web frontend backend scripts README.md STUDENT-GIT-GUIDE.md
+git add apps/web backend scripts README.md STUDENT-GIT-GUIDE.md
 git commit -m "작업 내용 요약"
 git push -u origin 현재브랜치명
 ```

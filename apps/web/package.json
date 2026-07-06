@@ -9,7 +9,8 @@
     "start": "next start -H 0.0.0.0 -p 5067",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "parity": "node scripts/parity-harness.mjs"
+    "parity": "node scripts/parity-harness.mjs",
+    "design:park": "node scripts/park-pr-design-harness.mjs"
   },
   "dependencies": {
     "@next/env": "16.3.0-preview.5",

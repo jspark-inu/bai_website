@@ -45,14 +45,15 @@ cd ..
 # 2. 로컬에서 사이트 실행해보기
 
 ```bash
-cd backend
-LAB_FEED_SECRET=dev LAB_FEED_DB=lab-feed.dev.db venv/bin/python app.py
+cd apps/web
+npm install
+npm run dev
 ```
 
 브라우저에서 아래 주소를 엽니다.
 
 ```text
-http://127.0.0.1:5066
+http://127.0.0.1:5067
 ```
 
 서버를 끄려면 터미널에서 `Ctrl + C`를 누릅니다.
@@ -97,39 +98,36 @@ park/짧은-작업설명
 
 # 5. 주로 수정할 파일
 
-## 메인 화면
+운영 사이트는 `apps/web`의 Next 앱입니다. 아래 파일을 우선 수정하세요.
 
 ```text
-frontend/index.html
+apps/web/public/static/app.css
 ```
 
-## 전체 스타일
+전체 디자인 CSS입니다. 운영 사이트가 직접 읽습니다.
 
 ```text
-frontend/app.css
+apps/web/public/static/feed.js
 ```
 
-## 각 페이지 화면
+피드, 멤버, 질문, 검색, 프로젝트, 자료실 화면을 그리는 파일입니다.
 
 ```text
-frontend/*.html
+apps/web/src/app/
 ```
 
-예:
+각 URL의 Next entry 파일입니다.
 
 ```text
-frontend/members.html
-frontend/member.html
-frontend/feed.html
-frontend/questions.html
-frontend/search.html
-frontend/post.html
+apps/web/src/components/LegacyShell.tsx
 ```
 
-## 프론트엔드 동작
+로그인과 원본 CSS/JS를 붙이는 shell입니다.
+
+아래 `frontend/` 폴더는 예전 Flask 화면 참고용입니다. `frontend/`만 바꾸면 운영 사이트에는 반영되지 않습니다.
 
 ```text
-frontend/feed.js
+frontend/
 ```
 
 ## 백엔드 / API
@@ -146,7 +144,7 @@ backend/lab_feed_db.py
 scripts/
 ```
 
-처음에는 가능하면 `frontend/` 위주로 수정하는 것을 권장합니다.
+처음에는 가능하면 `apps/web/public/static/app.css`와 `apps/web/public/static/feed.js` 위주로 수정하는 것을 권장합니다.
 
 ---
 

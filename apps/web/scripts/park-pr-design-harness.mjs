@@ -84,6 +84,8 @@ check('Park PR Paper & Ink tokens are present in the served CSS', () => {
     '--ocean:#5b88b2',
     'box-shadow:4px 4px 0 var(--ink)',
     '.card .sec{display:grid;grid-template-columns:68px 1fr',
+    'body:has(.side)',
+    'background:var(--paper) !important',
   ].filter((token) => !css.includes(token));
   expect(!missing.length, 'Served CSS is missing Park PR design tokens', missing);
 });

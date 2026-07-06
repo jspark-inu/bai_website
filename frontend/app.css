@@ -262,3 +262,9 @@ button.primary:active,.writebtn:active{transform:translate(2px,2px);box-shadow:2
   body::after{display:none}
   .card,.editor,.profile-head,.login-box{box-shadow:none}
 }
+
+/* Next 전역 CSS의 예전 React 배경(body:has(.side))보다 높은 우선순위로 원본 종이 배경을 고정한다. */
+html,body,body:has(.side){
+  background:var(--paper) !important;
+  color:var(--ink) !important;
+}

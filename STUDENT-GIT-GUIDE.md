@@ -13,6 +13,22 @@ cd bai_website
 
 ## 2. 로컬 실행 준비
 
+현재 운영 사이트의 화면은 React/Next 앱입니다.
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+브라우저에서 확인:
+
+```text
+http://127.0.0.1:5067
+```
+
+기존 Flask 앱/API를 확인해야 할 때만 아래를 실행합니다.
+
 ```bash
 cd backend
 python3 -m venv venv
@@ -46,8 +62,11 @@ git checkout -b park/fix-main-page
 
 주로 아래 파일을 수정합니다.
 
-- 화면/HTML: `frontend/`
-- 스타일: `frontend/app.css`
+- React 화면: `apps/web/src/app/`
+- React 컴포넌트: `apps/web/src/components/`
+- React 스타일: `apps/web/src/styles/globals.css`
+- 기존 화면/HTML: `frontend/`
+- 기존 스타일: `frontend/app.css`
 - 백엔드/API: `backend/`
 - 운영 보조 스크립트: `scripts/`
 
@@ -60,11 +79,20 @@ cd backend
 venv/bin/python -m pytest -q
 ```
 
+React 화면을 수정했다면 아래도 실행합니다.
+
+```bash
+cd apps/web
+npm run typecheck
+npm test
+npm run build
+```
+
 ## 6. commit / push
 
 ```bash
 git status
-git add frontend backend scripts README.md STUDENT-GIT-GUIDE.md
+git add apps/web frontend backend scripts README.md STUDENT-GIT-GUIDE.md
 git commit -m "작업 내용 요약"
 git push -u origin 현재브랜치명
 ```

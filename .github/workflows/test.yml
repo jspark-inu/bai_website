@@ -22,3 +22,28 @@ jobs:
         run: |
           cd backend
           python -m pytest -q
+  react:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install dependencies
+        run: |
+          cd apps/web
+          npm ci
+      - name: Typecheck
+        run: |
+          cd apps/web
+          npm run typecheck
+      - name: Run unit tests
+        run: |
+          cd apps/web
+          npm test
+      - name: Build
+        run: |
+          cd apps/web
+          npm run build

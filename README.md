@@ -2,7 +2,35 @@
 
 BAI 진행 공유 웹앱입니다.
 
-## Local setup
+## React/Next app
+
+The live `https://bai.haiinu.com` UI is the React/Next app in `apps/web`.
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Open: http://127.0.0.1:5067
+
+For design changes, start with:
+
+- Page routes: `apps/web/src/app/`
+- Shared components: `apps/web/src/components/`
+- Global styles: `apps/web/src/styles/globals.css`
+- Static legacy assets: `apps/web/public/static/`
+
+Run checks before a pull request:
+
+```bash
+cd apps/web
+npm run typecheck
+npm test
+npm run build
+```
+
+## Legacy Flask app
 
 ```bash
 cd backend
@@ -23,7 +51,7 @@ venv/bin/python -m pytest -q
 ## Work flow
 
 1. Create a branch.
-2. Change app code in `backend/`, `frontend/`, or `scripts/`.
+2. Change app code in `apps/web/` for the React UI, or `backend/`, `frontend/`, `scripts/` for legacy/API work.
 3. Run tests.
 4. Push the branch and open a pull request.
 

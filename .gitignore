@@ -10,6 +10,13 @@ backups/
 !.env.example
 backend/venv/
 .venv/
+node_modules/
+apps/**/node_modules/
+.next/
+apps/**/.next/
+dist/
+build/
+*.tsbuildinfo
 __pycache__/
 *.py[cod]
 .pytest_cache/

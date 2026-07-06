@@ -1,0 +1,60 @@
+/* ============================================================
+   1C41 Professor OS — 1C40 코크핏과 동일 디자인 (A-라이트 + 좌측 사이드바)
+   토큰 출처: cockpit.css (1C14 하우스 라이트 테마)
+   ============================================================ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.min.css');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@600&display=swap');
+
+:root {
+  --bg:#FAFAF9; --surface:#FFFFFF; --surface-2:#F4F4F2;
+  --line:rgba(0,0,0,0.08); --line-2:rgba(0,0,0,0.14);
+  --fg:#1A1A1A; --mut:#57534E; --mut-2:#8A857C;
+  --accent:#4F46E5; --accent-bg:rgba(79,70,229,0.09);
+  --pos:#059669; --pos-bg:rgba(5,150,105,0.10);
+  --warn:#D97706; --warn-bg:rgba(217,119,6,0.11);
+  --neg:#E11D48; --neg-bg:rgba(225,29,72,0.09);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--fg); display:flex; min-height:100vh;
+  font-family:'Pretendard Variable',Pretendard,-apple-system,sans-serif; letter-spacing:-0.011em; line-height:1.55; -webkit-font-smoothing:antialiased; }
+a { color:inherit; }
+#nav { display:contents; }
+
+/* ---------- 좌측 사이드바 ---------- */
+.side { width:212px; flex-shrink:0; border-right:1px solid var(--line); padding:18px 14px; background:var(--surface); }
+.side .brand { font-weight:800; font-size:0.96rem; letter-spacing:-0.02em; padding:4px 8px 18px; }
+.side .brand .b { color:var(--accent); }
+.side .navsec { font-size:0.65rem; color:var(--mut-2); text-transform:uppercase; letter-spacing:0.08em; padding:14px 8px 6px; }
+.side a { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; color:var(--mut); text-decoration:none; font-size:0.85rem; margin-bottom:2px; }
+.side a.active { background:var(--accent-bg); color:var(--accent); font-weight:600; }
+.side a:hover:not(.active) { background:var(--surface-2); color:var(--fg); }
+
+/* ---------- 메인 ---------- */
+.container { flex:1; max-width:1040px; margin:0; padding:24px 30px 56px; }
+.container > h2, .container h1 { font-size:1.42rem; font-weight:700; letter-spacing:-0.03em; margin-bottom:14px; }
+
+/* ---------- 카드 / 컴포넌트 ---------- */
+.card { background:var(--surface); border:1px solid var(--line); border-radius:13px; padding:16px 18px; margin-bottom:13px; transition:border-color 0.15s, box-shadow 0.15s; }
+.card:hover { border-color:var(--line-2); }
+.card h3 { margin:0 0 8px; font-size:0.98rem; font-weight:700; letter-spacing:-0.01em; }
+.muted { color:var(--mut-2); font-size:0.8rem; }
+.row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:13px; }
+.stat { flex:1; min-width:130px; text-align:center; padding:20px 14px; }
+.stat .n { font-size:2rem; font-weight:800; font-family:'JetBrains Mono',monospace; letter-spacing:-0.02em; }
+.stat.warn .n { color:var(--neg); }
+.badge { display:inline-block; font-size:0.7rem; font-weight:600; padding:2px 9px; border-radius:6px; background:var(--surface-2); color:var(--mut); border:1px solid var(--line); }
+.badge.high { background:var(--neg-bg); color:var(--neg); border-color:transparent; }
+
+/* ---------- 입력 ---------- */
+input, select, textarea { width:100%; background:var(--surface); color:var(--fg); border:1px solid var(--line-2); border-radius:9px; padding:9px 11px; margin:5px 0; font:inherit; font-size:0.86rem; }
+input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
+label { font-size:0.73rem; color:var(--mut-2); }
+button.primary, .btn { background:var(--accent); color:#fff; border:none; border-radius:9px; padding:9px 15px; cursor:pointer; font:inherit; font-size:0.84rem; font-weight:600; margin-top:6px; }
+button.primary:hover { opacity:0.92; }
+
+@media (max-width:760px) {
+  body { display:block; }
+  .side { width:auto; border-right:none; border-bottom:1px solid var(--line); display:flex; gap:4px; overflow-x:auto; padding:10px; }
+  .side .brand, .side .navsec { display:none; }
+  .container { padding:18px 16px; }
+}

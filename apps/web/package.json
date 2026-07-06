@@ -1,0 +1,37 @@
+{
+  "name": "bai-next-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 5067",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 5067",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "parity": "node scripts/parity-harness.mjs"
+  },
+  "dependencies": {
+    "@next/env": "16.3.0-preview.5",
+    "better-sqlite3": "12.11.1",
+    "next": "16.3.0-preview.5",
+    "postcss": "8.5.16",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-markdown": "10.1.0",
+    "rehype-sanitize": "6.0.0",
+    "remark-gfm": "4.0.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@testing-library/react": "16.3.2",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "26.0.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "29.1.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}

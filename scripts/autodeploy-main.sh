@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="${BAI_WEBSITE_REPO:-/Users/hai_1/AI-Workspace/10-working/1C-개발/bai_website}"
+REPO_DIR="${BAI_WEBSITE_REPO:-/Users/hai_1/AI-Workspace/code/projects/dev/bai_website}"
 LOG_DIR="${BAI_DEPLOY_LOG_DIR:-$REPO_DIR/.deploy-logs}"
 LOCK_DIR="${BAI_DEPLOY_LOCK_DIR:-/tmp/bai-website-autodeploy.lock}"
 

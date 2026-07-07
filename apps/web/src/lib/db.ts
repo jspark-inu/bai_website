@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import type { Material, MemberPrivate, MemberPublic } from './types';
 
-const DEFAULT_DB_PATH = '/Users/hai_1/AI-Workspace/10-working/1C-개발/1C38-lab-feed/backend/lab-feed.db';
+const DEFAULT_DB_PATH = '/Users/hai_1/AI-Workspace/code/projects/dev/1C38-lab-feed/backend/lab-feed.db';
 
 let db: Database.Database | null = null;
 let dbPathForHandle = '';

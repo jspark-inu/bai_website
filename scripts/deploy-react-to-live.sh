@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_DIR="${BAI_WEBSITE_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-LIVE_WEB_DIR="${BAI_LIVE_WEB_DIR:-/Users/hai_1/AI-Workspace/10-working/1C-개발/1C38-lab-feed/apps/web}"
+LIVE_WEB_DIR="${BAI_LIVE_WEB_DIR:-/Users/hai_1/AI-Workspace/code/projects/dev/1C38-lab-feed/apps/web}"
 LAUNCHD_LABEL="${BAI_NEXT_LAUNCHD_LABEL:-com.user.bai-next}"
 
 cd "$REPO_DIR/apps/web"

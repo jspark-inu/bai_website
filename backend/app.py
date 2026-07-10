@@ -489,6 +489,27 @@ def create_app(db_path=None, secret=None):
             "reported": reported,
         })
 
+    @app.route("/api/wall", methods=["GET"])
+    def api_wall_list():
+        if not current_member():
+            return jsonify({"error": "login required"}), 401
+        limit = request.args.get("limit", 12, type=int)
+        return jsonify({"messages": db.list_wall_messages(limit)})
+
+    @app.route("/api/wall", methods=["POST"])
+    def api_wall_create():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        data = request.get_json(silent=True) or {}
+        body = re.sub(r"\s+", " ", (data.get("body") or "")).strip()
+        if not body:
+            return jsonify({"error": "message required"}), 400
+        if len(body) > 80:
+            return jsonify({"error": "message too long"}), 400
+        mid = db.add_wall_message(member["id"], body)
+        return jsonify({"id": mid})
+
     # ---- 자료실/게시판: 온보딩 + 길드 자료 ----
     @app.route("/api/materials", methods=["GET"])
     def api_materials():
@@ -607,65 +628,65 @@ def create_app(db_path=None, secret=None):
     # ---- 페이지(HTML) 서빙 ----
     @app.route("/")
     def page_index():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/login")
     def page_login():
-        return send_from_directory(FRONTEND_DIR, "login.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
-    # SPA: 피드 경로 모두 단일 셸(feed.html) — 사이드바 고정, JS 라우터가 뷰 교체
+    # SPA: 피드 경로 모두 단일 셸(krds.html) — KRDS 리디자인, JS 라우터가 뷰 교체
     @app.route("/post/<int:pid>")
     def page_post(pid):
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/member/<int:mid>")
     def page_member(mid):
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/tag/<tag>")
     def page_tag(tag):
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/search")
     def page_search():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/questions")
     def page_questions():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/ask")
     def page_ask():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/members")
     def page_members():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/account")
     def page_account():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/goodbai")
     @app.route("/developer")
     def page_developer():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/admin/members")
     def page_admin_members():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/materials")
     def page_materials():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/projects")
     def page_projects():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/projects/<int:pid>")
     def page_project_detail(pid):
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/static/<path:fname>")
     def static_files(fname):
@@ -674,13 +695,13 @@ def create_app(db_path=None, secret=None):
     @app.route("/index.html")
     @app.route("/feed.html")
     def page_legacy_index():
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     @app.route("/<path:path>")
     def page_spa_fallback(path):
         if path.startswith("api/"):
             return jsonify({"error": "not found"}), 404
-        return send_from_directory(FRONTEND_DIR, "feed.html")
+        return send_from_directory(FRONTEND_DIR, "krds.html")
 
     return app
 

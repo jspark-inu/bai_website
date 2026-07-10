@@ -130,15 +130,22 @@ def test_session_cookie_defaults_are_public_launch_safe(client):
 
 
 def test_login_page_explains_onboarding_and_visibility(client):
-    body = client.get("/login").get_data(as_text=True)
+    # 로그인은 KRDS SPA 셸(krds.html) 안에서 렌더링되고, 안내 문구는 krds.js에 있다.
+    shell = client.get("/login").get_data(as_text=True)
+    assert "krds.js" in shell
+    body = client.get("/static/krds.js").get_data(as_text=True)
     assert "계정은 운영자가 발급합니다" in body
     assert "진행 공유는 로그인한 BAI 멤버에게 보입니다" in body
     assert "매주 한 번" in body
+    assert 'location.href = "/"' in body
+    assert "/cockpit" not in body
 
 
 def test_feed_shell_contains_first_post_cta_copy(client):
-    body = client.get("/static/feed.js").get_data(as_text=True)
-    assert "첫 진행 공유를 남겨보세요" in body
+    body = client.get("/static/krds.js").get_data(as_text=True)
+    assert "첫 진행 공유를 남겨 보세요" in body
+    assert "checkinHtml" in body
+    assert "이번 주 BAI 체크인" in body
 
 
 def test_feed_shell_contains_materials_board_route(client):
@@ -539,6 +546,26 @@ def test_weekly_moves_from_missing_to_reported(client):
     assert data2["reported_count"] == 1
     assert any(m["name"] == "김영희" for m in data2["reported"])
     assert all(m["name"] != "김영희" for m in data2["missing"])
+
+
+def test_wall_chat_requires_login(client):
+    assert client.get("/api/wall").status_code == 401
+    assert client.post("/api/wall", json={"body": "화이팅"}).status_code == 401
+
+
+def test_wall_chat_create_list_is_anonymous(client):
+    _login(client)
+    created = client.post("/api/wall", json={"body": "오늘 데모 좋았다"})
+    assert created.status_code == 200
+    body = client.get("/api/wall").get_json()
+    assert body["messages"][0]["body"] == "오늘 데모 좋았다"
+    assert "author_name" not in body["messages"][0]
+    assert "author_id" not in body["messages"][0]
+
+
+def test_wall_chat_rejects_long_message(client):
+    _login(client)
+    assert client.post("/api/wall", json={"body": "x" * 81}).status_code == 400
 
 
 def test_week_start_utc_is_monday_kst():

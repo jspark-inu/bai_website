@@ -102,6 +102,12 @@ CREATE TABLE IF NOT EXISTS materials (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS wall_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    author_id INTEGER NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -498,6 +504,31 @@ class LabFeedDB:
         try:
             conn.execute("DELETE FROM materials WHERE id=?", (material_id,))
             conn.commit()
+        finally:
+            conn.close()
+
+    # --- anonymous wall chat ---
+    def add_wall_message(self, author_id, body):
+        conn = self._conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO wall_messages (author_id, body) VALUES (?,?)",
+                (author_id, body),
+            )
+            conn.commit()
+            return cur.lastrowid
+        finally:
+            conn.close()
+
+    def list_wall_messages(self, limit=12):
+        limit = max(1, min(int(limit or 12), 40))
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT id, body, created_at FROM wall_messages ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in reversed(rows)]
         finally:
             conn.close()
 

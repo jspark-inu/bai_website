@@ -52,6 +52,8 @@ jobs:
         run: |
           cd apps/web
           npm test
+      - name: Verify student auto-merge trust boundary
+        run: node --test scripts/tests/pr-automerge-policy.test.mjs
       - name: Verify talent office authority and point invariants
         run: |
           cd apps/web

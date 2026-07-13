@@ -51,18 +51,19 @@ const routePages = [
   'apps/web/src/app/tag/[tag]/page.tsx',
 ];
 
-check('Park PR design source files exist', () => {
+check('Approved KRDS source and live asset files exist', () => {
   const missing = [
+    'frontend/krds.html',
     'frontend/krds.css',
     'frontend/krds.js',
     'apps/web/public/static/krds.css',
     'apps/web/public/static/krds.js',
     'apps/web/src/components/LegacyShell.tsx',
   ].filter((rel) => !relExists(rel));
-  expect(!missing.length, 'Required design source files are missing', missing);
+  expect(!missing.length, 'Required KRDS source or live asset files are missing', missing);
 });
 
-check('Park PR CSS is the exact CSS served by Next', () => {
+check('Approved KRDS CSS is byte-identical to the CSS served by Next', () => {
   expect(
     sha('frontend/krds.css') === sha('apps/web/public/static/krds.css'),
     'apps/web/public/static/krds.css must be byte-identical to frontend/krds.css',
@@ -70,7 +71,7 @@ check('Park PR CSS is the exact CSS served by Next', () => {
   );
 });
 
-check('Park PR page renderer is the exact JS served by Next', () => {
+check('Approved KRDS renderer is byte-identical to the JavaScript served by Next', () => {
   expect(
     sha('frontend/krds.js') === sha('apps/web/public/static/krds.js'),
     'apps/web/public/static/krds.js must be byte-identical to frontend/krds.js',
@@ -78,21 +79,23 @@ check('Park PR page renderer is the exact JS served by Next', () => {
   );
 });
 
-check('Park PR KRDS tokens are present in the served CSS', () => {
+check('Approved KRDS visual and accessibility tokens are present in the served CSS', () => {
   const css = read('apps/web/public/static/krds.css');
   const missing = [
-    'KRDS',
     '--krds-primary-50: #256EF4',
     '--krds-gray-90: #1E2124',
     '--krds-focus: 0 0 0 4px rgba(37, 110, 244, .45)',
-    '.gnb a.on',
+    '.skip-link',
     '.hd-main',
+    '.crumb-wrap',
+    '.main',
+    '.list-row',
     'prefers-reduced-motion',
   ].filter((token) => !css.includes(token));
-  expect(!missing.length, 'Served CSS is missing Park PR KRDS design tokens', missing);
+  expect(!missing.length, 'Served CSS is missing approved KRDS design tokens', missing);
 });
 
-check('Next student routes use the legacy feed shell, not React page reinterpretations', () => {
+check('Next student routes delegate to the shared approved-design shell', () => {
   const offenders = [];
   for (const rel of routePages) {
     const source = read(rel);
@@ -103,31 +106,65 @@ check('Next student routes use the legacy feed shell, not React page reinterpret
       offenders.push(`${rel}: does not return LegacyFeedShell`);
     }
     if (source.includes('AppShell') || source.includes('resource-card') || source.includes('feed-card')) {
-      offenders.push(`${rel}: still contains React reinterpretation markup`);
+      offenders.push(`${rel}: still contains a React reinterpretation`);
     }
   }
-  expect(!offenders.length, 'Student routes are not all delegated to the original feed renderer', offenders);
+  expect(!offenders.length, 'Student routes are not all delegated to the approved renderer', offenders);
 });
 
-check('LegacyShell mounts the exact DOM contract expected by Park PR krds.js', () => {
+check('Next shell mounts the exact DOM contract required by approved krds.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
-  const missing = [
-    'href="/static/krds.css?v=20260713krds1',
-    'id="header"',
-    'id="gnb"',
-    'id="crumbWrap"',
-    'id="view"',
-    'id="footer"',
-    "script.src = '/static/krds.js?v=20260713krds1'",
+  const required = [
+    "const ASSET_VERSION = '20260713krds2'",
+    'script.id = \'bai-krds-script\'',
+    'script.src = `/static/krds.js?v=${ASSET_VERSION}`',
     'script.onload = () => window.initApp?.()',
-  ].filter((token) => !shell.includes(token));
-  expect(!missing.length, 'LegacyShell does not mount the KRDS shell DOM/script contract', missing);
-  expect(!shell.includes('20260713to4') && !shell.includes('20260713to5'), 'LegacyShell still references a stale legacy asset URL');
+    'href={`/static/krds.css?v=${ASSET_VERSION}`}',
+    'className="skip-link"',
+    'className="hd" id="header"',
+    'className="hd-util-in" id="hdUtil"',
+    'className="gnb" id="gnb"',
+    'className="crumb-wrap" id="crumbWrap"',
+    'className="crumb" id="crumb"',
+    'className="main" id="view"',
+    'className="ft" id="footer"',
+  ];
+  const missing = required.filter((token) => !shell.includes(token));
+  expect(!missing.length, 'Next shell does not mount the approved KRDS DOM/script contract', missing);
+
+  const stale = ['/static/app.css', '/static/feed.js', 'id="nav"', 'className="container"'];
+  const found = stale.filter((token) => shell.includes(token));
+  expect(!found.length, 'Next shell still mounts the previous Paper & Ink renderer', found);
 });
 
-check('Park PR feed renderer controls page-level design labels', () => {
+check('Legacy global CSS is isolated from approved KRDS routes', () => {
+  const rootLayout = read('apps/web/src/app/layout.tsx');
+  expect(
+    !rootLayout.includes("import '@/styles/globals.css'"),
+    'Root layout must not inject legacy global CSS into every KRDS route',
+  );
+
+  const missing = [
+    'apps/web/src/app/about/layout.tsx',
+    'apps/web/src/app/cockpit/layout.tsx',
+  ].filter((rel) => !relExists(rel) || !read(rel).includes("import '@/styles/globals.css'"));
+  expect(!missing.length, 'Legacy React-only routes must load their own stylesheet', missing);
+
+  const clientTransitionLeaks = [
+    'apps/web/src/app/about/page.tsx',
+    'apps/web/src/components/SidebarNav.tsx',
+  ].filter((rel) => read(rel).includes("from 'next/link'"));
+  expect(
+    !clientTransitionLeaks.length,
+    'Legacy-styled routes must use a document navigation when entering KRDS routes',
+    clientTransitionLeaks,
+  );
+});
+
+check('Approved KRDS renderer controls the visible page labels', () => {
   const js = read('apps/web/public/static/krds.js');
   const missing = [
+    'BAI 진행 공유',
     '전체 피드',
     '인력사무소',
     '프로젝트',
@@ -139,10 +176,10 @@ check('Park PR feed renderer controls page-level design labels', () => {
     'Goodbai API',
     '멤버 관리',
   ].filter((token) => !js.includes(token));
-  expect(!missing.length, 'Served feed renderer is missing Park PR page design strings', missing);
+  expect(!missing.length, 'Served KRDS renderer is missing approved page labels', missing);
 });
 
-check('Merged talent-office design is present in the JavaScript served by Next', () => {
+check('Merged talent-office behavior is present in the approved renderer served by Next', () => {
   const js = read('apps/web/public/static/krds.js');
   const missing = [
     'const roleOptions = ["student", "admin_student", "developer", "operator", "pi"]',
@@ -152,7 +189,7 @@ check('Merged talent-office design is present in the JavaScript served by Next',
     '운영 검토',
     '완료 인정 · 10점 지급',
   ].filter((token) => !js.includes(token));
-  expect(!missing.length, 'Served feed renderer is missing merged PR #4 behavior', missing);
+  expect(!missing.length, 'Served KRDS renderer is missing merged PR #4 behavior', missing);
 });
 
 for (const { name, fn } of checks) {

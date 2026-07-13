@@ -1,11 +1,9 @@
-import Link from 'next/link';
-
 export const dynamic = 'force-static';
 
 export default function AboutPage() {
   return (
     <main className="bai-about">
-      <header><Link href="/about" className="bai-about-mark">BAI</Link><Link href="/login">멤버 로그인 →</Link></header>
+      <header><a href="/about" className="bai-about-mark">BAI</a><a href="/login">멤버 로그인 →</a></header>
       <section className="bai-about-hero">
         <p>Build with AI · Department AppDev</p>
         <h1>학과의 반복되는 문제를<br />학생이 직접 해결합니다.</h1>

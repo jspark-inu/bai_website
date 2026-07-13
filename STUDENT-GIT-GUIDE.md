@@ -62,14 +62,14 @@ git checkout -b park/fix-main-page
 
 운영 사이트(`bai.haiinu.com`)는 `apps/web` 안의 Next 앱으로 뜹니다. 디자인 수정은 아래 파일을 우선 수정합니다.
 
-- 전체 CSS: `apps/web/public/static/app.css`
-- 화면 동작/렌더링: `apps/web/public/static/feed.js`
+- 승인 KRDS CSS: `apps/web/public/static/krds.css`
+- 승인 KRDS 화면 동작/렌더링: `apps/web/public/static/krds.js`
 - Next 라우트 껍데기: `apps/web/src/app/`
 - 로그인/공통 shell: `apps/web/src/components/LegacyShell.tsx`
 - 백엔드/API: `backend/`
 - 운영 보조 스크립트: `scripts/`
 
-`frontend/`는 예전 Flask 화면 참고용입니다. `frontend/`만 바꾼 PR은 머지돼도 운영 사이트에 반영되지 않으므로, 디자인 PR은 반드시 `apps/web/public/static/` 또는 `apps/web/src/`도 같이 수정해야 합니다.
+`frontend/krds.css`와 `frontend/krds.js`는 승인 디자인 원본입니다. 같은 파일을 `apps/web/public/static/`에도 바이트 단위로 동일하게 반영해야 합니다. `frontend/`만 바꾼 PR은 머지돼도 운영 사이트에 반영되지 않으므로, 디자인 PR은 반드시 `apps/web/public/static/` 또는 `apps/web/src/`도 같이 수정해야 합니다.
 
 ## 5. 테스트
 

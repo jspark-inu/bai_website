@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogoutButton } from './LogoutButton';
 import type { MemberPublic } from '@/lib/types';
@@ -34,21 +33,21 @@ export function SidebarNav({ member }: { member: MemberPublic }) {
       <div className="brand">BAI <span className="b">Feed</span></div>
       <div className="navsec">피드</div>
       {feedItems.map(([href, label, key]) => (
-        <Link key={key} href={href} data-view={key} className={isActive(pathname, href, key) ? 'on' : ''}>
+        <a key={key} href={href} data-view={key} className={isActive(pathname, href, key) ? 'on' : ''}>
           {label}
-        </Link>
+        </a>
       ))}
       <div className="navsec">계정</div>
       {accountItems.map(([href, label, key]) => (
-        <Link key={key} href={href} data-view={key} className={isActive(pathname, href.split('?')[0], key) ? 'on' : ''}>
+        <a key={key} href={href} data-view={key} className={isActive(pathname, href.split('?')[0], key) ? 'on' : ''}>
           {label}
-        </Link>
+        </a>
       ))}
-      {isPI ? <Link href="/admin/members" data-view="admin" className={isActive(pathname, '/admin/members', 'admin') ? 'on' : ''}>멤버 관리</Link> : null}
+      {isPI ? <a href="/admin/members" data-view="admin" className={isActive(pathname, '/admin/members', 'admin') ? 'on' : ''}>멤버 관리</a> : null}
       {isPI ? (
         <>
           <div className="navsec">이동</div>
-          <Link href="/cockpit" data-view="cockpit" className={pathname.startsWith('/cockpit') ? 'on' : ''}>HAI OS</Link>
+          <a href="/cockpit" data-view="cockpit" className={pathname.startsWith('/cockpit') ? 'on' : ''}>HAI OS</a>
           <a href="http://100.96.96.101:8003/" target="_blank" rel="noopener noreferrer">Professor OS</a>
         </>
       ) : null}

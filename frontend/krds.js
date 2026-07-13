@@ -811,6 +811,165 @@ async function renderAccount(view) {
   };
 }
 
+// ---------------- 뷰: 인력사무소 ----------------
+const TALENT_STATUS = {
+  submitted: ["검토 대기", "badge-gray-o"],
+  accepted: ["매칭 대기", "badge-navy-o"],
+  assigned: ["해결 중", "badge-info-o"],
+  ready_for_review: ["완료 확인 대기", "badge-warning-o"],
+  changes_requested: ["보완 요청", "badge-warning-o"],
+  completed: ["완료", "badge-success"],
+  declined: ["반려", "badge-point-o"],
+  approval_required: ["승인 필요", "badge-point-o"],
+};
+function talentBadge(status) {
+  const [label, cls] = TALENT_STATUS[status] || [status, "badge-gray-o"];
+  return `<span class="badge ${cls}">${esc(label)}</span>`;
+}
+async function renderTalentOffice(view) {
+  view.innerHTML = `
+    <div class="page-head">
+      <div><h1>인력사무소</h1><p class="desc">학과의 반복되는 문제를 학생이 함께 해결합니다.</p></div>
+      <button class="btn btn-primary" id="newTalentBtn">개선 요청하기</button>
+    </div>
+    <div class="panel-form hidden" id="talentEditor">
+      <div class="form-head"><b>시스템 개선 요청</b><span>개인 문의나 시설 민원 대신, 여러 구성원이 반복해서 겪는 문제를 적어 주세요. 네 항목 모두 필수입니다.</span></div>
+      <div class="field"><label for="trTitle">요청 제목 <span class="req" aria-hidden="true">*</span></label>
+        <input class="input" id="trTitle" placeholder="예: 수강 안내 반복 질문 줄이기" aria-required="true"></div>
+      <div class="field"><label for="trProblem">현재 문제 <span class="req" aria-hidden="true">*</span></label>
+        <textarea class="textarea" id="trProblem" aria-required="true"></textarea></div>
+      <div class="field"><label for="trOutcome">원하는 결과 <span class="req" aria-hidden="true">*</span></label>
+        <textarea class="textarea" id="trOutcome" aria-required="true"></textarea></div>
+      <div class="field"><label for="trScope">왜 시스템 개선인가요? <span class="req" aria-hidden="true">*</span></label>
+        <textarea class="textarea" id="trScope" placeholder="누가 얼마나 자주 겪는지 적어 주세요." aria-required="true"></textarea></div>
+      <div class="form-actions"><button class="btn btn-primary" id="trSubmit">요청 등록하기</button>
+        <button class="btn btn-tertiary" id="trCancel">취소</button>
+        <p class="form-msg error" id="trErr" aria-live="polite"></p></div>
+    </div>
+    <div id="talentList"></div>`;
+  const editor = document.getElementById("talentEditor");
+  const r = await fetch("/api/talent-office");
+  const data = await r.json();
+  document.getElementById("talentList").innerHTML = (data.requests || []).length
+    ? data.requests.map(item => `<a class="card" href="/talent-office/${item.id}" style="display:block;color:inherit;text-decoration:none">
+        <div class="detail-meta" style="margin-bottom:6px"><b style="font-size:1.7rem">${esc(item.title)}</b>${talentBadge(item.status)}
+          <span style="margin-left:auto">요청자 ${esc(item.requester_name)}</span></div>
+        <div style="font-size:1.5rem;color:var(--krds-gray-70)">${esc(clipText(item.problem, 140))}</div>
+      </a>`).join("")
+    : '<div class="empty">아직 등록된 요청이 없습니다. 학과가 반복해서 겪는 문제를 첫 요청으로 남겨 보세요.</div>';
+  document.getElementById("newTalentBtn").onclick = () => {
+    editor.classList.toggle("hidden");
+    if (!editor.classList.contains("hidden")) document.getElementById("trTitle").focus();
+  };
+  document.getElementById("trCancel").onclick = () => editor.classList.add("hidden");
+  document.getElementById("trSubmit").onclick = async () => {
+    const payload = {
+      title: document.getElementById("trTitle").value.trim(),
+      problem: document.getElementById("trProblem").value.trim(),
+      expected_outcome: document.getElementById("trOutcome").value.trim(),
+      system_scope_reason: document.getElementById("trScope").value.trim(),
+    };
+    const err = document.getElementById("trErr");
+    err.textContent = "";
+    if (Object.values(payload).some(v => !v)) { err.textContent = "네 항목을 모두 입력해 주세요."; return; }
+    const res = await fetch("/api/talent-office", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (res.ok) navigate("/talent-office");
+    else err.textContent = "요청을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  };
+}
+
+async function renderTalentDetail(view, rid) {
+  const r = await fetch(`/api/talent-office/${rid}`);
+  if (!r.ok) {
+    view.innerHTML = '<div class="empty">요청을 찾을 수 없거나 접근 권한이 없습니다.<br><a class="btn sm btn-secondary" href="/talent-office" style="margin-top:16px">인력사무소로 이동</a></div>';
+    return;
+  }
+  const d = await r.json();
+  const item = d.request;
+  const mine = item.requester_member_id === ME.id;
+  const operator = ["operator", "pi"].includes(ME.role);
+  const assigned = (d.assignees || []).some(a => a.member_id === ME.id);
+  const assigneesHtml = (d.assignees || []).length
+    ? d.assignees.map(a => `${esc(a.name)} · ${esc(a.role || "담당")} · ${Math.round(a.allocation_ratio * 100)}%`).join("<br>")
+    : "아직 매칭 전입니다.";
+  view.innerHTML = `<div style="max-width:820px;margin:0 auto">
+    <article class="card">
+      <header class="detail-head">
+        <div class="detail-meta">${talentBadge(item.status)}<span>요청자 ${esc(item.requester_name)}</span></div>
+        <h1>${esc(item.title)}</h1>
+      </header>
+      <div class="detail-sec"><h2>문제</h2><div class="body">${esc(item.problem)}</div></div>
+      <div class="detail-sec"><h2>기대 결과</h2><div class="body">${esc(item.expected_outcome)}</div></div>
+      <div class="detail-sec"><h2>시스템 개선 근거</h2><div class="body">${esc(item.system_scope_reason)}</div></div>
+      <div class="detail-sec"><h2>담당자</h2><div class="body">${assigneesHtml}</div></div>
+      ${item.solution_summary || item.solution_url ? `<div class="detail-sec"><h2>결과물</h2><div class="body">${esc(item.solution_summary || "")}
+        ${item.solution_url ? ` <a href="${esc(item.solution_url)}" target="_blank" rel="noopener noreferrer">결과물 열기</a>` : ""}</div></div>` : ""}
+    </article>
+    <div id="talentActions"></div></div>`;
+  const actions = document.getElementById("talentActions");
+  if (operator && item.status === "submitted") {
+    actions.insertAdjacentHTML("beforeend", `<div class="panel-form" style="margin-top:16px">
+      <div class="form-head"><b>운영 검토</b><span>수락하면 담당자 매칭 단계로 넘어갑니다.</span></div>
+      <div class="field"><label for="reviewNote">운영 판단 메모</label><textarea class="textarea" id="reviewNote"></textarea></div>
+      <div class="form-actions"><button class="btn btn-primary" id="acceptBtn">수락하기</button>
+        <button class="btn btn-tertiary" id="declineBtn">반려</button></div></div>`);
+  }
+  if (operator && item.status === "accepted") {
+    actions.insertAdjacentHTML("beforeend", `<div class="panel-form" style="margin-top:16px">
+      <div class="form-head"><b>담당자 매칭</b><span>담당 학생이 합의한 배분 비중의 합은 100%여야 합니다.</span></div>
+      <div class="field"><label for="assigneeRows">담당자와 배분 비중</label>
+        <textarea class="textarea" id="assigneeRows" placeholder="멤버 ID, 비중(%)&#10;예: 12, 60&#10;예: 18, 40"></textarea></div>
+      <div class="form-actions"><button class="btn btn-primary" id="assignBtn">담당자 배정하기</button></div></div>`);
+  }
+  if (assigned && item.status === "assigned") {
+    actions.insertAdjacentHTML("beforeend", `<div class="panel-form" style="margin-top:16px">
+      <div class="form-head"><b>해결 보고</b><span>완료 확인은 요청자가 합니다.</span></div>
+      <div class="field"><label for="solutionSummary">해결 요약</label><textarea class="textarea" id="solutionSummary"></textarea></div>
+      <div class="field"><label for="solutionUrl">결과물 링크</label><input class="input" id="solutionUrl"></div>
+      <div class="form-actions"><button class="btn btn-primary" id="solutionBtn">완료 확인 요청하기</button></div></div>`);
+  }
+  if (mine && item.status === "ready_for_review") {
+    actions.insertAdjacentHTML("beforeend", `<div class="panel-info" style="margin-top:16px">
+      <b>결과물을 확인해 주세요.</b>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-primary" id="completeBtn">완료 인정 · 10점 지급</button>
+        <button class="btn btn-tertiary" id="changesBtn">보완 요청</button></div></div>`);
+  }
+  const byId = id => document.getElementById(id);
+  const decide = async status => {
+    const rr = await fetch(`/api/talent-office/${rid}/review`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, review_note: byId("reviewNote").value.trim() }) });
+    if (rr.ok) route(`/talent-office/${rid}`, false);
+  };
+  if (byId("acceptBtn")) byId("acceptBtn").onclick = () => decide("accepted");
+  if (byId("declineBtn")) byId("declineBtn").onclick = () => decide("declined");
+  if (byId("assignBtn")) byId("assignBtn").onclick = async () => {
+    const assignees = byId("assigneeRows").value.trim().split(/\n+/)
+      .map(line => line.split(",").map(v => v.trim()))
+      .map(([id, ratio]) => ({ member_id: Number(id), allocation_ratio: Number(ratio) / 100 }));
+    const total = assignees.reduce((sum, a) => sum + a.allocation_ratio, 0);
+    if (!assignees.length || assignees.some(a => !a.member_id || !a.allocation_ratio) || Math.abs(total - 1) > 0.000001) {
+      alert("담당자 ID와 비중을 확인해 주세요. 비중의 합은 정확히 100%여야 합니다."); return;
+    }
+    const rr = await fetch(`/api/talent-office/${rid}/assignees`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assignees }) });
+    if (rr.ok) route(`/talent-office/${rid}`, false);
+    else alert("배정하지 못했습니다. 멤버 ID와 비중을 확인해 주세요.");
+  };
+  if (byId("solutionBtn")) byId("solutionBtn").onclick = async () => {
+    const rr = await fetch(`/api/talent-office/${rid}/solution`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ solution_summary: byId("solutionSummary").value.trim(), solution_url: byId("solutionUrl").value.trim() }) });
+    if (rr.ok) route(`/talent-office/${rid}`, false);
+  };
+  if (byId("completeBtn")) byId("completeBtn").onclick = async () => {
+    const rr = await fetch(`/api/talent-office/${rid}/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "completed" }) });
+    if (rr.ok) route(`/talent-office/${rid}`, false);
+  };
+  if (byId("changesBtn")) byId("changesBtn").onclick = async () => {
+    await fetch(`/api/talent-office/${rid}/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "changes_requested" }) });
+    route(`/talent-office/${rid}`, false);
+  };
+}
+
 // ---------------- 뷰: Goodbai API (개발자) ----------------
 async function renderDeveloper(view) {
   view.innerHTML = `<div style="max-width:720px">
@@ -861,7 +1020,7 @@ async function renderAdminMembers(view) {
   view.innerHTML = `<div class="page-head"><div><h1>멤버 관리</h1>
     <p class="desc">PI 전용입니다. 학생 API key 재발급과 권한·상태 변경을 관리합니다.</p></div></div>
     <p class="form-msg ok" id="adminMsg" aria-live="polite"></p><div id="adminMembers"></div>`;
-  const roleOptions = ["student", "admin_student", "developer", "pi"];
+  const roleOptions = ["student", "admin_student", "developer", "operator", "pi"];
   const statusOptions = ["active", "disabled"];
   const wrap = document.getElementById("adminMembers");
   const load = async () => {
@@ -942,6 +1101,7 @@ function renderLogin(view) {
 // ---------------- 헤더/브레드크럼 ----------------
 const GNB_ITEMS = [
   ["/", "전체 피드", "home"],
+  ["/talent-office", "인력사무소", "talent"],
   ["/projects", "프로젝트", "projects"],
   ["/materials", "자료실", "materials"],
   ["/questions", "막힌 질문", "questions"],
@@ -973,7 +1133,7 @@ function setCrumb(key, extra) {
   const names = {
     home: "전체 피드", projects: "프로젝트", materials: "자료실", questions: "막힌 질문",
     ask: "문의·FAQ", members: "멤버", search: "검색", account: "계정",
-    developer: "Goodbai API", admin: "멤버 관리",
+    developer: "Goodbai API", admin: "멤버 관리", talent: "인력사무소",
   };
   if (key === "home" && !extra) { wrap.hidden = true; return; }
   let h = `<a href="/">홈</a>`;
@@ -995,6 +1155,8 @@ function matchRoute(path) {
   if (p === "/" || p === "" || p === "/index.html" || p === "/feed.html") return ["home", v => renderHome(v), null];
   if (p === "/questions") return ["questions", v => renderQuestions(v), null];
   if (p === "/ask") return ["ask", v => renderAsk(v), null];
+  if (p === "/talent-office") return ["talent", v => renderTalentOffice(v), null];
+  if (p.startsWith("/talent-office/")) { const id = +p.split("/")[2]; return ["talent", v => renderTalentDetail(v, id), "요청 상세"]; }
   if (p === "/projects") return ["projects", v => renderProjects(v), null];
   if (p.startsWith("/projects/")) { const id = +p.split("/")[2]; return ["projects", v => renderProjectDetail(v, id), "프로젝트 상세"]; }
   if (p === "/materials") return ["materials", v => renderMaterials(v), null];
@@ -1023,7 +1185,7 @@ async function route(path, push) {
 function navigate(path) { route(path, true); }
 
 // ---------------- 초기화 ----------------
-const ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
+const ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|talent-office|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
 async function initApp() {
   ME = await getMe();
   const view = document.getElementById("view");

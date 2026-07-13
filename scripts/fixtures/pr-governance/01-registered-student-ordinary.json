@@ -1,0 +1,21 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "files": [
+      {
+        "filename": "apps/web/src/components/StudentCard.tsx",
+        "status": "modified",
+        "changes": 48,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "auto_merge",
+    "reasonCodes": [
+      "trusted_low_risk"
+    ]
+  }
+}

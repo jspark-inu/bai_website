@@ -1,63 +1,184 @@
-name: trusted PR auto-merge
+name: PR governance
 
 on:
   pull_request_target:
     types: [opened, reopened, ready_for_review, synchronize]
+  pull_request_review:
+    types: [submitted, dismissed]
 
 permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: pr-governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  enable-auto-merge:
-    # Registered students and trusted operators do not need a separate approval
-    # for ordinary PRs. Required CI checks still run, and CODEOWNERS adds PI
-    # approval only for security, data, API, dependency, deployment, or
-    # site-entrypoint changes.
+  route:
+    # This privileged job checks out policy from main only. It reads PR metadata
+    # and patches through the API but never checks out or executes PR head code.
     if: >-
       github.event.pull_request.state == 'open' &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: Check out trusted policy from main
+      - name: Check out trusted governance policy from main
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
           fetch-depth: 1
-      - name: Enable squash auto-merge for trusted contributor
+      - name: Route pull request
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('node:fs');
             const path = require('node:path');
             const { pathToFileURL } = require('node:url');
-            const pr = context.payload.pull_request;
-            const author = pr.user.login;
-            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+
+            const eventPr = context.payload.pull_request;
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              username: author,
+              pull_number: eventPr.number,
             });
+            const author = pr.user.login;
 
-            const registryPath = path.join(process.env.GITHUB_WORKSPACE, '.github', 'trusted-students.json');
+            const configPath = path.join(
+              process.env.GITHUB_WORKSPACE,
+              '.github',
+              'pr-governance-routing.json',
+            );
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            const registryPath = path.join(
+              process.env.GITHUB_WORKSPACE,
+              config.policy.trusted_students_registry,
+            );
             const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
-            const policyUrl = pathToFileURL(
-              path.join(process.env.GITHUB_WORKSPACE, 'scripts', 'pr-automerge-policy.mjs'),
-            ).href;
-            const { evaluateAutoMergeAuthor } = await import(policyUrl);
-            const decision = evaluateAutoMergeAuthor({
+
+            const importPolicy = async (filename) => import(pathToFileURL(
+              path.join(process.env.GITHUB_WORKSPACE, 'scripts', filename),
+            ).href);
+            const { evaluateAutoMergeAuthor } = await importPolicy('pr-automerge-policy.mjs');
+            const {
+              addedLinesFromPatch,
+              evaluatePullRequest,
+              hasCurrentHeadPiApproval,
+              scanAddedLines,
+            } = await importPolicy('pr-governance-policy.mjs');
+
+            let permission = 'read';
+            try {
+              const response = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: author,
+              });
+              permission = response.data.permission;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const authorDecision = evaluateAutoMergeAuthor({
               author,
-              permission: permission.permission,
+              permission,
               association: pr.author_association,
               trustedStudents: registry.students,
             });
 
-            if (!decision.allowed) {
-              core.notice(`${author} is not eligible for auto-merge: ${decision.reason}`);
+            const apiFiles = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const securityFindings = [];
+            const files = apiFiles.map((file) => {
+              if (typeof file.patch === 'string') {
+                for (const finding of scanAddedLines(
+                  addedLinesFromPatch(file.patch),
+                  config.policy.added_line_secret_rules,
+                )) {
+                  securityFindings.push({ id: finding.id, path: file.filename });
+                }
+              }
+              return {
+                filename: file.filename,
+                status: file.status,
+                additions: file.additions,
+                deletions: file.deletions,
+                changes: file.changes,
+                patchAvailable: typeof file.patch === 'string' || file.changes === 0,
+              };
+            });
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const piApproved = hasCurrentHeadPiApproval({
+              reviews,
+              piReviewers: config.policy.pi_reviewers,
+              headSha: pr.head.sha,
+            });
+
+            const decision = evaluatePullRequest({
+              author,
+              authorDecision,
+              files,
+              piApproved,
+              securityFindings,
+              inventoryComplete: files.length === pr.changed_files,
+              config,
+            });
+            core.notice(
+              `PR #${pr.number} governance route=${decision.route} reasons=${decision.reasonCodes.join(',')}`,
+            );
+
+            async function disableAutoMerge() {
+              if (!pr.auto_merge) return;
+              await github.graphql(
+                `mutation($pullRequestId: ID!) {
+                  disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+                    pullRequest { number autoMergeRequest { enabledAt } }
+                  }
+                }`,
+                { pullRequestId: pr.node_id },
+              );
+              core.notice(`Disabled stale auto-merge for PR #${pr.number}.`);
+            }
+
+            if (decision.route === 'blocked') {
+              await disableAutoMerge();
+              core.setFailed(`PR governance blocked: ${decision.reasonCodes.join(', ')}`);
               return;
             }
 
+            if (decision.route === 'pi_review') {
+              await disableAutoMerge();
+              const requested = new Set(
+                (pr.requested_reviewers ?? []).map((reviewer) => reviewer.login.toLowerCase()),
+              );
+              const reviewers = config.policy.pi_reviewers.filter(
+                (login) => login.toLowerCase() !== author.toLowerCase() && !requested.has(login.toLowerCase()),
+              );
+              if (reviewers.length) {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: pr.number,
+                  reviewers,
+                });
+              }
+              return;
+            }
+
+            if (pr.auto_merge) {
+              core.notice(`Auto-merge is already armed for PR #${pr.number}.`);
+              return;
+            }
             const result = await github.graphql(
               `mutation($pullRequestId: ID!) {
                 enablePullRequestAutoMerge(input: {
@@ -68,4 +189,4 @@ jobs:
               { pullRequestId: pr.node_id },
             );
             const enabledAt = result.enablePullRequestAutoMerge.pullRequest.autoMergeRequest.enabledAt;
-            core.notice(`Auto-merge armed for ${decision.kind} ${author} on PR #${pr.number} at ${enabledAt}.`);
+            core.notice(`Auto-merge armed for PR #${pr.number} at ${enabledAt}.`);

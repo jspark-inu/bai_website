@@ -1,0 +1,22 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "piApproved": true,
+    "files": [
+      {
+        "filename": "backend/data/lab-feed.sqlite3",
+        "status": "added",
+        "changes": 0,
+        "patchAvailable": false
+      }
+    ]
+  },
+  "expected": {
+    "route": "blocked",
+    "reasonCodes": [
+      "blocked_path"
+    ]
+  }
+}

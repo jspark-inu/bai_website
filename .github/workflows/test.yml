@@ -52,8 +52,21 @@ jobs:
         run: |
           cd apps/web
           npm test
-      - name: Verify student auto-merge trust boundary
-        run: node --test scripts/tests/pr-automerge-policy.test.mjs
+      - name: Verify PR governance policy
+        run: |
+          node --test \
+            scripts/tests/pr-automerge-policy.test.mjs \
+            scripts/tests/pr-governance-policy.test.mjs
+          node scripts/pr-governance-harness.mjs fixtures
+      - name: Classify pull request diff
+        if: github.event_name == 'pull_request'
+        run: |
+          node scripts/pr-governance-harness.mjs verify-diff \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --author "${{ github.event.pull_request.user.login }}" \
+            --permission read \
+            --association "${{ github.event.pull_request.author_association }}"
       - name: Verify talent office authority and point invariants
         run: |
           cd apps/web

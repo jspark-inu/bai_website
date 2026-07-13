@@ -1,0 +1,21 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "files": [
+      {
+        "filename": "apps/web/src/components/BigRefactor.tsx",
+        "status": "modified",
+        "changes": 2501,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "pi_review",
+    "reasonCodes": [
+      "change_limit_exceeded"
+    ]
+  }
+}

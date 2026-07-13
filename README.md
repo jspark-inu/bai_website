@@ -67,6 +67,8 @@ After a pull request is merged into `main`, the Mac mini launchd job `com.user.b
 학생과 운영진의 코드 변경은 PR로만 받는다. `.github/trusted-students.json`에 등록된
 학생 또는 trusted operator가 PR을 열면 `.github/workflows/operator-automerge.yml`이
 squash auto-merge를 켠다. 공개 저장소의 일반 `read` 사용자는 자동 병합 대상이 아니다.
+새 학생 계정 등록은 `.github/trusted-students.json`을 변경하며, 이 등록 자체는 PI의
+CODEOWNER 승인을 받아야 한다.
 GitHub의 필수 검증이 모두 통과한 뒤 `main`에 병합되고, Mac mini 배포기가 30초 이내에
 **격리된 deploy worktree**에서 빌드·배포한다. 개발자가 쓰는 원래 checkout이
 더러워도 배포가 멈추지 않는다.

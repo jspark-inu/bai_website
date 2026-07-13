@@ -1,9 +1,8 @@
-import '@/styles/globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'BAI Board',
-  description: 'BAI 운영 포털 Next.js rebuild',
+  title: 'BAI 진행 공유',
+  description: 'BAI 주간 기록·질문·프로젝트 진행 공유',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

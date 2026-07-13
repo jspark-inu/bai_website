@@ -101,16 +101,16 @@ park/짧은-작업설명
 운영 사이트는 `apps/web`의 Next 앱입니다. 아래 파일을 우선 수정하세요.
 
 ```text
-apps/web/public/static/app.css
+apps/web/public/static/krds.css
 ```
 
-전체 디자인 CSS입니다. 운영 사이트가 직접 읽습니다.
+승인된 KRDS 디자인 CSS입니다. 운영 사이트가 직접 읽습니다.
 
 ```text
-apps/web/public/static/feed.js
+apps/web/public/static/krds.js
 ```
 
-피드, 멤버, 질문, 검색, 프로젝트, 자료실 화면을 그리는 파일입니다.
+피드, 인력사무소, 멤버, 질문, 검색, 프로젝트, 자료실 화면을 그리는 승인 KRDS 파일입니다.
 
 ```text
 apps/web/src/app/
@@ -124,7 +124,9 @@ apps/web/src/components/LegacyShell.tsx
 
 로그인과 원본 CSS/JS를 붙이는 shell입니다.
 
-아래 `frontend/` 폴더는 예전 Flask 화면 참고용입니다. `frontend/`만 바꾸면 운영 사이트에는 반영되지 않습니다.
+`frontend/krds.css`와 `frontend/krds.js`는 승인 디자인 원본입니다. 운영용
+`apps/web/public/static/krds.css`와 `krds.js`를 반드시 같은 내용으로 유지해야 합니다.
+`frontend/`만 바꾸면 운영 사이트에는 반영되지 않습니다.
 
 ```text
 frontend/
@@ -144,7 +146,8 @@ backend/lab_feed_db.py
 scripts/
 ```
 
-처음에는 가능하면 `apps/web/public/static/app.css`와 `apps/web/public/static/feed.js` 위주로 수정하는 것을 권장합니다.
+처음에는 가능하면 `frontend/krds.css`·`frontend/krds.js`와 동일한 운영 복사본
+`apps/web/public/static/krds.css`·`apps/web/public/static/krds.js`를 함께 수정하는 것을 권장합니다.
 
 ---
 
@@ -186,7 +189,7 @@ git diff
 예시:
 
 ```bash
-git add frontend/index.html frontend/app.css
+git add frontend/krds.css frontend/krds.js apps/web/public/static/krds.css apps/web/public/static/krds.js
 ```
 
 여러 파일을 수정했다면:

@@ -4,10 +4,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-if ! cmp -s frontend/app.css apps/web/public/static/app.css; then
-  echo "frontend/app.css and apps/web/public/static/app.css differ."
-  echo "The live Next app serves apps/web/public/static/app.css."
-  echo "Apply the same CSS there before opening or merging the PR."
+if ! cmp -s frontend/krds.css apps/web/public/static/krds.css; then
+  echo "frontend/krds.css and apps/web/public/static/krds.css differ."
+  echo "The live Next app serves apps/web/public/static/krds.css."
+  echo "Copy the approved KRDS CSS there before opening or merging the PR."
+  exit 1
+fi
+
+if ! cmp -s frontend/krds.js apps/web/public/static/krds.js; then
+  echo "frontend/krds.js and apps/web/public/static/krds.js differ."
+  echo "The live Next app serves apps/web/public/static/krds.js."
+  echo "Copy the approved KRDS renderer there before opening or merging the PR."
   exit 1
 fi
 
@@ -28,7 +35,7 @@ if [[ -n "$CHANGED" ]]; then
     if ! printf '%s\n' "$CHANGED" | grep -Eq '^(apps/web/public/static/|apps/web/src/)'; then
       echo "This PR changes frontend/ only."
       echo "bai.haiinu.com is served by the Next app in apps/web/, so frontend-only PRs will not appear on the live site."
-      echo "Move the same design change to apps/web/public/static/ or apps/web/src/."
+      echo "Mirror approved KRDS assets into apps/web/public/static/ and keep the Next shell contract in apps/web/src/."
       exit 1
     fi
   fi

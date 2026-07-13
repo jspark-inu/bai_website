@@ -16,12 +16,15 @@ Open: http://127.0.0.1:5067
 
 For design changes, start with the files the live site actually serves:
 
-- Exact CSS: `apps/web/public/static/app.css`
-- Feed behavior and page rendering: `apps/web/public/static/feed.js`
-- Login shell and route wrapper: `apps/web/src/components/LegacyShell.tsx`
+- Approved KRDS CSS: `apps/web/public/static/krds.css`
+- Approved KRDS behavior and page rendering: `apps/web/public/static/krds.js`
+- KRDS DOM shell and route wrapper: `apps/web/src/components/LegacyShell.tsx`
 - Next route entry points: `apps/web/src/app/`
 
-`frontend/` is kept as the legacy reference. Do not open a frontend-only pull request for a design change; it will not affect `bai.haiinu.com`. If you touch `frontend/app.css`, keep the same CSS in `apps/web/public/static/app.css`.
+`frontend/krds.css` and `frontend/krds.js` are the approved design sources. The live copies in
+`apps/web/public/static/` must remain byte-identical. Do not open a frontend-only pull request:
+the Next shell must also point at the KRDS assets for the change to appear on `bai.haiinu.com`.
+`frontend/app.css` and `frontend/feed.js` remain legacy Paper & Ink references.
 
 Run checks before a pull request:
 

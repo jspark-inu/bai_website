@@ -1,0 +1,21 @@
+{
+  "input": {
+    "author": "outside-contributor",
+    "permission": "read",
+    "association": "NONE",
+    "files": [
+      {
+        "filename": "apps/web/src/components/TypoFix.tsx",
+        "status": "modified",
+        "changes": 4,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "pi_review",
+    "reasonCodes": [
+      "external_author"
+    ]
+  }
+}

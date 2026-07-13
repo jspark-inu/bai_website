@@ -1,0 +1,23 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "piApproved": true,
+    "files": [
+      {
+        "filename": "backend/auth.py",
+        "status": "modified",
+        "changes": 15,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "auto_merge",
+    "reasonCodes": [
+      "high_risk_path",
+      "pi_approved_current_head"
+    ]
+  }
+}

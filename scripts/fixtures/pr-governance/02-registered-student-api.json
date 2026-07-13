@@ -1,0 +1,21 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "files": [
+      {
+        "filename": "apps/web/src/app/api/me/route.ts",
+        "status": "modified",
+        "changes": 20,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "pi_review",
+    "reasonCodes": [
+      "high_risk_path"
+    ]
+  }
+}

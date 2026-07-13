@@ -1,0 +1,22 @@
+{
+  "input": {
+    "author": "outside-contributor",
+    "permission": "read",
+    "association": "NONE",
+    "piApproved": true,
+    "files": [
+      {
+        "filename": "apps/web/src/components/TypoFix.tsx",
+        "status": "modified",
+        "changes": 4,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "auto_merge",
+    "reasonCodes": [
+      "pi_approved_current_head"
+    ]
+  }
+}

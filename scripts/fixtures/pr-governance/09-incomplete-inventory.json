@@ -1,0 +1,15 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "inventoryComplete": false,
+    "files": []
+  },
+  "expected": {
+    "route": "blocked",
+    "reasonCodes": [
+      "incomplete_file_inventory"
+    ]
+  }
+}

@@ -61,20 +61,20 @@ After a pull request is merged into `main`, the Mac mini launchd job `com.user.b
 
 ## 운영진 PR → 자동 반영
 
-운영진의 코드 변경은 PR로만 받는다. 저장소 write 권한을 가진 운영진 한 명이
-승인하면 `.github/workflows/operator-automerge.yml`이 squash auto-merge를 켠다.
+운영진의 코드 변경은 PR로만 받는다. 저장소 write 권한을 가진 운영진이 PR을 열면
+`.github/workflows/operator-automerge.yml`이 squash auto-merge를 켠다.
 GitHub의 필수 검증이 모두 통과한 뒤 `main`에 병합되고, Mac mini 배포기가 30초 이내에
 **격리된 deploy worktree**에서 빌드·배포한다. 개발자가 쓰는 원래 checkout이
 더러워도 배포가 멈추지 않는다.
 
-PI 승인 경로는 `.github/CODEOWNERS`로 좁힌다. 로그인·세션, DB·업로드,
+일반 PR에는 별도 승인자가 필요 없다. PI 승인 경로는 `.github/CODEOWNERS`로 좁힌다. 로그인·세션, DB·업로드,
 배포·CI 설정, 전체 사이트 진입점, Flask 백엔드 변경만 `@jspark-inu`의 추가
 승인이 필요하다. 일반 UI·기능 PR은 운영진 승인만으로 반영한다.
 
 GitHub 저장소에서 한 번 설정할 항목:
 
 1. Settings → General → Pull Requests: **Allow auto-merge** 켜기
-2. Settings → Rules → `main` ruleset: PR 필수, 승인 1개(운영진), stale approval 해제,
+2. Settings → Rules → `main` ruleset: PR 필수, 일반 PR 승인 요구 없음,
    `test / pytest`와 `test / react` 상태 검사 필수, force push 금지
 3. 같은 ruleset에서 **Require review from Code Owners** 켜기
 

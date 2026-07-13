@@ -29,19 +29,19 @@ function evaluate(input) {
   });
 }
 
-test('the routing contract exposes exactly the two operational routes', () => {
-  assert.deepEqual(Object.keys(config.terminal_routes).sort(), ['auto_merge', 'pi_review']);
+test('the routing contract exposes exactly the three operational routes', () => {
+  assert.deepEqual(Object.keys(config.terminal_routes).sort(), ['ai_review', 'auto_merge', 'pi_review']);
   assert.equal(config.policy.authority_order[0], 'pi_author_or_current_head_approval');
 });
 
-test('CODEOWNERS and governance high-risk paths stay aligned', () => {
+test('CODEOWNERS and mandatory PI control paths stay aligned', () => {
   const codeowners = fs
     .readFileSync(path.join(root, '.github/CODEOWNERS'), 'utf8')
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'))
     .map((line) => line.split(/\s+/)[0]);
-  assert.deepEqual(codeowners, config.policy.high_risk_paths);
+  assert.deepEqual(codeowners, config.policy.pi_only_paths);
 });
 
 test('PI approval overrides a sensitive path while retaining risk evidence', () => {
@@ -78,15 +78,39 @@ test('a trusted student ordinary change arms auto-merge', () => {
   assert.equal(result.route, 'auto_merge');
 });
 
-test('a high-risk change requires current-head PI approval', () => {
+test('a database change goes to AI and AI approval authorizes merge', () => {
   const input = {
     author: 'dur4290',
     permission: 'read',
     association: 'NONE',
     files: [{ filename: 'backend/auth.py', changes: 5, patchAvailable: true }],
   };
-  assert.equal(evaluate(input).route, 'pi_review');
+  assert.equal(evaluate(input).route, 'ai_review');
+  assert.equal(evaluate({ ...input, aiApproved: true }).route, 'auto_merge');
   assert.equal(evaluate({ ...input, piApproved: true }).route, 'auto_merge');
+});
+
+test('AI escalation sends a database change to PI review', () => {
+  const result = evaluate({
+    author: 'dur4290',
+    permission: 'read',
+    association: 'NONE',
+    aiEscalated: true,
+    files: [{ filename: 'backend/lab_feed_db.py', changes: 20, patchAvailable: true }],
+  });
+  assert.equal(result.route, 'pi_review');
+  assert.ok(result.reasonCodes.includes('ai_escalated'));
+});
+
+test('AI approval cannot override mandatory PI-sensitive evidence', () => {
+  const result = evaluate({
+    author: 'dur4290',
+    permission: 'read',
+    association: 'NONE',
+    aiApproved: true,
+    files: [{ filename: '.env.production', changes: 2, patchAvailable: true }],
+  });
+  assert.equal(result.route, 'pi_review');
 });
 
 test('a PI approval from an earlier head is stale', () => {

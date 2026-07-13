@@ -56,6 +56,7 @@ jobs:
         run: |
           node --test \
             scripts/tests/pr-automerge-policy.test.mjs \
+            scripts/tests/pr-ai-review-policy.test.mjs \
             scripts/tests/pr-governance-policy.test.mjs
           node scripts/pr-governance-harness.mjs fixtures
       - name: Classify pull request diff

@@ -3,19 +3,21 @@
     "author": "dur4290",
     "permission": "read",
     "association": "NONE",
+    "aiEscalated": true,
     "files": [
       {
-        "filename": "apps/web/src/app/api/me/route.ts",
+        "filename": "backend/lab_feed_db.py",
         "status": "modified",
-        "changes": 20,
+        "changes": 34,
         "patchAvailable": true
       }
     ]
   },
   "expected": {
-    "route": "ai_review",
+    "route": "pi_review",
     "reasonCodes": [
-      "ai_review_path"
+      "ai_review_path",
+      "ai_escalated"
     ]
   }
 }

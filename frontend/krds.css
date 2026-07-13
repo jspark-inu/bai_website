@@ -252,6 +252,7 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
 .badge-gray-o   { background: transparent; color: var(--krds-gray-70); border-color: var(--krds-gray-70); }
 .badge-info-o   { background: transparent; color: var(--krds-info-50); border-color: var(--krds-info-50); }
 .badge-navy-o   { background: transparent; color: var(--krds-secondary-70); border-color: var(--krds-secondary-70); }
+.badge-warning-o { background: transparent; color: #8A5C00; border-color: #8A5C00; }
 .badge-success  { background: var(--krds-success-50); color: #fff; }
 .badge-light    { background: var(--krds-primary-5); color: var(--krds-primary-60); }
 

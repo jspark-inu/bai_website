@@ -29,6 +29,7 @@ rsync -a --delete \
 # silently remain unavailable while the Next UI has already redeployed.
 rsync -a --delete \
   --exclude 'venv/' \
+  --exclude 'backups/' \
   --exclude '*.db' \
   --exclude '*.sqlite' \
   --exclude '*.sqlite3' \

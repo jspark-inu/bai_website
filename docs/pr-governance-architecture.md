@@ -56,6 +56,8 @@ node scripts/pr-governance-harness.mjs verify-diff \
 
 PI 필수 통제 경로를 바꿀 때는 governance 설정과 CODEOWNERS를 같은 PR에서 수정한다. 단위 테스트가 두 목록의 불일치를 실패시킨다. AI reviewer·workflow·신뢰 목록 자체는 AI가 자기 권한을 확대할 수 없도록 PI 통제면에 남긴다.
 
+대표적으로 등록 학생의 일반 UI 변경은 바로 `auto_merge`, 등록 학생의 DB·API 변경과 미등록 외부인의 일반 변경은 `ai_review`, 실제 secret·runtime DB와 AI가 구체적 중대 위험을 찾은 변경만 `pi_review`로 간다.
+
 ## 반복 운영 체크리스트
 
 1. governance job이 세 상태 중 정확히 하나를 기록했는지 확인한다.

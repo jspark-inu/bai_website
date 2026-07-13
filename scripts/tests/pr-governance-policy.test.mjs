@@ -31,6 +31,7 @@ function evaluate(input) {
 
 test('the routing contract exposes exactly the two operational routes', () => {
   assert.deepEqual(Object.keys(config.terminal_routes).sort(), ['auto_merge', 'pi_review']);
+  assert.equal(config.policy.authority_order[0], 'pi_author_or_current_head_approval');
 });
 
 test('CODEOWNERS and governance high-risk paths stay aligned', () => {

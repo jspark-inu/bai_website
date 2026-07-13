@@ -39,6 +39,11 @@
     "reason_codes"
   ],
   "policy": {
+    "authority_order": [
+      "pi_author_or_current_head_approval",
+      "risk_review",
+      "trusted_low_risk"
+    ],
     "pi_reviewers": [
       "jspark-inu"
     ],

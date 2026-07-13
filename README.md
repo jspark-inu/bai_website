@@ -62,17 +62,19 @@ venv/bin/python -m pytest -q
 
 After a pull request is merged into `main`, the Mac mini launchd job `com.user.bai-website-autodeploy` pulls the repo, runs the React checks/build, syncs `apps/web` to the live service, and restarts `com.user.bai-next`.
 
-## 운영진 PR → 자동 반영
+## 등록 학생·운영진 PR → 자동 반영
 
-운영진의 코드 변경은 PR로만 받는다. 저장소 write 권한을 가진 운영진이 PR을 열면
-`.github/workflows/operator-automerge.yml`이 squash auto-merge를 켠다.
+학생과 운영진의 코드 변경은 PR로만 받는다. `.github/trusted-students.json`에 등록된
+학생 또는 trusted operator가 PR을 열면 `.github/workflows/operator-automerge.yml`이
+squash auto-merge를 켠다. 공개 저장소의 일반 `read` 사용자는 자동 병합 대상이 아니다.
 GitHub의 필수 검증이 모두 통과한 뒤 `main`에 병합되고, Mac mini 배포기가 30초 이내에
 **격리된 deploy worktree**에서 빌드·배포한다. 개발자가 쓰는 원래 checkout이
 더러워도 배포가 멈추지 않는다.
 
-일반 PR에는 별도 승인자가 필요 없다. PI 승인 경로는 `.github/CODEOWNERS`로 좁힌다. 로그인·세션, DB·업로드,
-배포·CI 설정, 전체 사이트 진입점, Flask 백엔드 변경만 `@jspark-inu`의 추가
-승인이 필요하다. 일반 UI·기능 PR은 운영진 승인만으로 반영한다.
+일반 UI·기능 PR에는 별도 승인자가 필요 없다. PI 승인 경로는 `.github/CODEOWNERS`로
+좁힌다. GitHub·CI·배포 스크립트, 백엔드, 서버 API·lib, 의존성, 전체 사이트 진입점
+변경만 `@jspark-inu`의 추가 승인이 필요하다. 이 경로의 PR도 auto-merge는 예약되지만
+CODEOWNER 승인과 필수 CI가 모두 끝날 때까지 병합되지 않는다.
 
 GitHub 저장소에서 한 번 설정할 항목:
 

@@ -10,21 +10,32 @@ permissions:
 
 jobs:
   enable-auto-merge:
-    # A PI approval is the only authority that can arm automatic merge.
-    # Required status checks and branch rules still have to pass.
+    # Any repository collaborator can act as an operator reviewer. GitHub
+    # branch rules still require CI, and CODEOWNERS adds PI approval only for
+    # authentication, data, deployment, or site-entrypoint changes.
     if: >-
       github.event.pull_request.state == 'open' &&
-      github.event.review.state == 'approved' &&
-      github.event.review.user.login == (vars.BAI_PI_GITHUB_LOGIN || 'jspark-inu')
+      github.event.review.state == 'approved'
     runs-on: ubuntu-latest
     steps:
-      - name: Enable squash auto-merge after PI approval
+      - name: Enable squash auto-merge after operator approval
         uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
+            const reviewer = context.payload.review.user.login;
             if (pr.draft) {
               core.notice('Draft PRs are never auto-merged.');
+              return;
+            }
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: reviewer,
+            });
+            const allowed = new Set(['admin', 'maintain', 'write']);
+            if (!allowed.has(permission.user.permissions)) {
+              core.notice(`${reviewer} is not an operator reviewer.`);
               return;
             }
             await github.graphql(
@@ -36,4 +47,4 @@ jobs:
               }`,
               { pullRequestId: pr.node_id },
             );
-            core.notice(`Auto-merge armed for PR #${pr.number}.`);
+            core.notice(`Auto-merge armed by operator ${reviewer} for PR #${pr.number}.`);

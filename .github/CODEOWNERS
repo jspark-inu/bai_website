@@ -1,6 +1,14 @@
-# PI approval is required for the deployed web surface and deployment control plane.
-* @jspark-inu
-
-/apps/web/ @jspark-inu
+# PI approval is only required for high-risk changes. All other production
+# changes are reviewed by an operator collaborator and deployed automatically.
 /.github/ @jspark-inu
 /scripts/ @jspark-inu
+/apps/web/src/lib/auth.ts @jspark-inu
+/apps/web/src/lib/db.ts @jspark-inu
+/apps/web/src/lib/uploads.ts @jspark-inu
+/apps/web/src/app/api/auth/ @jspark-inu
+/apps/web/src/app/api/me/ @jspark-inu
+/apps/web/src/app/layout.tsx @jspark-inu
+/apps/web/src/components/LegacyShell.tsx @jspark-inu
+/backend/app.py @jspark-inu
+/backend/auth.py @jspark-inu
+/backend/lab_feed_db.py @jspark-inu

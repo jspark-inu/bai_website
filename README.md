@@ -76,6 +76,9 @@ GitHub의 필수 검증이 모두 통과한 뒤 `main`에 병합되고, Mac mini
 변경만 `@jspark-inu`의 추가 승인이 필요하다. 이 경로의 PR도 auto-merge는 예약되지만
 CODEOWNER 승인과 필수 CI가 모두 끝날 때까지 병합되지 않는다.
 
+학생/외부인 판정은 `scripts/tests/pr-automerge-policy.test.mjs`의 고정 fixture로
+회귀 검증한다. 등록 학생 `dur4290`은 허용하고, 공개 `read` 외부인은 거부한다.
+
 GitHub 저장소에서 한 번 설정할 항목:
 
 1. Settings → General → Pull Requests: **Allow auto-merge** 켜기

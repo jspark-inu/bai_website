@@ -96,6 +96,7 @@ function appRouteExists(route) {
     if (parts[0] === 'member') candidates.push(path.join(srcAppDir, 'member', '[mid]', 'page.tsx'));
     if (parts[0] === 'projects' && parts.length === 2) candidates.push(path.join(srcAppDir, 'projects', '[pid]', 'page.tsx'));
     if (parts[0] === 'materials' && parts.length === 2) candidates.push(path.join(srcAppDir, 'materials', '[id]', 'page.tsx'));
+    if (parts[0] === 'talent-office' && parts.length === 2) candidates.push(path.join(srcAppDir, 'talent-office', '[rid]', 'page.tsx'));
     if (parts[0] === 'tag') candidates.push(path.join(srcAppDir, 'tag', '[tag]', 'page.tsx'));
   }
   return candidates.some(existsSync);
@@ -155,24 +156,18 @@ const intentionallyDisabledRoutes = [
   '/pi/static/pi.js',
 ];
 
+// New internal Next features have no Flask equivalent, so parity is source/auth
+// coverage rather than an invalid legacy-vs-Next live comparison.
+const nextOnlyRoutes = ['/talent-office', '/talent-office/1'];
+
 const deliberatelyNotServedHtml = [
   // Historical/pre-refactor page variants that are not Flask route targets.
   // If any becomes reachable on bai.haiinu.com, move it into shellContracts with a route.
   'bai-philosophy-operating-plan.html',
   'bai-project-guide.html',
-  'cockpit_load.html',
-  'cockpit_people.html',
-  'cockpit_projects.html',
   'index.html',
   'member.html',
   'members.html',
-  'pi/commitments.html',
-  'pi/dashboard.html',
-  'pi/ideas.html',
-  'pi/pi.html',
-  'pi/projects.html',
-  'pi/review.html',
-  'pi/waiting.html',
   'post.html',
   'questions.html',
   'search.html',
@@ -182,8 +177,6 @@ const deliberatelyNotServedHtml = [
 const exactStaticAssets = [
   ['app.css', 'static/app.css'],
   ['feed.js', 'static/feed.js'],
-  ['cockpit.css', 'static/cockpit.css'],
-  ['cockpit.js', 'static/cockpit.js'],
 ];
 
 check('all legacy HTML pages are classified as served routes or deliberate non-route artifacts', () => {
@@ -194,7 +187,7 @@ check('all legacy HTML pages are classified as served routes or deliberate non-r
 });
 
 check('all required Next page routes exist in source tree', () => {
-  const missing = shellContracts.map((x) => x.route).filter((route) => !route.endsWith('.html') && !appRouteExists(route));
+  const missing = [...shellContracts.map((x) => x.route), ...nextOnlyRoutes].filter((route) => !route.endsWith('.html') && !appRouteExists(route));
   if (missing.length) fail('Next source routes are missing', missing);
 });
 

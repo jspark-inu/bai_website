@@ -44,6 +44,8 @@ const routePages = [
   'apps/web/src/app/post/[pid]/page.tsx',
   'apps/web/src/app/projects/page.tsx',
   'apps/web/src/app/projects/[pid]/page.tsx',
+  'apps/web/src/app/talent-office/page.tsx',
+  'apps/web/src/app/talent-office/[rid]/page.tsx',
   'apps/web/src/app/questions/page.tsx',
   'apps/web/src/app/search/page.tsx',
   'apps/web/src/app/tag/[tag]/page.tsx',
@@ -114,8 +116,8 @@ check('LegacyShell mounts the exact DOM contract expected by Park PR feed.js', (
     'id="nav"',
     'className="container"',
     'id="view"',
-    'src="/static/feed.js?v=20260706pi7',
-    'initFeed();',
+    "script.src = '/static/feed.js?v=20260706pi7'",
+    'script.onload = () => window.initFeed?.()',
   ].filter((token) => !shell.includes(token));
   expect(!missing.length, 'LegacyShell does not mount the original feed DOM/script contract', missing);
   expect(!shell.includes('20260706pi6'), 'LegacyShell still references the cached pi6 asset URL');

@@ -203,6 +203,25 @@ def test_migration_adds_links_column():
         os.remove(path)
 
 
+def test_talent_request_completion_awards_ten_points_once(db):
+    requester = _member(db, "요청자")
+    builder = _member(db, "개발자")
+    rid = db.add_talent_request(
+        requester_member_id=requester,
+        title="수강 안내 반복 질문 줄이기",
+        problem="같은 안내 질문이 반복된다",
+        expected_outcome="안내 페이지 또는 도구",
+        system_scope_reason="여러 학생이 매 학기 반복해서 겪는다",
+    )
+    db.review_talent_request(rid, status="accepted", review_note="시스템 개선 요청")
+    db.assign_talent_request(rid, [(builder, "개발", 1.0)])
+    db.submit_talent_solution(rid, builder, "안내 도구를 만들었다", "https://example.com/demo")
+
+    assert db.complete_talent_request(rid, requester) == [{"member_id": builder, "points": 10}]
+    assert db.complete_talent_request(rid, requester) == []
+    assert db.list_contribution_points(builder)[0]["points"] == 10
+
+
 def test_list_posts_by_member_chronological(db):
     a = _member(db, "김영희")
     b = _member(db, "이철수")

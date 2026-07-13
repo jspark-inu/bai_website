@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "parity": "node scripts/parity-harness.mjs",
-    "design:park": "node scripts/park-pr-design-harness.mjs"
+    "design:park": "node scripts/park-pr-design-harness.mjs",
+    "harness:talent-office": "node scripts/talent-office-harness.mjs"
   },
   "dependencies": {
     "@next/env": "16.3.0-preview.5",

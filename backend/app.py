@@ -48,6 +48,17 @@ def create_app(db_path=None, secret=None):
             return None, (jsonify({"error": "pi only"}), 403)
         return m, None
 
+    def is_operator(member):
+        return bool(member and member["role"] in {"operator", "pi"})
+
+    def require_operator():
+        m = current_member()
+        if not m:
+            return None, (jsonify({"error": "login required"}), 401)
+        if not is_operator(m):
+            return None, (jsonify({"error": "operator only"}), 403)
+        return m, None
+
     def _post_payload():
         data = request.get_json(silent=True) or {}
         pid = data.get("project_id")
@@ -90,6 +101,30 @@ def create_app(db_path=None, secret=None):
             "site_url": (data.get("site_url") or "").strip(),
             "members": members,
         }
+
+    def _talent_request_payload():
+        data = request.get_json(silent=True) or {}
+        return {
+            "title": (data.get("title") or "").strip(),
+            "problem": (data.get("problem") or "").strip(),
+            "expected_outcome": (data.get("expected_outcome") or "").strip(),
+            "system_scope_reason": (data.get("system_scope_reason") or "").strip(),
+        }
+
+    def _talent_assignees_payload():
+        rows = (request.get_json(silent=True) or {}).get("assignees") or []
+        parsed, seen = [], set()
+        for row in rows:
+            try:
+                member_id = int(row.get("member_id"))
+                ratio = float(row.get("allocation_ratio"))
+            except (AttributeError, TypeError, ValueError):
+                raise ValueError("invalid assignee")
+            if member_id in seen or not db.get_member_by_id(member_id) or ratio <= 0:
+                raise ValueError("invalid assignee")
+            seen.add(member_id)
+            parsed.append((member_id, (row.get("role") or "").strip(), ratio))
+        return parsed
 
     def _member_roles_from_payload(member_rows, owner_id):
         seen = {}
@@ -395,6 +430,128 @@ def create_app(db_path=None, secret=None):
         db.set_project_members(pid, member_roles)
         return jsonify({"id": pid})
 
+    # ---- BAI 인력사무소 ----
+    @app.route("/api/talent-office")
+    def api_talent_requests():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        return jsonify({"requests": db.list_talent_requests(member["id"], operator=is_operator(member))})
+
+    @app.route("/api/talent-office", methods=["POST"])
+    def api_talent_request_create():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        payload = _talent_request_payload()
+        if not all(payload.values()):
+            return jsonify({"error": "title, problem, expected_outcome, and system_scope_reason are required"}), 400
+        rid = db.add_talent_request(member["id"], **payload)
+        db.add_audit_log(member["id"], "talent_request_create", detail="request_id=%s" % rid)
+        return jsonify({"id": rid}), 201
+
+    @app.route("/api/talent-office/<int:rid>")
+    def api_talent_request_detail(rid):
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        item = db.get_talent_request(rid)
+        if not item:
+            return jsonify({"error": "not found"}), 404
+        assignees = db.list_talent_assignees(rid)
+        allowed = is_operator(member) or item["requester_member_id"] == member["id"] or any(a["member_id"] == member["id"] for a in assignees)
+        if not allowed:
+            return jsonify({"error": "forbidden"}), 403
+        return jsonify({"request": item, "assignees": assignees})
+
+    @app.route("/api/talent-office/<int:rid>/review", methods=["POST"])
+    def api_talent_request_review(rid):
+        member, denied = require_operator()
+        if denied:
+            return denied
+        if not db.get_talent_request(rid):
+            return jsonify({"error": "not found"}), 404
+        data = request.get_json(silent=True) or {}
+        try:
+            db.review_talent_request(rid, (data.get("status") or "").strip(),
+                                     (data.get("review_note") or "").strip(),
+                                     (data.get("approval_reason") or "").strip())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        db.add_audit_log(member["id"], "talent_request_review", detail="request_id=%s" % rid)
+        return jsonify({"ok": True})
+
+    @app.route("/api/talent-office/<int:rid>/assignees", methods=["POST"])
+    def api_talent_request_assign(rid):
+        member, denied = require_operator()
+        if denied:
+            return denied
+        try:
+            db.assign_talent_request(rid, _talent_assignees_payload())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        db.add_audit_log(member["id"], "talent_request_assign", detail="request_id=%s" % rid)
+        return jsonify({"ok": True})
+
+    @app.route("/api/talent-office/<int:rid>/solution", methods=["POST"])
+    def api_talent_request_solution(rid):
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        data = request.get_json(silent=True) or {}
+        summary = (data.get("solution_summary") or "").strip()
+        solution_url = (data.get("solution_url") or "").strip()
+        if not (summary or solution_url):
+            return jsonify({"error": "solution summary or URL is required"}), 400
+        if not is_operator(member):
+            try:
+                db.submit_talent_solution(rid, member["id"], summary, solution_url)
+            except ValueError as e:
+                return jsonify({"error": str(e)}), 400
+        else:
+            item = db.get_talent_request(rid)
+            if not item:
+                return jsonify({"error": "not found"}), 404
+            assignees = db.list_talent_assignees(rid)
+            if not assignees:
+                return jsonify({"error": "at least one assignee is required"}), 400
+            db.submit_talent_solution(rid, assignees[0]["member_id"], summary, solution_url)
+        db.add_audit_log(member["id"], "talent_request_solution", detail="request_id=%s" % rid)
+        return jsonify({"ok": True})
+
+    @app.route("/api/talent-office/<int:rid>/decision", methods=["POST"])
+    def api_talent_request_decision(rid):
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        item = db.get_talent_request(rid)
+        if not item:
+            return jsonify({"error": "not found"}), 404
+        if member["id"] != item["requester_member_id"] and member["role"] != "pi":
+            return jsonify({"error": "requester only"}), 403
+        data = request.get_json(silent=True) or {}
+        decision = (data.get("decision") or "").strip()
+        try:
+            if decision == "completed":
+                awards = db.complete_talent_request(rid, item["requester_member_id"])
+                db.add_audit_log(member["id"], "talent_request_complete", detail="request_id=%s" % rid)
+                return jsonify({"ok": True, "awards": awards})
+            if decision == "changes_requested":
+                db.request_talent_changes(rid, item["requester_member_id"], (data.get("review_note") or "").strip())
+                db.add_audit_log(member["id"], "talent_request_changes_requested", detail="request_id=%s" % rid)
+                return jsonify({"ok": True})
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "invalid decision"}), 400
+
+    @app.route("/api/talent-office/points")
+    def api_talent_points():
+        member = current_member()
+        if not member:
+            return jsonify({"error": "login required"}), 401
+        rows = db.list_contribution_points(member["id"])
+        return jsonify({"points": rows, "total": sum(row["points"] for row in rows)})
+
     # ---- 개발자/관리자 콘솔 ----
     @app.route("/api/members/api-key")
     @app.route("/api/account/api-key")
@@ -461,7 +618,7 @@ def create_app(db_path=None, secret=None):
         data = request.get_json(silent=True) or {}
         role = data.get("role")
         status = data.get("status")
-        allowed_roles = {"student", "admin_student", "developer", "pi"}
+        allowed_roles = {"student", "admin_student", "developer", "operator", "pi"}
         allowed_status = {"active", "disabled"}
         if role is not None and role not in allowed_roles:
             return jsonify({"error": "invalid role"}), 400

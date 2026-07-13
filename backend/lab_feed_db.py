@@ -108,6 +108,40 @@ CREATE TABLE IF NOT EXISTS wall_messages (
     body TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS talent_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requester_member_id INTEGER NOT NULL REFERENCES members(id),
+    title TEXT NOT NULL,
+    problem TEXT NOT NULL,
+    expected_outcome TEXT NOT NULL,
+    system_scope_reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'submitted',
+    review_note TEXT NOT NULL DEFAULT '',
+    requires_approval INTEGER NOT NULL DEFAULT 0,
+    approval_reason TEXT NOT NULL DEFAULT '',
+    linked_project_id INTEGER REFERENCES projects(id),
+    solution_summary TEXT NOT NULL DEFAULT '',
+    solution_url TEXT NOT NULL DEFAULT '',
+    submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS talent_request_assignees (
+    request_id INTEGER NOT NULL REFERENCES talent_requests(id),
+    member_id INTEGER NOT NULL REFERENCES members(id),
+    role TEXT NOT NULL DEFAULT '',
+    allocation_ratio REAL NOT NULL DEFAULT 1.0,
+    PRIMARY KEY (request_id, member_id)
+);
+CREATE TABLE IF NOT EXISTS contribution_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL REFERENCES members(id),
+    request_id INTEGER NOT NULL REFERENCES talent_requests(id),
+    points REAL NOT NULL,
+    reason TEXT NOT NULL,
+    awarded_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(member_id, request_id)
+);
 """
 
 
@@ -354,6 +388,198 @@ class LabFeedDB:
         try:
             conn.execute("UPDATE posts SET project_id=? WHERE id=?", (project_id, post_id))
             conn.commit()
+        finally:
+            conn.close()
+
+    # --- BAI talent office ---
+    def add_talent_request(self, requester_member_id, title, problem, expected_outcome,
+                           system_scope_reason):
+        conn = self._conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO talent_requests "
+                "(requester_member_id, title, problem, expected_outcome, system_scope_reason) "
+                "VALUES (?,?,?,?,?)",
+                (requester_member_id, title, problem, expected_outcome, system_scope_reason),
+            )
+            conn.commit()
+            return cur.lastrowid
+        finally:
+            conn.close()
+
+    def _talent_request_row(self, conn, request_id):
+        return conn.execute(
+            "SELECT tr.*, m.name AS requester_name "
+            "FROM talent_requests tr JOIN members m ON m.id=tr.requester_member_id "
+            "WHERE tr.id=?",
+            (request_id,),
+        ).fetchone()
+
+    def get_talent_request(self, request_id):
+        conn = self._conn()
+        try:
+            row = self._talent_request_row(conn, request_id)
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def list_talent_requests(self, member_id=None, operator=False):
+        conn = self._conn()
+        try:
+            where, params = "", []
+            if not operator:
+                where = ("WHERE tr.requester_member_id=? OR EXISTS "
+                         "(SELECT 1 FROM talent_request_assignees ta "
+                         "WHERE ta.request_id=tr.id AND ta.member_id=?)")
+                params = [member_id, member_id]
+            rows = conn.execute(
+                "SELECT tr.*, m.name AS requester_name, "
+                "(SELECT COUNT(*) FROM talent_request_assignees ta WHERE ta.request_id=tr.id) AS assignee_count "
+                "FROM talent_requests tr JOIN members m ON m.id=tr.requester_member_id "
+                f"{where} ORDER BY tr.id DESC",
+                params,
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def list_talent_assignees(self, request_id):
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT ta.member_id, ta.role, ta.allocation_ratio, m.name "
+                "FROM talent_request_assignees ta JOIN members m ON m.id=ta.member_id "
+                "WHERE ta.request_id=? ORDER BY ta.member_id",
+                (request_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()
+
+    def review_talent_request(self, request_id, status, review_note="", approval_reason=""):
+        if status not in {"accepted", "declined", "approval_required"}:
+            raise ValueError("invalid review status")
+        conn = self._conn()
+        try:
+            conn.execute(
+                "UPDATE talent_requests SET status=?, review_note=?, requires_approval=?, "
+                "approval_reason=?, updated_at=datetime('now') WHERE id=?",
+                (status, review_note, 1 if status == "approval_required" else 0,
+                 approval_reason, request_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def assign_talent_request(self, request_id, assignees):
+        if not assignees:
+            raise ValueError("at least one assignee is required")
+        total = sum(float(row[2]) for row in assignees)
+        if abs(total - 1.0) > 0.0001:
+            raise ValueError("allocation ratios must sum to 1")
+        conn = self._conn()
+        try:
+            request = self._talent_request_row(conn, request_id)
+            if not request or request["status"] not in {"accepted", "assigned", "changes_requested"}:
+                raise ValueError("request cannot be assigned")
+            conn.execute("DELETE FROM talent_request_assignees WHERE request_id=?", (request_id,))
+            for member_id, role, ratio in assignees:
+                conn.execute(
+                    "INSERT INTO talent_request_assignees "
+                    "(request_id, member_id, role, allocation_ratio) VALUES (?,?,?,?)",
+                    (request_id, member_id, role, ratio),
+                )
+            conn.execute("UPDATE talent_requests SET status='assigned', updated_at=datetime('now') WHERE id=?", (request_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def submit_talent_solution(self, request_id, member_id, solution_summary, solution_url=""):
+        conn = self._conn()
+        try:
+            assigned = conn.execute(
+                "SELECT 1 FROM talent_request_assignees WHERE request_id=? AND member_id=?",
+                (request_id, member_id),
+            ).fetchone()
+            if not assigned:
+                raise ValueError("member is not assigned")
+            conn.execute(
+                "UPDATE talent_requests SET status='ready_for_review', solution_summary=?, solution_url=?, "
+                "updated_at=datetime('now') WHERE id=?",
+                (solution_summary, solution_url, request_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def complete_talent_request(self, request_id, requester_member_id):
+        """Complete once and award a fixed 10-point pool by agreed allocation ratios."""
+        conn = self._conn()
+        try:
+            request = self._talent_request_row(conn, request_id)
+            if not request or request["requester_member_id"] != requester_member_id:
+                raise ValueError("only requester can complete")
+            if request["status"] == "completed":
+                return []
+            if request["status"] != "ready_for_review":
+                raise ValueError("request is not ready for review")
+            if not (request["solution_summary"].strip() or request["solution_url"].strip()):
+                raise ValueError("solution evidence is required")
+            assignees = conn.execute(
+                "SELECT member_id, allocation_ratio FROM talent_request_assignees WHERE request_id=? ORDER BY member_id",
+                (request_id,),
+            ).fetchall()
+            if not assignees or abs(sum(row["allocation_ratio"] for row in assignees) - 1.0) > 0.0001:
+                raise ValueError("valid assignee allocation is required")
+            awards = []
+            remaining = 10.0
+            for index, assignee in enumerate(assignees):
+                points = remaining if index == len(assignees) - 1 else round(10.0 * assignee["allocation_ratio"], 2)
+                remaining = round(remaining - points, 2)
+                conn.execute(
+                    "INSERT OR IGNORE INTO contribution_points (member_id, request_id, points, reason) VALUES (?,?,?,?)",
+                    (assignee["member_id"], request_id, points, "인력사무소 요청 완료 인정"),
+                )
+                awards.append({"member_id": assignee["member_id"], "points": points})
+            conn.execute(
+                "UPDATE talent_requests SET status='completed', completed_at=datetime('now'), "
+                "updated_at=datetime('now') WHERE id=?",
+                (request_id,),
+            )
+            conn.commit()
+            return awards
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def request_talent_changes(self, request_id, requester_member_id, review_note):
+        conn = self._conn()
+        try:
+            request = self._talent_request_row(conn, request_id)
+            if not request or request["requester_member_id"] != requester_member_id:
+                raise ValueError("only requester can request changes")
+            if request["status"] != "ready_for_review":
+                raise ValueError("request is not ready for review")
+            conn.execute(
+                "UPDATE talent_requests SET status='changes_requested', review_note=?, updated_at=datetime('now') WHERE id=?",
+                (review_note, request_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def list_contribution_points(self, member_id):
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT cp.*, tr.title AS request_title FROM contribution_points cp "
+                "JOIN talent_requests tr ON tr.id=cp.request_id "
+                "WHERE cp.member_id=? ORDER BY cp.id DESC",
+                (member_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
         finally:
             conn.close()
 

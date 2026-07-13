@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getMemberById, getMemberByName } from './db';
 import type { MemberPublic } from './types';
 
@@ -108,6 +108,20 @@ export async function getCurrentMember(): Promise<MemberPublic | null> {
   }
   const jar = await cookies();
   const sessionMember = decodeSession(jar.get(COOKIE_NAME)?.value);
-  if (!sessionMember) return null;
-  return getMemberById(sessionMember.id);
+  if (sessionMember) return getMemberById(sessionMember.id);
+
+  // The retained Feed login is Flask-backed. New Next routes must honor that
+  // existing session until the whole Feed authentication surface is migrated.
+  const cookie = (await headers()).get('cookie');
+  if (!cookie) return null;
+  try {
+    const origin = process.env.BAI_API_ORIGIN || 'http://127.0.0.1:5066';
+    const response = await fetch(new URL('/api/me', origin), { headers: { cookie }, cache: 'no-store' });
+    if (!response.ok) return null;
+    const legacyMember = await response.json() as MemberPublic;
+    if (!Number.isInteger(legacyMember.id)) return null;
+    return getMemberById(legacyMember.id);
+  } catch {
+    return null;
+  }
 }

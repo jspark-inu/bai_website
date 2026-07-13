@@ -1,11 +1,30 @@
+"use client";
+
+import { useEffect } from 'react';
+
+declare global {
+  interface Window { initFeed?: () => void }
+}
+
 export function LegacyFeedShell() {
+  useEffect(() => {
+    const existing = document.getElementById('bai-feed-script') as HTMLScriptElement | null;
+    if (existing) {
+      if (window.initFeed) window.initFeed();
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'bai-feed-script';
+    script.src = '/static/feed.js?v=20260706pi7';
+    script.onload = () => window.initFeed?.();
+    document.body.appendChild(script);
+  }, []);
+
   return (
     <>
       <link rel="stylesheet" href="/static/app.css?v=20260706pi7" />
       <div id="nav" />
       <div className="container" id="view" />
-      <script src="/static/feed.js?v=20260706pi7" />
-      <script dangerouslySetInnerHTML={{ __html: 'initFeed();' }} />
     </>
   );
 }

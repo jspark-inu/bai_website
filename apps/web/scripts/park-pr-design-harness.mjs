@@ -112,15 +112,15 @@ check('Next student routes use the legacy feed shell, not React page reinterpret
 check('LegacyShell mounts the exact DOM contract expected by Park PR feed.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
   const missing = [
-    'href="/static/app.css?v=20260713to4',
+    'href="/static/app.css?v=20260713to5',
     'id="nav"',
     'className="container"',
     'id="view"',
-    "script.src = '/static/feed.js?v=20260713to4'",
+    "script.src = '/static/feed.js?v=20260713to5'",
     'script.onload = () => window.initFeed?.()',
   ].filter((token) => !shell.includes(token));
   expect(!missing.length, 'LegacyShell does not mount the original feed DOM/script contract', missing);
-  expect(!shell.includes('20260713to3'), 'LegacyShell still references the stale KRDS asset URL');
+  expect(!shell.includes('20260713to4'), 'LegacyShell still references the stale pre-PR4 asset URL');
 });
 
 check('Park PR feed renderer controls page-level design labels', () => {
@@ -136,6 +136,19 @@ check('Park PR feed renderer controls page-level design labels', () => {
     '진행 여정 (처음 → 최근)',
   ].filter((token) => !js.includes(token));
   expect(!missing.length, 'Served feed renderer is missing Park PR page design strings', missing);
+});
+
+check('Merged talent-office design is present in the JavaScript served by Next', () => {
+  const js = read('apps/web/public/static/feed.js');
+  const missing = [
+    'const roleOptions = ["student", "admin_student", "developer", "operator", "pi"]',
+    'function talentBadge(status)',
+    '개선 요청하기',
+    '요청 등록하기',
+    '운영 검토',
+    '완료 인정 · 10점 지급',
+  ].filter((token) => !js.includes(token));
+  expect(!missing.length, 'Served feed renderer is missing merged PR #4 behavior', missing);
 });
 
 for (const { name, fn } of checks) {

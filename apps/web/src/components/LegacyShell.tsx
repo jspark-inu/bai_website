@@ -15,14 +15,14 @@ export function LegacyFeedShell() {
     }
     const script = document.createElement('script');
     script.id = 'bai-feed-script';
-    script.src = '/static/feed.js?v=20260713to4';
+    script.src = '/static/feed.js?v=20260713to5';
     script.onload = () => window.initFeed?.();
     document.body.appendChild(script);
   }, []);
 
   return (
     <>
-      <link rel="stylesheet" href="/static/app.css?v=20260713to4" />
+      <link rel="stylesheet" href="/static/app.css?v=20260713to5" />
       <div id="nav" />
       <div className="container" id="view" />
     </>
@@ -32,7 +32,7 @@ export function LegacyFeedShell() {
 export function LegacyLoginShell() {
   return (
     <>
-      <link rel="stylesheet" href="/static/app.css?v=20260713to4" />
+      <link rel="stylesheet" href="/static/app.css?v=20260713to5" />
       <div className="login-box">
         <h1>BAI 피드</h1>
         <div className="login-note">

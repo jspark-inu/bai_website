@@ -136,6 +136,20 @@ jobs:
             core.notice(
               `PR #${pr.number} governance route=${decision.route} reasons=${decision.reasonCodes.join(',')}`,
             );
+            await core.summary
+              .addHeading('BAI PR governance')
+              .addTable([
+                [{ data: 'Field', header: true }, { data: 'Result', header: true }],
+                ['Route', decision.route],
+                ['Current head', pr.head.sha],
+                ['Risk and authority reasons', decision.reasonCodes.join(', ')],
+              ])
+              .addRaw(
+                decision.route === 'pi_review'
+                  ? 'Risk was reported to the PI. A current-head PI approval authorizes auto-merge.'
+                  : 'Auto-merge is authorized; detected risk evidence remains recorded above.',
+              )
+              .write();
 
             async function disableAutoMerge() {
               if (!pr.auto_merge) return;
@@ -148,12 +162,6 @@ jobs:
                 { pullRequestId: pr.node_id },
               );
               core.notice(`Disabled stale auto-merge for PR #${pr.number}.`);
-            }
-
-            if (decision.route === 'blocked') {
-              await disableAutoMerge();
-              core.setFailed(`PR governance blocked: ${decision.reasonCodes.join(', ')}`);
-              return;
             }
 
             if (decision.route === 'pi_review') {

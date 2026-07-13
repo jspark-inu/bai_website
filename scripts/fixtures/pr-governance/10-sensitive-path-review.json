@@ -1,0 +1,21 @@
+{
+  "input": {
+    "author": "dur4290",
+    "permission": "read",
+    "association": "NONE",
+    "files": [
+      {
+        "filename": ".env.production",
+        "status": "added",
+        "changes": 2,
+        "patchAvailable": true
+      }
+    ]
+  },
+  "expected": {
+    "route": "pi_review",
+    "reasonCodes": [
+      "sensitive_path"
+    ]
+  }
+}

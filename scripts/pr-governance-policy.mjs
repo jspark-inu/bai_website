@@ -13,7 +13,7 @@ function pathMatchesOwnerPattern(filename, pattern) {
   return rule.endsWith('/') ? path.startsWith(rule) : path === rule;
 }
 
-function matchingBlockedPath(filename, rules) {
+function matchingSensitivePath(filename, rules) {
   const path = normalizedPath(filename);
   for (const rule of rules ?? []) {
     if (new RegExp(rule.pattern, 'i').test(path)) return rule.id;
@@ -68,7 +68,7 @@ export function evaluatePullRequest({
   const policy = config.policy;
   const reasonCodes = [];
   const evidence = {
-    blockedPaths: [],
+    sensitivePaths: [],
     highRiskPaths: [],
     securityFindings: securityFindings.map((finding) => ({
       id: finding.id,
@@ -82,26 +82,28 @@ export function evaluatePullRequest({
   for (const file of files) {
     const filename = normalizedPath(file.filename);
     evidence.totals.lines += Number(file.changes ?? 0);
-    const blockedRule = matchingBlockedPath(filename, policy.blocked_path_rules);
-    if (blockedRule) evidence.blockedPaths.push({ path: filename, rule: blockedRule });
+    const sensitiveRule = matchingSensitivePath(filename, policy.sensitive_path_rules);
+    if (sensitiveRule) evidence.sensitivePaths.push({ path: filename, rule: sensitiveRule });
     if (policy.high_risk_paths.some((pattern) => pathMatchesOwnerPattern(filename, pattern))) {
       evidence.highRiskPaths.push(filename);
     }
   }
 
   if (!inventoryComplete) reasonCodes.push('incomplete_file_inventory');
-  if (evidence.blockedPaths.length) reasonCodes.push('blocked_path');
+  if (evidence.sensitivePaths.length) reasonCodes.push('sensitive_path');
   if (evidence.securityFindings.length) reasonCodes.push('secret_material');
-  if (reasonCodes.length) {
-    return { route: 'blocked', reasonCodes, evidence };
-  }
 
   const limits = policy.change_limits;
   const scaleExceeded = evidence.totals.files > limits.files || evidence.totals.lines > limits.lines;
   const unscannableFiles = files
     .filter((file) => file.status !== 'removed' && Number(file.changes ?? 0) > 0 && file.patchAvailable === false)
     .map((file) => normalizedPath(file.filename));
-  const reviewRisk = evidence.highRiskPaths.length > 0 || scaleExceeded || unscannableFiles.length > 0;
+  const reviewRisk = !inventoryComplete
+    || evidence.sensitivePaths.length > 0
+    || evidence.securityFindings.length > 0
+    || evidence.highRiskPaths.length > 0
+    || scaleExceeded
+    || unscannableFiles.length > 0;
   const trustedAuthor = Boolean(authorDecision?.allowed);
   const piAuthor = policy.pi_reviewers.map(normalizedLogin).includes(normalizedLogin(author));
   const piAuthorized = piAuthor || Boolean(piApproved);
@@ -111,7 +113,20 @@ export function evaluatePullRequest({
   if (scaleExceeded) reasonCodes.push('change_limit_exceeded');
   if (unscannableFiles.length) reasonCodes.push('unscannable_patch');
 
-  if ((!trustedAuthor || reviewRisk) && !piAuthorized) {
+  // PI authorization is the highest policy condition. Risk evidence remains in
+  // the result for notification and audit, but never vetoes a current-head PI
+  // approval or a PR authored directly by the PI.
+  if (piAuthorized) {
+    if (piAuthor) reasonCodes.push('pi_author');
+    else reasonCodes.push('pi_approved_current_head');
+    return {
+      route: 'auto_merge',
+      reasonCodes,
+      evidence: { ...evidence, unscannableFiles },
+    };
+  }
+
+  if (!trustedAuthor || reviewRisk) {
     return {
       route: 'pi_review',
       reasonCodes: reasonCodes.length ? reasonCodes : ['review_required'],
@@ -119,9 +134,7 @@ export function evaluatePullRequest({
     };
   }
 
-  if (piAuthor) reasonCodes.push('pi_author');
-  else if (piApproved) reasonCodes.push('pi_approved_current_head');
-  else reasonCodes.push('trusted_low_risk');
+  reasonCodes.push('trusted_low_risk');
   return {
     route: 'auto_merge',
     reasonCodes,

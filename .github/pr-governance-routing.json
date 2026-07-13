@@ -9,35 +9,22 @@
   "questions": [
     {
       "id": "Q1",
-      "axis": "병합 금지 증거",
-      "question": "금지 경로, 고신뢰 비밀정보 또는 불완전 파일 목록이 발견되었는가?",
-      "yes": "blocked",
-      "no": "Q2"
-    },
-    {
-      "id": "Q2",
-      "axis": "PI 검토 필요 상태",
-      "question": "미등록 작성자 또는 검토 위험이 있고 현재 head에 유효한 PI 권한 부여가 없는가?",
+      "axis": "PI 검토 대기 상태",
+      "question": "작성자 신뢰 또는 변경 위험 때문에 검토가 필요하고 현재 head에 유효한 PI 권한 부여가 없는가?",
       "yes": "pi_review",
       "no": "auto_merge"
     }
   ],
   "terminal_routes": {
-    "blocked": {
-      "condition": "자동 병합으로 우회할 수 없는 금지 증거나 검증 불능 상태가 존재한다.",
-      "action": "기존 auto-merge를 해제하고 governance job을 실패시켜 수정 전 병합을 막는다.",
-      "destination": "GitHub pull request checks와 BAI PR governance 실행 로그",
-      "next_transition": "작성자가 문제 커밋을 제거해 새 head를 push하면 entry question부터 재판정한다."
-    },
     "pi_review": {
-      "condition": "차단 증거는 없지만 작성자 신뢰 또는 변경 위험 때문에 현재 head의 PI 승인이 필요하다.",
-      "action": "기존 auto-merge를 해제하고 PI review를 요청한 뒤 현재 head 승인을 기다린다.",
+      "condition": "작성자 신뢰 또는 변경 위험이 감지됐고 현재 head에 유효한 PI 승인이 없다.",
+      "action": "위험 사유를 기록하고 기존 auto-merge를 해제한 뒤 PI review를 요청한다.",
       "destination": "GitHub pull request review queue와 BAI PR governance 실행 로그",
       "next_transition": "PI가 현재 head를 승인하거나 작성자가 새 head를 push하면 entry question부터 재판정한다.",
       "review_trigger": "pull_request_review 제출·해제 또는 pull_request synchronize 이벤트에서 즉시 재판정한다."
     },
     "auto_merge": {
-      "condition": "차단 증거가 없고 일반 변경의 신뢰 작성자이거나 현재 head에 PI 권한 부여가 있다.",
+      "condition": "현재 head를 PI가 승인했거나 PI가 직접 작성했으며, 또는 신뢰 작성자의 일반 변경이다.",
       "action": "squash auto-merge를 예약하고 필수 pytest와 react checks가 성공할 때까지 기다린다.",
       "destination": "GitHub main branch와 main 자동 배포 파이프라인",
       "next_transition": "필수 checks 성공 시 병합하고 새 커밋이나 review 변경 시 entry question부터 재판정한다."
@@ -78,7 +65,7 @@
       "/apps/web/src/app/layout.tsx",
       "/apps/web/src/components/LegacyShell.tsx"
     ],
-    "blocked_path_rules": [
+    "sensitive_path_rules": [
       {
         "id": "environment_secret",
         "pattern": "(^|/)\\.env($|\\.(?!example$)[^/]+$)"

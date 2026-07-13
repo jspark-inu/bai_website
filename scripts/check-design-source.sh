@@ -11,11 +11,19 @@ if ! cmp -s frontend/app.css apps/web/public/static/app.css; then
   exit 1
 fi
 
-if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
-  git fetch --no-tags --depth=100 origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}" >/dev/null 2>&1 || true
-  BASE_REF="${GITHUB_BASE_REF}"
-  CHANGED="$(git diff --name-only "${BASE_REF}...HEAD" || true)"
+CHANGED=""
+if [[ -n "${BAI_PR_BASE_SHA:-}" ]]; then
+  HEAD_REF="${BAI_PR_HEAD_SHA:-HEAD}"
+  git cat-file -e "${BAI_PR_BASE_SHA}^{commit}"
+  git cat-file -e "${HEAD_REF}^{commit}"
+  CHANGED="$(git diff --name-only "${BAI_PR_BASE_SHA}" "${HEAD_REF}")"
+elif [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+  git fetch --no-tags origin \
+    "refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}" >/dev/null
+  CHANGED="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
+fi
 
+if [[ -n "$CHANGED" ]]; then
   if printf '%s\n' "$CHANGED" | grep -q '^frontend/'; then
     if ! printf '%s\n' "$CHANGED" | grep -Eq '^(apps/web/public/static/|apps/web/src/)'; then
       echo "This PR changes frontend/ only."

@@ -208,6 +208,10 @@ button.primary:active,.writebtn:active{transform:translate(2px,2px);box-shadow:2
 .profile-head{background:var(--label);border:2px solid var(--ink);border-radius:0;padding:18px 20px;margin-bottom:20px;box-shadow:6px 6px 0 var(--ink)}
 .profile-head h2{margin:0 0 6px;font-size:1.45rem;font-weight:900;letter-spacing:-.03em}
 .profile-head .meta{font-size:.76rem;font-weight:600;color:var(--ink-60)}
+.talent-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.talent-status{display:inline-flex;align-items:center;min-height:24px;padding:2px 9px;border:1px solid currentColor;border-radius:999px;font-size:.72rem;font-weight:700;line-height:1.2;white-space:nowrap}
+.talent-status--submitted{color:#58616a;background:#f4f5f6}.talent-status--accepted{color:#0b50d0;background:#ecf2fe}.talent-status--assigned{color:#0066b3;background:#e5f3ff}.talent-status--review{color:#8a5c00;background:#fff5d6}.talent-status--completed{color:#146c2e;background:#e9f7ec}.talent-status--declined{color:#b3261e;background:#ffedea}
+.talent-cancel{border:1px solid #6d7882;border-radius:6px;background:#fff;color:#464c53;padding:10px 15px;font:inherit;font-weight:600;cursor:pointer}.talent-cancel:hover{background:#f4f5f6}
 .profile-head .tags{margin-top:10px}
 .journey-label{font-size:.68rem;color:var(--midnight);font-weight:800;text-transform:uppercase;letter-spacing:.14em;border-top:4px solid var(--ink);padding-top:9px;margin:24px 0 12px}
 .searchbar{display:flex;gap:10px;margin-bottom:18px}

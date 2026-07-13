@@ -8,7 +8,6 @@
 /apps/web/src/app/api/auth/ @jspark-inu
 /apps/web/src/app/api/me/ @jspark-inu
 /apps/web/src/app/layout.tsx @jspark-inu
-/apps/web/src/components/LegacyShell.tsx @jspark-inu
 /backend/app.py @jspark-inu
 /backend/auth.py @jspark-inu
 /backend/lab_feed_db.py @jspark-inu

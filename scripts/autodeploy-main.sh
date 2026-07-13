@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# launchd starts with /usr/bin:/bin only, while this service uses the
+# user-managed npm installation that also runs com.user.bai-next.
+export PATH="/opt/homebrew/bin:/Users/hai_1/.npm-global/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 REPO_DIR="${BAI_WEBSITE_REPO:-/Users/hai_1/AI-Workspace/code/projects/dev/bai_website}"
 LOG_DIR="${BAI_DEPLOY_LOG_DIR:-$REPO_DIR/.deploy-logs}"
 LOCK_DIR="${BAI_DEPLOY_LOCK_DIR:-/tmp/bai-website-autodeploy.lock}"

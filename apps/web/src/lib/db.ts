@@ -44,6 +44,42 @@ export function ensureMaterialUploadSchema(conn = getWriteDb()) {
   }
 }
 
+function ensureWallSchema(conn: Database.Database) {
+  conn.exec(`CREATE TABLE IF NOT EXISTS wall_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    author_id INTEGER NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+}
+
+export function listWallMessages(limit = 12) {
+  const conn = getWriteDb();
+  try {
+    ensureWallSchema(conn);
+    const safeLimit = Math.max(1, Math.min(Math.trunc(limit || 12), 40));
+    const rows = conn
+      .prepare('SELECT id, body, created_at FROM wall_messages ORDER BY id DESC LIMIT ?')
+      .all(safeLimit) as Array<Record<string, unknown>>;
+    return rows.reverse();
+  } finally {
+    conn.close();
+  }
+}
+
+export function addWallMessage(authorId: number, body: string) {
+  const conn = getWriteDb();
+  try {
+    ensureWallSchema(conn);
+    const result = conn
+      .prepare('INSERT INTO wall_messages (author_id, body) VALUES (?, ?)')
+      .run(authorId, body);
+    return Number(result.lastInsertRowid);
+  } finally {
+    conn.close();
+  }
+}
+
 export function listMembers(): MemberPublic[] {
   return getDb()
     .prepare("SELECT id, name, role FROM members WHERE status='active' ORDER BY name ASC")

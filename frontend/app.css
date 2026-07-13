@@ -169,6 +169,17 @@ button.primary:active,.writebtn:active{transform:translate(2px,2px);box-shadow:2
 .rail .miss:hover{border-color:var(--ink);color:var(--ink)}
 .rail .tc a{display:inline-block;font-size:.72rem;font-weight:700;color:var(--ink);background:transparent;border:1px solid var(--ink);padding:2px 8px;border-radius:0;margin:0 5px 6px 0;text-decoration:none;transition:background .12s,color .12s}
 .rail .tc a:hover{background:var(--ink);color:var(--label)}
+.rail .wall-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rail .wall-head h3{margin-bottom:9px;flex:1}
+.rail .wall-head span{font-size:.62rem;font-weight:700;color:var(--midnight)}
+.rail .wall-stream{max-height:160px;overflow:auto;margin-bottom:8px}
+.rail .wall-message{padding:7px 0;border-bottom:1px solid var(--hairline-soft);font-size:.76rem;line-height:1.45;white-space:pre-wrap}
+.rail .wall-message:last-child{border-bottom:0}
+.rail .wall-message span{display:block;color:var(--ink-60);font-size:.64rem;margin-top:3px}
+.rail .wall-form{display:flex;gap:6px;margin-top:7px}
+.rail .wall-form input{min-width:0;flex:1;border:1px solid var(--hairline);border-radius:0;padding:7px 8px;font:inherit;font-size:.72rem;color:var(--ink);background:var(--label)}
+.rail .wall-form .primary{margin:0;padding:0 9px;font-size:.68rem}
+.rail .wall .err{margin:6px 0 0;font-size:.7rem}
 
 /* ---------- 주간 배너(레일 미사용 페이지용 fallback) ---------- */
 .weekly{background:var(--label);border:2px solid var(--ink);border-radius:0;padding:11px 15px;margin-bottom:16px;font-size:.82rem}

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getDb, listMaterials, listMembers, resolveDbPath } from '@/lib/db';
+import { addWallMessage, getDb, listMaterials, listMembers, listWallMessages, resolveDbPath } from '@/lib/db';
 
 const originalDbPath = process.env.LAB_FEED_DB;
 const fixtureDir = mkdtempSync(path.join(tmpdir(), 'bai-db-test-'));
@@ -54,5 +54,14 @@ describe('SQLite adapter', () => {
       expect(materials[0]).toHaveProperty('title');
       expect(materials[0]).toHaveProperty('body');
     }
+  });
+
+  it('creates and reads anonymous wall messages without exposing an author identity', () => {
+    const id = addWallMessage(1, '응원합니다');
+    expect(id).toBeGreaterThan(0);
+    expect(listWallMessages()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id, body: '응원합니다' }),
+    ]));
+    expect(listWallMessages()[0]).not.toHaveProperty('author_id');
   });
 });

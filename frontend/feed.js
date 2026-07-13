@@ -120,6 +120,39 @@ async function toggleReact(pid, btn) {
 }
 function wireReacts(root) { (root || document).querySelectorAll(".reactBtn").forEach(b => b.onclick = () => toggleReact(b.dataset.id, b)); }
 
+function wallHtml() {
+  return `<div class="w wall"><div class="wall-head"><h3>응원 한마디</h3><span>실시간</span></div>
+    <div class="wall-stream" id="wallStream"><div class="muted">응원 한마디를 기다리고 있습니다.</div></div>
+    <form class="wall-form" id="wallForm"><input id="wallInput" maxlength="80" autocomplete="off" placeholder="익명으로 짧게 남겨 주세요" aria-label="응원 한마디"><button class="primary" type="submit">남기기</button></form>
+    <p class="err" id="wallErr"></p></div>`;
+}
+async function wireWall() {
+  const stream = document.getElementById("wallStream");
+  const form = document.getElementById("wallForm");
+  const input = document.getElementById("wallInput");
+  const err = document.getElementById("wallErr");
+  if (!stream || !form || !input || !err) return;
+  const load = async () => {
+    const r = await fetch("/api/wall?limit=8").catch(() => null);
+    const data = r && r.ok ? await r.json() : { messages: [] };
+    const messages = data.messages || [];
+    stream.innerHTML = messages.length
+      ? messages.map(m => `<div class="wall-message">${esc(m.body)}<span>${fmtDate(m.created_at)}</span></div>`).join("")
+      : '<div class="muted">응원 한마디를 기다리고 있습니다.</div>';
+  };
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const body = input.value.trim();
+    err.textContent = "";
+    if (!body) return;
+    const r = await fetch("/api/wall", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) });
+    if (!r.ok) { err.textContent = "남기지 못했습니다. 잠시 후 다시 시도하세요."; return; }
+    input.value = "";
+    await load();
+  };
+  await load();
+}
+
 let FEED_ME = null;
 let FEED_PROJECTS = [];
 
@@ -188,7 +221,9 @@ async function renderHome(view) {
   ALL.forEach(p => (p.tags || "").split(/[,\s]+/).filter(Boolean).forEach(t => counts[t] = (counts[t] || 0) + 1));
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
   if (top.length) html += `<div class="w"><h3>인기 태그</h3><div class="tc">` + top.map(([t]) => `<a href="/tag/${encodeURIComponent(t)}">${esc(t)}</a>`).join("") + `</div></div>`;
+  html += wallHtml();
   document.getElementById("rail").innerHTML = html;
+  wireWall();
 }
 
 // ---------------- 뷰: 글 상세 ----------------

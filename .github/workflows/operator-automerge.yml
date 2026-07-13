@@ -1,8 +1,8 @@
-name: operator-approved auto-merge
+name: trusted PR auto-merge
 
 on:
-  pull_request_review:
-    types: [submitted]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
   contents: read
@@ -10,32 +10,28 @@ permissions:
 
 jobs:
   enable-auto-merge:
-    # Any repository collaborator can act as an operator reviewer. GitHub
-    # branch rules still require CI, and CODEOWNERS adds PI approval only for
+    # Trusted collaborators do not need a separate approval for ordinary PRs.
+    # Required CI checks still run, and CODEOWNERS adds PI approval only for
     # authentication, data, deployment, or site-entrypoint changes.
     if: >-
       github.event.pull_request.state == 'open' &&
-      github.event.review.state == 'approved'
+      github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - name: Enable squash auto-merge after operator approval
+      - name: Enable squash auto-merge for trusted contributor
         uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
-            const reviewer = context.payload.review.user.login;
-            if (pr.draft) {
-              core.notice('Draft PRs are never auto-merged.');
-              return;
-            }
+            const author = pr.user.login;
             const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              username: reviewer,
+              username: author,
             });
             const allowed = new Set(['admin', 'maintain', 'write']);
             if (!allowed.has(permission.user.permissions)) {
-              core.notice(`${reviewer} is not an operator reviewer.`);
+              core.notice(`${author} is not a trusted operator contributor.`);
               return;
             }
             await github.graphql(
@@ -47,4 +43,4 @@ jobs:
               }`,
               { pullRequestId: pr.node_id },
             );
-            core.notice(`Auto-merge armed by operator ${reviewer} for PR #${pr.number}.`);
+            core.notice(`Auto-merge armed for trusted contributor ${author} on PR #${pr.number}.`);

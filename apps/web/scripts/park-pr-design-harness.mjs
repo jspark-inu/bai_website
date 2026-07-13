@@ -112,15 +112,15 @@ check('Next student routes use the legacy feed shell, not React page reinterpret
 check('LegacyShell mounts the exact DOM contract expected by Park PR feed.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
   const missing = [
-    'href="/static/app.css?v=20260713to2',
+    'href="/static/app.css?v=20260713to3',
     'id="nav"',
     'className="container"',
     'id="view"',
-    "script.src = '/static/feed.js?v=20260713to2'",
+    "script.src = '/static/feed.js?v=20260713to3'",
     'script.onload = () => window.initFeed?.()',
   ].filter((token) => !shell.includes(token));
   expect(!missing.length, 'LegacyShell does not mount the original feed DOM/script contract', missing);
-  expect(!shell.includes('20260713to1'), 'LegacyShell still references the stale talent-office asset URL');
+  expect(!shell.includes('20260713to2'), 'LegacyShell still references the stale wall asset URL');
 });
 
 check('Park PR feed renderer controls page-level design labels', () => {

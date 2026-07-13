@@ -50,3 +50,10 @@ node scripts/pr-governance-harness.mjs verify-diff \
 ## 운영 변경
 
 고위험 경로를 바꿀 때는 governance 설정과 CODEOWNERS를 같은 PR에서 수정한다. 단위 테스트가 두 목록의 불일치를 실패시킨다. PI 목록, 임계값, 금지 패턴 변경도 고위험 경로인 `.github/` 아래에 있으므로 기존 PI 통제를 통과해야 한다.
+
+## 반복 운영 체크리스트
+
+1. governance job이 세 상태 중 정확히 하나를 기록했는지 확인한다.
+2. `pi_review`는 표시된 현재 head를 검토한 뒤 승인한다.
+3. `blocked`는 승인하지 말고 원인 파일이나 비밀정보를 제거하도록 돌려보낸다.
+4. `auto_merge`는 `pytest`와 `react` 성공 뒤 실제 main 반영과 자동 배포를 확인한다.

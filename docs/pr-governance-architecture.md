@@ -52,7 +52,7 @@ node scripts/pr-governance-harness.mjs verify-diff \
 
 ## 반복 운영 체크리스트
 
-1. governance job이 세 상태 중 정확히 하나를 기록했는지 확인한다.
+1. governance job이 두 상태 중 정확히 하나를 기록했는지 확인한다.
 2. `pi_review`는 표시된 현재 head를 검토한 뒤 승인한다.
 3. 위험을 수용할 경우 표시된 현재 head를 PI가 승인한다. 승인이 모든 자동 위험 판정보다 우선한다.
 4. `auto_merge`는 `pytest`와 `react` 성공 뒤 실제 main 반영과 자동 배포를 확인한다.

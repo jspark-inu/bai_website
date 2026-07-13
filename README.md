@@ -59,6 +59,26 @@ venv/bin/python -m pytest -q
 
 After a pull request is merged into `main`, the Mac mini launchd job `com.user.bai-website-autodeploy` pulls the repo, runs the React checks/build, syncs `apps/web` to the live service, and restarts `com.user.bai-next`.
 
+## 운영진 PR → 자동 반영
+
+운영진의 코드 변경은 PR로만 받는다. PI(`jspark-inu`)가 승인하면
+`.github/workflows/operator-automerge.yml`이 squash auto-merge를 켠다. GitHub의
+필수 검증이 모두 통과한 뒤 `main`에 병합되고, Mac mini 배포기가 30초 이내에
+**격리된 deploy worktree**에서 빌드·배포한다. 개발자가 쓰는 원래 checkout이
+더러워도 배포가 멈추지 않는다.
+
+GitHub 저장소에서 한 번 설정할 항목:
+
+1. Settings → General → Pull Requests: **Allow auto-merge** 켜기
+2. Settings → Rules → `main` ruleset: PR 필수, 승인 1개, stale approval 해제,
+   `test / pytest`와 `test / react` 상태 검사 필수, force push 금지
+3. 같은 ruleset에서 **Require review from Code Owners** 켜기
+4. Settings → Actions → Variables: `BAI_PI_GITHUB_LOGIN=jspark-inu` 등록
+
+화면 변경 PR은 반드시 `apps/web/**`를 포함해야 한다. `frontend/**`만 바꾸면
+CI가 막는다. 운영진의 시스템 개선 요청 자체는 Git PR이 아니라 인력사무소에서
+접수·검토한다.
+
 For a minimal student workflow in Korean, see `STUDENT-GIT-GUIDE.md`.
 For a standalone handoff file to send directly to Park Kyung, see `PARK_STUDENT_HANDOFF.md`.
 

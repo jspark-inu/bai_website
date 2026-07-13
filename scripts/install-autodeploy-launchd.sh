@@ -20,7 +20,7 @@ cat > "$PLIST" <<PLIST
     <string>${REPO_DIR}/scripts/autodeploy-main.sh</string>
   </array>
   <key>StartInterval</key>
-  <integer>60</integer>
+  <integer>30</integer>
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>

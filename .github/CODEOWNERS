@@ -1,0 +1,6 @@
+# PI approval is required for the deployed web surface and deployment control plane.
+* @jspark-inu
+
+/apps/web/ @jspark-inu
+/.github/ @jspark-inu
+/scripts/ @jspark-inu

@@ -165,6 +165,7 @@ const deliberatelyNotServedHtml = [
   // If any becomes reachable on bai.haiinu.com, move it into shellContracts with a route.
   'bai-philosophy-operating-plan.html',
   'bai-project-guide.html',
+  'krds.html',
   'index.html',
   'member.html',
   'members.html',

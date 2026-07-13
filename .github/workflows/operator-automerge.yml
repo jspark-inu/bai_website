@@ -1,0 +1,39 @@
+name: operator-approved auto-merge
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    # A PI approval is the only authority that can arm automatic merge.
+    # Required status checks and branch rules still have to pass.
+    if: >-
+      github.event.pull_request.state == 'open' &&
+      github.event.review.state == 'approved' &&
+      github.event.review.user.login == (vars.BAI_PI_GITHUB_LOGIN || 'jspark-inu')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable squash auto-merge after PI approval
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (pr.draft) {
+              core.notice('Draft PRs are never auto-merged.');
+              return;
+            }
+            await github.graphql(
+              `mutation($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: SQUASH
+                }) { pullRequest { number autoMergeRequest { enabledAt } } }
+              }`,
+              { pullRequestId: pr.node_id },
+            );
+            core.notice(`Auto-merge armed for PR #${pr.number}.`);

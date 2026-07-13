@@ -71,7 +71,7 @@ export function ModernLoginPage() {
           });
           if (r.ok) {
             const me = await r.json();
-            location.href = (me.role === 'pi' || me.role === 'professor') ? '/cockpit' : '/';
+            location.href = '/';
           } else if (r.status === 429) {
             err.textContent = '로그인 시도가 너무 많습니다. 잠시 뒤 다시 시도하세요.';
           } else {

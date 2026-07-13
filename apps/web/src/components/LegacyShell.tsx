@@ -56,7 +56,9 @@ export function LegacyLoginShell() {
           });
           if (r.ok) {
             const me = await r.json();
-            location.href = (me.role === "pi" || me.role === "professor") ? "/cockpit" : "/";
+            // PI도 학생과 같은 BAI 피드에서 시작한다. 운영 대시보드는 별도
+            // 서비스로 두고, 역할에 따라 BAI의 정보 구조가 갈라지지 않게 한다.
+            location.href = "/";
           } else {
             document.getElementById("err").textContent = "이름 또는 비밀번호가 틀렸습니다.";
           }

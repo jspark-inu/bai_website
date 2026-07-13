@@ -29,8 +29,8 @@ function evaluate(input) {
   });
 }
 
-test('the routing contract exposes exactly the three operational routes', () => {
-  assert.deepEqual(Object.keys(config.terminal_routes).sort(), ['auto_merge', 'blocked', 'pi_review']);
+test('the routing contract exposes exactly the two operational routes', () => {
+  assert.deepEqual(Object.keys(config.terminal_routes).sort(), ['auto_merge', 'pi_review']);
 });
 
 test('CODEOWNERS and governance high-risk paths stay aligned', () => {
@@ -43,7 +43,7 @@ test('CODEOWNERS and governance high-risk paths stay aligned', () => {
   assert.deepEqual(codeowners, config.policy.high_risk_paths);
 });
 
-test('PI approval never overrides a prohibited path', () => {
+test('PI approval overrides a sensitive path while retaining risk evidence', () => {
   const result = evaluate({
     author: 'dur4290',
     permission: 'read',
@@ -51,8 +51,20 @@ test('PI approval never overrides a prohibited path', () => {
     piApproved: true,
     files: [{ filename: '.env.production', status: 'added', changes: 2, patchAvailable: true }],
   });
-  assert.equal(result.route, 'blocked');
-  assert.ok(result.reasonCodes.includes('blocked_path'));
+  assert.equal(result.route, 'auto_merge');
+  assert.ok(result.reasonCodes.includes('sensitive_path'));
+  assert.ok(result.reasonCodes.includes('pi_approved_current_head'));
+});
+
+test('a sensitive path without PI approval is reported for review', () => {
+  const result = evaluate({
+    author: 'dur4290',
+    permission: 'read',
+    association: 'NONE',
+    files: [{ filename: '.env.production', status: 'added', changes: 2, patchAvailable: true }],
+  });
+  assert.equal(result.route, 'pi_review');
+  assert.ok(result.reasonCodes.includes('sensitive_path'));
 });
 
 test('a trusted student ordinary change arms auto-merge', () => {

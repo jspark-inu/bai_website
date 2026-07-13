@@ -59,6 +59,8 @@ export function evaluatePullRequest({
   authorDecision,
   files = [],
   piApproved = false,
+  aiApproved = false,
+  aiEscalated = false,
   securityFindings = [],
   inventoryComplete = true,
   config,
@@ -69,7 +71,8 @@ export function evaluatePullRequest({
   const reasonCodes = [];
   const evidence = {
     sensitivePaths: [],
-    highRiskPaths: [],
+    piOnlyPaths: [],
+    aiReviewPaths: [],
     securityFindings: securityFindings.map((finding) => ({
       id: finding.id,
       path: finding.path,
@@ -84,8 +87,11 @@ export function evaluatePullRequest({
     evidence.totals.lines += Number(file.changes ?? 0);
     const sensitiveRule = matchingSensitivePath(filename, policy.sensitive_path_rules);
     if (sensitiveRule) evidence.sensitivePaths.push({ path: filename, rule: sensitiveRule });
-    if (policy.high_risk_paths.some((pattern) => pathMatchesOwnerPattern(filename, pattern))) {
-      evidence.highRiskPaths.push(filename);
+    if (policy.pi_only_paths.some((pattern) => pathMatchesOwnerPattern(filename, pattern))) {
+      evidence.piOnlyPaths.push(filename);
+    }
+    if (policy.ai_review_paths.some((pattern) => pathMatchesOwnerPattern(filename, pattern))) {
+      evidence.aiReviewPaths.push(filename);
     }
   }
 
@@ -98,10 +104,12 @@ export function evaluatePullRequest({
   const unscannableFiles = files
     .filter((file) => file.status !== 'removed' && Number(file.changes ?? 0) > 0 && file.patchAvailable === false)
     .map((file) => normalizedPath(file.filename));
-  const reviewRisk = !inventoryComplete
+  const piMandatory = !inventoryComplete
     || evidence.sensitivePaths.length > 0
     || evidence.securityFindings.length > 0
-    || evidence.highRiskPaths.length > 0
+    || evidence.piOnlyPaths.length > 0
+    || Boolean(aiEscalated);
+  const aiReviewRisk = evidence.aiReviewPaths.length > 0
     || scaleExceeded
     || unscannableFiles.length > 0;
   const trustedAuthor = Boolean(authorDecision?.allowed);
@@ -109,9 +117,11 @@ export function evaluatePullRequest({
   const piAuthorized = piAuthor || Boolean(piApproved);
 
   if (!trustedAuthor) reasonCodes.push('external_author');
-  if (evidence.highRiskPaths.length) reasonCodes.push('high_risk_path');
+  if (evidence.piOnlyPaths.length) reasonCodes.push('pi_only_path');
+  if (evidence.aiReviewPaths.length) reasonCodes.push('ai_review_path');
   if (scaleExceeded) reasonCodes.push('change_limit_exceeded');
   if (unscannableFiles.length) reasonCodes.push('unscannable_patch');
+  if (aiEscalated) reasonCodes.push('ai_escalated');
 
   // PI authorization is the highest policy condition. Risk evidence remains in
   // the result for notification and audit, but never vetoes a current-head PI
@@ -126,10 +136,27 @@ export function evaluatePullRequest({
     };
   }
 
-  if (!trustedAuthor || reviewRisk) {
+  if (piMandatory) {
     return {
       route: 'pi_review',
-      reasonCodes: reasonCodes.length ? reasonCodes : ['review_required'],
+      reasonCodes: reasonCodes.length ? reasonCodes : ['pi_review_required'],
+      evidence: { ...evidence, unscannableFiles },
+    };
+  }
+
+  if (aiApproved) {
+    reasonCodes.push('ai_approved_current_head');
+    return {
+      route: 'auto_merge',
+      reasonCodes,
+      evidence: { ...evidence, unscannableFiles },
+    };
+  }
+
+  if (!trustedAuthor || aiReviewRisk) {
+    return {
+      route: 'ai_review',
+      reasonCodes: reasonCodes.length ? reasonCodes : ['ai_review_required'],
       evidence: { ...evidence, unscannableFiles },
     };
   }

@@ -9,39 +9,56 @@
   "questions": [
     {
       "id": "Q1",
-      "axis": "PI 검토 대기 상태",
-      "question": "작성자 신뢰 또는 변경 위험 때문에 검토가 필요하고 현재 head에 유효한 PI 권한 부여가 없는가?",
+      "axis": "PI 필수 검토 상태",
+      "question": "통제면·민감정보·불완전 검증 또는 AI escalation이 있고 현재 head에 유효한 PI 권한 부여가 없는가?",
       "yes": "pi_review",
+      "no": "Q2"
+    },
+    {
+      "id": "Q2",
+      "axis": "AI 검토 대기 상태",
+      "question": "자동 판단이 필요한 변경이고 현재 head에 유효한 AI 승인 또는 PI 권한 부여가 없는가?",
+      "yes": "ai_review",
       "no": "auto_merge"
     }
   ],
   "terminal_routes": {
     "pi_review": {
-      "condition": "작성자 신뢰 또는 변경 위험이 감지됐고 현재 head에 유효한 PI 승인이 없다.",
-      "action": "위험 사유를 기록하고 기존 auto-merge를 해제한 뒤 PI review를 요청한다.",
+      "condition": "통제면·민감정보·불완전 검증 또는 AI escalation이 있고 현재 head에 유효한 PI 승인이 없다.",
+      "action": "구체적인 위험 사유를 기록하고 기존 auto-merge를 해제한 뒤 PI review를 요청한다.",
       "destination": "GitHub pull request review queue와 BAI PR governance 실행 로그",
       "next_transition": "PI가 현재 head를 승인하거나 작성자가 새 head를 push하면 entry question부터 재판정한다.",
       "review_trigger": "pull_request_review 제출·해제 또는 pull_request synchronize 이벤트에서 즉시 재판정한다."
     },
+    "ai_review": {
+      "condition": "일반 자동 병합보다 추가 판단이 필요하지만 PI 필수 조건은 아니고 현재 head의 AI 판정이 없다.",
+      "action": "기존 auto-merge를 해제하고 로컬 read-only Codex reviewer가 diff를 심사하도록 대기한다.",
+      "destination": "GitHub head commit의 bai-ai-review status와 AI review 실행 로그",
+      "next_transition": "AI가 현재 head를 승인 또는 PI escalation하거나 새 head가 push되면 entry question부터 재판정한다.",
+      "review_trigger": "Mac mini AI reviewer의 commit status와 bai-ai-reviewed label 갱신 시 즉시 재판정한다."
+    },
     "auto_merge": {
-      "condition": "현재 head를 PI가 승인했거나 PI가 직접 작성했으며, 또는 신뢰 작성자의 일반 변경이다.",
+      "condition": "현재 head에 PI 또는 AI 권한 부여가 있거나 신뢰 작성자의 일반 변경이다.",
       "action": "squash auto-merge를 예약하고 필수 pytest와 react checks가 성공할 때까지 기다린다.",
       "destination": "GitHub main branch와 main 자동 배포 파이프라인",
       "next_transition": "필수 checks 성공 시 병합하고 새 커밋이나 review 변경 시 entry question부터 재판정한다."
     }
   },
-  "unresolved_route": "pi_review",
+  "unresolved_route": "ai_review",
   "multi_label_metadata": [
     "author_trust_kind",
-    "high_risk_paths",
+    "pi_only_paths",
+    "ai_review_paths",
     "change_scale",
     "security_findings",
+    "ai_verdict",
     "reason_codes"
   ],
   "policy": {
     "authority_order": [
       "pi_author_or_current_head_approval",
-      "risk_review",
+      "mandatory_pi_control",
+      "ai_current_head_approval_or_escalation",
       "trusted_low_risk"
     ],
     "pi_reviewers": [
@@ -56,9 +73,11 @@
       "files": 25,
       "lines": 2500
     },
-    "high_risk_paths": [
+    "pi_only_paths": [
       "/.github/",
-      "/scripts/",
+      "/scripts/"
+    ],
+    "ai_review_paths": [
       "/backend/",
       "/apps/web/package.json",
       "/apps/web/package-lock.json",
@@ -70,6 +89,15 @@
       "/apps/web/src/app/layout.tsx",
       "/apps/web/src/components/LegacyShell.tsx"
     ],
+    "ai_review": {
+      "reviewer": "local-codex-read-only",
+      "status_context": "bai-ai-review",
+      "trigger_label": "bai-ai-reviewed",
+      "minimum_confidence": 0.8,
+      "maximum_diff_bytes": 120000,
+      "maximum_prs_per_run": 2,
+      "retry_after_minutes": 15
+    },
     "sensitive_path_rules": [
       {
         "id": "environment_secret",

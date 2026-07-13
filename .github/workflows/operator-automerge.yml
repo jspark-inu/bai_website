@@ -2,13 +2,14 @@ name: PR governance
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review, synchronize]
+    types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
   pull_request_review:
     types: [submitted, dismissed]
 
 permissions:
   contents: write
   pull-requests: write
+  statuses: read
 
 concurrency:
   group: pr-governance-${{ github.event.pull_request.number }}
@@ -67,6 +68,7 @@ jobs:
               hasCurrentHeadPiApproval,
               scanAddedLines,
             } = await importPolicy('pr-governance-policy.mjs');
+            const { latestAiStatus } = await importPolicy('pr-ai-review-policy.mjs');
 
             let permission = 'read';
             try {
@@ -112,23 +114,34 @@ jobs:
               };
             });
 
-            const reviews = await github.paginate(github.rest.pulls.listReviews, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pr.number,
-              per_page: 100,
-            });
+            const [reviews, statuses] = await Promise.all([
+              github.paginate(github.rest.pulls.listReviews, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                per_page: 100,
+              }),
+              github.paginate(github.rest.repos.listCommitStatusesForRef, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: pr.head.sha,
+                per_page: 100,
+              }),
+            ]);
             const piApproved = hasCurrentHeadPiApproval({
               reviews,
               piReviewers: config.policy.pi_reviewers,
               headSha: pr.head.sha,
             });
+            const aiStatus = latestAiStatus(statuses, config.policy.ai_review.status_context);
 
             const decision = evaluatePullRequest({
               author,
               authorDecision,
               files,
               piApproved,
+              aiApproved: aiStatus?.state === 'success',
+              aiEscalated: aiStatus?.state === 'failure',
               securityFindings,
               inventoryComplete: files.length === pr.changed_files,
               config,
@@ -146,8 +159,10 @@ jobs:
               ])
               .addRaw(
                 decision.route === 'pi_review'
-                  ? 'Risk was reported to the PI. A current-head PI approval authorizes auto-merge.'
-                  : 'Auto-merge is authorized; detected risk evidence remains recorded above.',
+                  ? 'AI or deterministic controls found a material exception. Current-head PI approval authorizes auto-merge.'
+                  : decision.route === 'ai_review'
+                    ? 'Waiting for the local read-only Codex reviewer. PI action is not requested.'
+                    : 'Auto-merge is authorized; detected risk evidence remains recorded above.',
               )
               .write();
 
@@ -162,6 +177,27 @@ jobs:
                 { pullRequestId: pr.node_id },
               );
               core.notice(`Disabled stale auto-merge for PR #${pr.number}.`);
+            }
+
+            async function clearPiReviewRequest() {
+              const requested = new Set(
+                (pr.requested_reviewers ?? []).map((reviewer) => reviewer.login.toLowerCase()),
+              );
+              const reviewers = config.policy.pi_reviewers.filter((login) => requested.has(login.toLowerCase()));
+              if (!reviewers.length) return;
+              await github.rest.pulls.removeRequestedReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                reviewers,
+              });
+            }
+
+            if (decision.route === 'ai_review') {
+              await disableAutoMerge();
+              await clearPiReviewRequest();
+              core.notice(`PR #${pr.number} is queued for local AI review; no PI action requested.`);
+              return;
             }
 
             if (decision.route === 'pi_review') {
@@ -183,6 +219,7 @@ jobs:
               return;
             }
 
+            await clearPiReviewRequest();
             if (pr.auto_merge) {
               core.notice(`Auto-merge is already armed for PR #${pr.number}.`);
               return;

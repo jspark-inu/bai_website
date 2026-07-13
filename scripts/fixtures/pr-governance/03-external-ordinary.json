@@ -13,7 +13,7 @@
     ]
   },
   "expected": {
-    "route": "pi_review",
+    "route": "ai_review",
     "reasonCodes": [
       "external_author"
     ]

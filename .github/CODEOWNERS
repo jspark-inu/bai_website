@@ -1,14 +1,4 @@
-# PI approval is only required for high-risk changes. Registered students'
-# ordinary PRs auto-merge after required CI succeeds.
+# PI review is reserved for governance-control changes. Runtime and product
+# code is reviewed by the automated AI gate before required CI and auto-merge.
 /.github/ @jspark-inu
 /scripts/ @jspark-inu
-/backend/ @jspark-inu
-/apps/web/package.json @jspark-inu
-/apps/web/package-lock.json @jspark-inu
-/apps/web/next.config.ts @jspark-inu
-/apps/web/vitest.config.ts @jspark-inu
-/apps/web/scripts/ @jspark-inu
-/apps/web/src/lib/ @jspark-inu
-/apps/web/src/app/api/ @jspark-inu
-/apps/web/src/app/layout.tsx @jspark-inu
-/apps/web/src/components/LegacyShell.tsx @jspark-inu

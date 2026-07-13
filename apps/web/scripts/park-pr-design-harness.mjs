@@ -53,10 +53,10 @@ const routePages = [
 
 check('Park PR design source files exist', () => {
   const missing = [
-    'frontend/app.css',
-    'frontend/feed.js',
-    'apps/web/public/static/app.css',
-    'apps/web/public/static/feed.js',
+    'frontend/krds.css',
+    'frontend/krds.js',
+    'apps/web/public/static/krds.css',
+    'apps/web/public/static/krds.js',
     'apps/web/src/components/LegacyShell.tsx',
   ].filter((rel) => !relExists(rel));
   expect(!missing.length, 'Required design source files are missing', missing);
@@ -64,32 +64,32 @@ check('Park PR design source files exist', () => {
 
 check('Park PR CSS is the exact CSS served by Next', () => {
   expect(
-    sha('frontend/app.css') === sha('apps/web/public/static/app.css'),
-    'apps/web/public/static/app.css must be byte-identical to frontend/app.css',
-    ['frontend/app.css', 'apps/web/public/static/app.css'],
+    sha('frontend/krds.css') === sha('apps/web/public/static/krds.css'),
+    'apps/web/public/static/krds.css must be byte-identical to frontend/krds.css',
+    ['frontend/krds.css', 'apps/web/public/static/krds.css'],
   );
 });
 
 check('Park PR page renderer is the exact JS served by Next', () => {
   expect(
-    sha('frontend/feed.js') === sha('apps/web/public/static/feed.js'),
-    'apps/web/public/static/feed.js must be byte-identical to frontend/feed.js',
-    ['frontend/feed.js', 'apps/web/public/static/feed.js'],
+    sha('frontend/krds.js') === sha('apps/web/public/static/krds.js'),
+    'apps/web/public/static/krds.js must be byte-identical to frontend/krds.js',
+    ['frontend/krds.js', 'apps/web/public/static/krds.js'],
   );
 });
 
-check('Park PR Paper & Ink tokens are present in the served CSS', () => {
-  const css = read('apps/web/public/static/app.css');
+check('Park PR KRDS tokens are present in the served CSS', () => {
+  const css = read('apps/web/public/static/krds.css');
   const missing = [
-    'Paper & Ink',
-    '--midnight:#122c4f',
-    '--ocean:#5b88b2',
-    'box-shadow:4px 4px 0 var(--ink)',
-    '.card .sec{display:grid;grid-template-columns:68px 1fr',
-    'body:has(.side)',
-    'background:var(--paper) !important',
+    'KRDS',
+    '--krds-primary-50: #256EF4',
+    '--krds-gray-90: #1E2124',
+    '--krds-focus: 0 0 0 4px rgba(37, 110, 244, .45)',
+    '.gnb a.on',
+    '.hd-main',
+    'prefers-reduced-motion',
   ].filter((token) => !css.includes(token));
-  expect(!missing.length, 'Served CSS is missing Park PR design tokens', missing);
+  expect(!missing.length, 'Served CSS is missing Park PR KRDS design tokens', missing);
 });
 
 check('Next student routes use the legacy feed shell, not React page reinterpretations', () => {
@@ -109,37 +109,41 @@ check('Next student routes use the legacy feed shell, not React page reinterpret
   expect(!offenders.length, 'Student routes are not all delegated to the original feed renderer', offenders);
 });
 
-check('LegacyShell mounts the exact DOM contract expected by Park PR feed.js', () => {
+check('LegacyShell mounts the exact DOM contract expected by Park PR krds.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
   const missing = [
-    'href="/static/app.css?v=20260713to5',
-    'id="nav"',
-    'className="container"',
+    'href="/static/krds.css?v=20260713krds1',
+    'id="header"',
+    'id="gnb"',
+    'id="crumbWrap"',
     'id="view"',
-    "script.src = '/static/feed.js?v=20260713to5'",
-    'script.onload = () => window.initFeed?.()',
+    'id="footer"',
+    "script.src = '/static/krds.js?v=20260713krds1'",
+    'script.onload = () => window.initApp?.()',
   ].filter((token) => !shell.includes(token));
-  expect(!missing.length, 'LegacyShell does not mount the original feed DOM/script contract', missing);
-  expect(!shell.includes('20260713to4'), 'LegacyShell still references the stale pre-PR4 asset URL');
+  expect(!missing.length, 'LegacyShell does not mount the KRDS shell DOM/script contract', missing);
+  expect(!shell.includes('20260713to4') && !shell.includes('20260713to5'), 'LegacyShell still references a stale legacy asset URL');
 });
 
 check('Park PR feed renderer controls page-level design labels', () => {
-  const js = read('apps/web/public/static/feed.js');
+  const js = read('apps/web/public/static/krds.js');
   const missing = [
-    'BAI <span class="b">Feed</span>',
     '전체 피드',
+    '인력사무소',
     '프로젝트',
     '자료실',
     '막힌 질문',
-    '문의/FAQ',
+    '문의·FAQ',
     '공감 <span class="rc">',
     '진행 여정 (처음 → 최근)',
+    'Goodbai API',
+    '멤버 관리',
   ].filter((token) => !js.includes(token));
   expect(!missing.length, 'Served feed renderer is missing Park PR page design strings', missing);
 });
 
 check('Merged talent-office design is present in the JavaScript served by Next', () => {
-  const js = read('apps/web/public/static/feed.js');
+  const js = read('apps/web/public/static/krds.js');
   const missing = [
     'const roleOptions = ["student", "admin_student", "developer", "operator", "pi"]',
     'function talentBadge(status)',

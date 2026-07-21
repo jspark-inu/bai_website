@@ -1,5 +1,7 @@
 import sqlite3
 
+SQLITE_BUSY_TIMEOUT_MS = 10_000
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,6 +101,8 @@ CREATE TABLE IF NOT EXISTS materials (
     url TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT '자료',
     guild TEXT NOT NULL DEFAULT '',
+    file_url TEXT NOT NULL DEFAULT '',
+    file_name TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -122,7 +126,9 @@ CREATE TABLE IF NOT EXISTS talent_requests (
     linked_project_id INTEGER REFERENCES projects(id),
     solution_summary TEXT NOT NULL DEFAULT '',
     solution_url TEXT NOT NULL DEFAULT '',
+    completion_note TEXT NOT NULL DEFAULT '',
     submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT
 );
@@ -131,6 +137,7 @@ CREATE TABLE IF NOT EXISTS talent_request_assignees (
     member_id INTEGER NOT NULL REFERENCES members(id),
     role TEXT NOT NULL DEFAULT '',
     allocation_ratio REAL NOT NULL DEFAULT 1.0,
+    assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (request_id, member_id)
 );
 CREATE TABLE IF NOT EXISTS contribution_points (
@@ -150,25 +157,142 @@ class LabFeedDB:
         self.db_path = db_path
 
     def _conn(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(
+            self.db_path,
+            timeout=SQLITE_BUSY_TIMEOUT_MS / 1000,
+        )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = %d" % SQLITE_BUSY_TIMEOUT_MS)
         return conn
+
+    def health_check(self):
+        """Verify that the configured BAI database is readable and coherent."""
+        conn = self._conn()
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            missing = {"members", "posts"} - tables
+            if missing:
+                raise RuntimeError("missing core tables: %s" % ", ".join(sorted(missing)))
+            if conn.execute("PRAGMA quick_check(1)").fetchone()[0] != "ok":
+                raise RuntimeError("SQLite quick_check failed")
+            if conn.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                raise RuntimeError("SQLite foreign_key_check failed")
+            conn.execute("SELECT id FROM members LIMIT 1").fetchone()
+            conn.execute("SELECT id FROM posts LIMIT 1").fetchone()
+        finally:
+            conn.close()
 
     def init_schema(self):
         conn = self._conn()
         try:
-            conn.executescript(SCHEMA)
+            # executescript normally commits before it starts. Put the complete
+            # create/upgrade sequence inside one explicit transaction so a
+            # failed compatibility migration cannot leave a half-upgraded DB.
+            conn.executescript("BEGIN IMMEDIATE;\n" + SCHEMA)
             self._ensure_column(conn, "members", "status", "TEXT NOT NULL DEFAULT 'active'")
             self._ensure_column(conn, "posts", "links", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "posts", "project_id", "INTEGER REFERENCES projects(id)")
+            self._ensure_column(conn, "materials", "body", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "materials", "url", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "materials", "category", "TEXT NOT NULL DEFAULT '자료'")
             self._ensure_column(conn, "materials", "guild", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "materials", "file_url", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "materials", "file_name", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "materials", "created_at", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "materials", "updated_at", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "projects", "summary", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "projects", "slug", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "projects", "repo_url", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "projects", "site_url", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "projects", "owner_member_id", "INTEGER REFERENCES members(id)")
+            # Next can be the first process to create these tables. Its schema
+            # intentionally contains a few different metadata columns; add the
+            # Flask-required superset without rebuilding tables or changing IDs.
+            self._ensure_column(conn, "talent_requests", "review_note", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "talent_requests", "requires_approval", "INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "talent_requests", "approval_reason", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "talent_requests", "linked_project_id", "INTEGER REFERENCES projects(id)")
+            self._ensure_column(conn, "talent_requests", "completion_note", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "talent_requests", "submitted_at", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "talent_requests", "created_at", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "talent_request_assignees", "role", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "talent_request_assignees", "assigned_at", "TEXT NOT NULL DEFAULT ''")
+
+            conn.execute(
+                "UPDATE materials SET created_at=datetime('now') "
+                "WHERE created_at IS NULL OR TRIM(created_at)=''"
+            )
+            conn.execute(
+                "UPDATE materials SET updated_at=created_at "
+                "WHERE updated_at IS NULL OR TRIM(updated_at)=''"
+            )
+            conn.execute(
+                "UPDATE talent_requests SET submitted_at="
+                "COALESCE(NULLIF(created_at,''), NULLIF(updated_at,''), datetime('now')) "
+                "WHERE submitted_at IS NULL OR TRIM(submitted_at)=''"
+            )
+            conn.execute(
+                "UPDATE talent_requests SET created_at="
+                "COALESCE(NULLIF(submitted_at,''), NULLIF(updated_at,''), datetime('now')) "
+                "WHERE created_at IS NULL OR TRIM(created_at)=''"
+            )
+            conn.execute(
+                "UPDATE talent_request_assignees SET assigned_at="
+                "COALESCE((SELECT tr.submitted_at FROM talent_requests tr "
+                "WHERE tr.id=talent_request_assignees.request_id), datetime('now')) "
+                "WHERE assigned_at IS NULL OR TRIM(assigned_at)=''"
+            )
+
+            # ALTER TABLE cannot add a non-constant datetime default. These
+            # triggers give upgraded DBs the same behavior as newly-created DBs
+            # for inserts made by either the Flask or Next process.
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS materials_fill_timestamps_after_insert
+                AFTER INSERT ON materials
+                WHEN NEW.created_at IS NULL OR NEW.created_at='' OR
+                     NEW.updated_at IS NULL OR NEW.updated_at=''
+                BEGIN
+                    UPDATE materials
+                    SET created_at=COALESCE(NULLIF(NEW.created_at,''), datetime('now')),
+                        updated_at=COALESCE(NULLIF(NEW.updated_at,''),
+                                           NULLIF(NEW.created_at,''), datetime('now'))
+                    WHERE id=NEW.id;
+                END
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS talent_requests_fill_timestamps_after_insert
+                AFTER INSERT ON talent_requests
+                WHEN NEW.submitted_at IS NULL OR NEW.submitted_at='' OR
+                     NEW.created_at IS NULL OR NEW.created_at=''
+                BEGIN
+                    UPDATE talent_requests
+                    SET submitted_at=COALESCE(NULLIF(NEW.submitted_at,''),
+                                              NULLIF(NEW.created_at,''), datetime('now')),
+                        created_at=COALESCE(NULLIF(NEW.created_at,''),
+                                            NULLIF(NEW.submitted_at,''), datetime('now'))
+                    WHERE id=NEW.id;
+                END
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS talent_assignees_fill_timestamp_after_insert
+                AFTER INSERT ON talent_request_assignees
+                WHEN NEW.assigned_at IS NULL OR NEW.assigned_at=''
+                BEGIN
+                    UPDATE talent_request_assignees
+                    SET assigned_at=datetime('now')
+                    WHERE request_id=NEW.request_id AND member_id=NEW.member_id;
+                END
+            """)
             conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 
@@ -313,6 +437,38 @@ class LabFeedDB:
         finally:
             conn.close()
 
+    def add_project_with_members(self, member_roles, title, type="", goal="",
+                                 status="active", summary="", slug="",
+                                 repo_url="", site_url="", owner_member_id=None,
+                                 current_stage="", deadline="", next_milestone="",
+                                 risk_level="normal", pi_decision=""):
+        """Create project metadata and its member rows atomically."""
+        conn = self._conn()
+        try:
+            cur = conn.execute(
+                "INSERT INTO projects (title, type, goal, status, summary, slug, "
+                "repo_url, site_url, owner_member_id, current_stage, "
+                "deadline, next_milestone, risk_level, pi_decision) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (title, type, goal, status, summary, slug, repo_url, site_url,
+                 owner_member_id, current_stage, deadline, next_milestone,
+                 risk_level, pi_decision),
+            )
+            project_id = cur.lastrowid
+            if not slug:
+                conn.execute(
+                    "UPDATE projects SET slug=? WHERE id=?",
+                    ("project-%s" % project_id, project_id),
+                )
+            self._replace_project_members(conn, project_id, member_roles)
+            conn.commit()
+            return project_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def get_project(self, pid):
         return self._get_one("SELECT * FROM projects WHERE id=?", (pid,))
 
@@ -341,15 +497,53 @@ class LabFeedDB:
         finally:
             conn.close()
 
+    def update_project_with_members(self, pid, member_roles, title, type, status,
+                                    goal, current_stage, deadline,
+                                    next_milestone, risk_level, pi_decision,
+                                    summary=None, slug=None, repo_url=None,
+                                    site_url=None, owner_member_id=None):
+        """Update project metadata and replace its member rows atomically."""
+        conn = self._conn()
+        try:
+            existing = conn.execute(
+                "SELECT * FROM projects WHERE id=?", (pid,)
+            ).fetchone()
+            if not existing:
+                raise ValueError("project not found")
+            summary = existing["summary"] if summary is None else summary
+            slug = existing["slug"] if slug is None else slug
+            repo_url = existing["repo_url"] if repo_url is None else repo_url
+            site_url = existing["site_url"] if site_url is None else site_url
+            owner_member_id = (
+                existing["owner_member_id"]
+                if owner_member_id is None else owner_member_id
+            )
+            conn.execute(
+                "UPDATE projects SET title=?, type=?, status=?, goal=?, summary=?, slug=?, "
+                "repo_url=?, site_url=?, owner_member_id=?, current_stage=?, "
+                "deadline=?, next_milestone=?, risk_level=?, pi_decision=?, "
+                "updated_at=datetime('now') WHERE id=?",
+                (title, type, status, goal, summary, slug, repo_url, site_url,
+                 owner_member_id, current_stage, deadline, next_milestone,
+                 risk_level, pi_decision, pid),
+            )
+            self._replace_project_members(conn, pid, member_roles)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def list_projects(self):
         """전 프로젝트 + 멤버 수 + 연결된 활동 수. 활성 먼저, 마감 임박 순."""
         conn = self._conn()
         try:
             rows = conn.execute(
-                "SELECT pr.*, "
+                "SELECT pr.*, owner.name AS owner_name, "
                 "  (SELECT COUNT(*) FROM project_members pm WHERE pm.project_id=pr.id) AS member_count, "
                 "  (SELECT COUNT(*) FROM posts po WHERE po.project_id=pr.id) AS activity_count "
-                "FROM projects pr "
+                "FROM projects pr LEFT JOIN members owner ON owner.id=pr.owner_member_id "
                 "ORDER BY (pr.status='active') DESC, (pr.deadline='') ASC, pr.deadline ASC, pr.id DESC"
             ).fetchall()
             return [dict(r) for r in rows]
@@ -360,15 +554,21 @@ class LabFeedDB:
         """member_roles: [(member_id, role), ...]. 기존 멤버 전부 교체."""
         conn = self._conn()
         try:
-            conn.execute("DELETE FROM project_members WHERE project_id=?", (project_id,))
-            for mid, role in member_roles:
-                conn.execute(
-                    "INSERT INTO project_members (project_id, member_id, role) VALUES (?,?,?)",
-                    (project_id, mid, role or ""),
-                )
+            self._replace_project_members(conn, project_id, member_roles)
             conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
+
+    def _replace_project_members(self, conn, project_id, member_roles):
+        conn.execute("DELETE FROM project_members WHERE project_id=?", (project_id,))
+        for mid, role in member_roles:
+            conn.execute(
+                "INSERT INTO project_members (project_id, member_id, role) VALUES (?,?,?)",
+                (project_id, mid, role or ""),
+            )
 
     def list_project_members(self, project_id):
         conn = self._conn()
@@ -398,8 +598,9 @@ class LabFeedDB:
         try:
             cur = conn.execute(
                 "INSERT INTO talent_requests "
-                "(requester_member_id, title, problem, expected_outcome, system_scope_reason) "
-                "VALUES (?,?,?,?,?)",
+                "(requester_member_id, title, problem, expected_outcome, system_scope_reason, "
+                "submitted_at, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,datetime('now'),datetime('now'),datetime('now'))",
                 (requester_member_id, title, problem, expected_outcome, system_scope_reason),
             )
             conn.commit()
@@ -486,7 +687,8 @@ class LabFeedDB:
             for member_id, role, ratio in assignees:
                 conn.execute(
                     "INSERT INTO talent_request_assignees "
-                    "(request_id, member_id, role, allocation_ratio) VALUES (?,?,?,?)",
+                    "(request_id, member_id, role, allocation_ratio, assigned_at) "
+                    "VALUES (?,?,?,?,datetime('now'))",
                     (request_id, member_id, role, ratio),
                 )
             conn.execute("UPDATE talent_requests SET status='assigned', updated_at=datetime('now') WHERE id=?", (request_id,))
@@ -675,8 +877,9 @@ class LabFeedDB:
         conn = self._conn()
         try:
             cur = conn.execute(
-                "INSERT INTO materials (author_id, title, body, url, category, guild) "
-                "VALUES (?,?,?,?,?,?)",
+                "INSERT INTO materials "
+                "(author_id, title, body, url, category, guild, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))",
                 (author_id, title, body, url, category or "자료", guild or ""),
             )
             conn.commit()

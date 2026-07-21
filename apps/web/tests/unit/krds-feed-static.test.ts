@@ -82,4 +82,42 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('진행 여정 (처음 → 최근)');
     expect(krdsJs).toContain('이번 주 BAI 체크인');
   });
+
+  it('keeps free records separate from project activity and blocked questions', () => {
+    expect(krdsJs).toContain('function renderFeed(view)');
+    expect(krdsJs).toContain('!p.project_id && !String(p.blocked || "").trim()');
+    expect(krdsJs).toContain('["/feed", "자유 기록", "feed"]');
+  });
+
+  it('uses the weekly API count and preserves deep-link hashes during route refreshes', () => {
+    expect(krdsJs).toContain('week_count || 0');
+    expect(krdsJs).toContain('route(location.pathname + location.search + location.hash, false)');
+    expect(krdsJs).toContain('window.addEventListener("popstate", () => route(location.pathname + location.search + location.hash, false))');
+    expect(krdsJs).not.toContain('if (rr.ok) route();');
+  });
+
+  it('recovers expired sessions and renderer failures without implying that records were deleted', () => {
+    expect(krdsJs).toContain('response.status === 401');
+    expect(krdsJs).toContain('location.replace("/login")');
+    expect(krdsJs).toContain('저장된 기록은 그대로 있습니다.');
+    expect(krdsJs).toContain('id="retryViewBtn"');
+  });
+
+  it('preserves the legacy login contract used by Flask-backed endpoints', () => {
+    expect(krdsJs).toContain('fetch("/api/login"');
+    expect(krdsJs).not.toContain('fetch("/api/auth/login"');
+    expect(krdsJs).not.toContain('함께 만든 과정이');
+    expect(krdsJs).not.toContain('class="login-intro"');
+  });
+
+  it('includes the redesigned project, material, question, and member surfaces', () => {
+    expect(krdsJs).toContain('class="project-grid"');
+    expect(krdsJs).toContain('class="material-side"');
+    expect(krdsJs).toContain('class="question-feed"');
+    expect(krdsJs).toContain('class="question-card"');
+    expect(krdsJs).toContain('["/ask", "FAQ", "ask"]');
+    expect(krdsJs).toContain('class="account-profile"');
+    expect(krdsJs).toContain('class="account-links"');
+    expect(krdsJs).toContain('class="member-grid"');
+  });
 });

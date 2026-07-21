@@ -1,15 +1,11 @@
 import { NextRequest } from 'next/server';
-import { login, setSessionCookie } from '@/lib/auth';
+import { clearSessionCookie } from '@/lib/auth';
+import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  const data = await req.json().catch(() => ({}));
-  const member = await login(String(data.name ?? ''), String(data.password ?? ''));
-  if (!member) {
-    return Response.json({ error: 'invalid credentials' }, { status: 401 });
-  }
-  await setSessionCookie(member);
-  return Response.json(member);
+  await clearSessionCookie();
+  return proxyLegacyApi(req, 'login');
 }

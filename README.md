@@ -9,7 +9,8 @@ The live `https://bai.haiinu.com` UI is the React/Next app in `apps/web`.
 ```bash
 cd apps/web
 npm install
-npm run dev
+LAB_FEED_DB="$(cd ../../backend && pwd)/lab-feed.dev.db" \
+BAI_API_ORIGIN=http://127.0.0.1:5066 npm run dev
 ```
 
 Open: http://127.0.0.1:5067
@@ -41,8 +42,21 @@ npm run build
 cd backend
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
-LAB_FEED_SECRET=dev LAB_FEED_DB=lab-feed.dev.db venv/bin/python app.py
+LAB_FEED_SECRET=dev \
+LAB_FEED_ALLOW_INSECURE_SECRET=1 \
+LAB_FEED_COOKIE_SECURE=0 \
+LAB_FEED_ALLOW_INSECURE_COOKIE=1 \
+LAB_FEED_DB="$PWD/lab-feed.dev.db" \
+LAB_FEED_ALLOW_BOOTSTRAP=1 \
+venv/bin/python app.py
 ```
+
+`LAB_FEED_ALLOW_BOOTSTRAP=1`은 비어 있는 개발 DB를 처음 만들 때만 사용합니다.
+DB가 만들어진 다음 실행부터는 이 값을 빼세요. 운영 환경의 `LAB_FEED_DB`는 반드시
+이미 존재하는 DB의 절대경로여야 하며, Flask와 Next가 같은 값을 사용해야 합니다.
+로컬 HTTP 개발에서는 위 예시처럼 insecure-cookie 예외를 명시해야 합니다. 운영에서는
+`LAB_FEED_SECRET`에 32자 이상의 무작위 값을 사용하고 `LAB_FEED_COOKIE_SECURE=1`을
+유지하세요. 공개 기본값이나 예시 placeholder로는 백엔드가 시작되지 않습니다.
 
 Open: http://127.0.0.1:5066
 
@@ -61,6 +75,50 @@ venv/bin/python -m pytest -q
 4. Push the branch and open a pull request.
 
 After a pull request is merged into `main`, the Mac mini launchd job `com.user.bai-website-autodeploy` pulls the repo, runs the React checks/build, syncs `apps/web` to the live service, and restarts `com.user.bai-next`.
+
+운영 Mac mini에는 병합 전에 다음 파일을 한 번 준비해야 합니다.
+
+```bash
+mkdir -p /Users/hai_1/AI-Workspace/code/runtime/config
+cp .env.example /Users/hai_1/AI-Workspace/code/runtime/config/bai-website.env
+chmod 600 /Users/hai_1/AI-Workspace/code/runtime/config/bai-website.env
+```
+
+복사한 파일의 placeholder secret과 모든 절대경로를 실제 운영값으로 바꿉니다. secret은
+`python3 -c 'import secrets; print(secrets.token_hex(32))'`처럼 생성할 수 있습니다.
+배포기는 기본적으로 이 파일을 읽고, 파일이 없더라도 같은 필수 값이 실행 환경에 명시되지
+않으면 라이브 디렉터리를 수정하기 전에 중단됩니다. Next와 Flask를 재시작하기 직전에
+동일한 DB·secret·업로드 값을 launchd 환경으로 설정하고, 재시작 후 fingerprint도 비교합니다.
+
+## 데이터 보존 원칙
+
+- 배포는 라이브 DB가 없거나 SQLite 무결성 검사를 통과하지 못하면 중단됩니다.
+- 첫 라이브 파일 동기화 직전에 SQLite online backup을 만들고 백업본까지 검증합니다.
+- `backend/uploads/`, DB 본체, journal/WAL/SHM 파일은 `rsync --delete` 대상에서 제외합니다.
+- 업로드 경로가 웹 또는 백엔드 코드 디렉터리 안에 있어도 동적 제외 규칙으로 보존합니다.
+- 운영 DB와 업로드 경로는 배포 코드 디렉터리 밖의 영속 경로를 권장합니다.
+- 빈 운영 DB를 자동 생성하지 않습니다. 초기 설치 예외 토큰은 기존 데이터가 전혀 없는
+  새 설치에서만 사용하며, 기존 업로드나 다른 SQLite 파일이 있으면 배포가 거부됩니다.
+- 배포 직전 기존 코드를 `BAI_ROLLBACK_DIR`에 보관합니다. 새 빌드·서비스 재시작·DB/API
+  health check가 실패하면 DB를 되돌리지 않고 이전 코드만 자동 복구합니다. 실패한 main
+  커밋은 새 커밋이 올라오기 전까지 자동 재시도하지 않습니다.
+- 운영 Flask는 32자 이상의 `LAB_FEED_SECRET`과 secure session cookie를 요구합니다.
+  배포 후 Next와 Flask가 같은 DB·업로드 경로를 보는지도 fingerprint로 확인합니다.
+
+배포 전에는 다음을 모두 통과시킵니다.
+
+```bash
+cd apps/web
+npm run typecheck
+npm test
+npm run parity
+npm run design:park
+npm run harness:talent-office
+npm run build
+
+cd ../../backend
+python -m pytest -q
+```
 
 ## 등록 학생·운영진 PR → 자동 반영
 

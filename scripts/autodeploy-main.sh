@@ -11,6 +11,7 @@ LOCK_DIR="${BAI_DEPLOY_LOCK_DIR:-/tmp/bai-website-autodeploy.lock}"
 WORKTREE_DIR="${BAI_DEPLOY_WORKTREE:-/Users/hai_1/AI-Workspace/code/runtime/deploy-worktrees/bai_website-main}"
 STATE_DIR="${BAI_DEPLOY_STATE_DIR:-/Users/hai_1/AI-Workspace/code/runtime/deploy-state}"
 DEPLOYED_HEAD_FILE="$STATE_DIR/bai_website-main.head"
+FAILED_HEAD_FILE="$STATE_DIR/bai_website-main.failed.head"
 
 mkdir -p "$LOG_DIR"
 exec >>"$LOG_DIR/autodeploy.log" 2>&1
@@ -28,9 +29,14 @@ git fetch origin main
 
 REMOTE_HEAD="$(git rev-parse origin/main)"
 DEPLOYED_HEAD="$(cat "$DEPLOYED_HEAD_FILE" 2>/dev/null || true)"
+FAILED_HEAD="$(cat "$FAILED_HEAD_FILE" 2>/dev/null || true)"
 if [[ "$DEPLOYED_HEAD" == "$REMOTE_HEAD" ]]; then
   echo "Already deployed at ${REMOTE_HEAD:0:7}."
   exit 0
+fi
+if [[ "$FAILED_HEAD" == "$REMOTE_HEAD" ]]; then
+  echo "Head ${REMOTE_HEAD:0:7} previously failed deployment; waiting for a new main commit."
+  exit 1
 fi
 
 mkdir -p "$(dirname "$WORKTREE_DIR")" "$STATE_DIR"
@@ -46,6 +52,11 @@ else
   git -C "$WORKTREE_DIR" checkout --detach "$REMOTE_HEAD"
 fi
 
-BAI_WEBSITE_REPO="$WORKTREE_DIR" "$WORKTREE_DIR/scripts/deploy-react-to-live.sh"
+if ! BAI_WEBSITE_REPO="$WORKTREE_DIR" "$WORKTREE_DIR/scripts/deploy-react-to-live.sh"; then
+  printf '%s\n' "$REMOTE_HEAD" > "$FAILED_HEAD_FILE"
+  echo "Deployment failed for ${REMOTE_HEAD:0:7}; automatic retry is paused until main changes."
+  exit 1
+fi
 printf '%s\n' "$REMOTE_HEAD" > "$DEPLOYED_HEAD_FILE"
+rm -f "$FAILED_HEAD_FILE"
 echo "Deployed ${REMOTE_HEAD:0:7} from isolated worktree."

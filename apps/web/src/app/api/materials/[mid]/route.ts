@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { deleteMaterial, getMaterial, updateMaterial } from '@/lib/db';
-import { getCurrentMember } from '@/lib/auth';
-import { deleteMaterialUpload, saveMaterialUpload } from '@/lib/uploads';
+import { requireApiMember } from '@/lib/auth';
+import { deleteMaterialUpload, MaterialUploadError, saveMaterialUpload } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,20 +9,21 @@ export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ mid: string }> };
 
 async function editableMaterial(ctx: Ctx) {
-  const member = await getCurrentMember();
-  if (!member) return { error: Response.json({ error: 'login required' }, { status: 401 }) };
+  const auth = await requireApiMember();
+  if (!auth.ok) return { ok: false as const, error: auth.error };
+  const { member } = auth;
   const { mid } = await ctx.params;
   const material = getMaterial(Number(mid));
-  if (!material) return { error: Response.json({ error: 'not found' }, { status: 404 }) };
+  if (!material) return { ok: false as const, error: Response.json({ error: 'not found' }, { status: 404 }) };
   if (member.role !== 'pi' && material.author_id !== member.id) {
-    return { error: Response.json({ error: 'forbidden' }, { status: 403 }) };
+    return { ok: false as const, error: Response.json({ error: 'forbidden' }, { status: 403 }) };
   }
-  return { member, material };
+  return { ok: true as const, member, material };
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
   const current = await editableMaterial(ctx);
-  if ('error' in current) return current.error;
+  if (!current.ok) return current.error;
   const contentType = req.headers.get('content-type') ?? '';
   const isJson = contentType.includes('application/json');
   const data = isJson ? await req.json().catch(() => ({})) : null;
@@ -40,24 +41,38 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   let fileUrl = current.material.file_url || '';
   let fileName = current.material.file_name || '';
-  if (file instanceof File && file.size > 0) {
-    const upload = await saveMaterialUpload(file);
-    if (fileUrl) await deleteMaterialUpload(fileUrl);
-    fileUrl = upload.fileUrl;
-    fileName = upload.fileName;
+  let replacementUrl = '';
+  try {
+    if (file instanceof File && file.size > 0) {
+      const upload = await saveMaterialUpload(file);
+      replacementUrl = upload.fileUrl;
+      fileUrl = upload.fileUrl;
+      fileName = upload.fileName;
+    }
+  } catch (error) {
+    if (error instanceof MaterialUploadError) return Response.json({ error: error.message }, { status: error.status });
+    throw error;
   }
   if (!body && !url && !fileUrl) {
     return Response.json({ error: 'title and body, url, or file required' }, { status: 400 });
   }
 
-  updateMaterial(current.material.id, { title, body, url, category, guild, fileUrl, fileName });
+  try {
+    updateMaterial(current.material.id, { title, body, url, category, guild, fileUrl, fileName });
+  } catch (error) {
+    if (replacementUrl) await deleteMaterialUpload(replacementUrl).catch(() => undefined);
+    throw error;
+  }
+  if (replacementUrl && current.material.file_url) {
+    await deleteMaterialUpload(current.material.file_url).catch((error) => console.error('material upload cleanup failed', error));
+  }
   return Response.json({ id: current.material.id });
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const current = await editableMaterial(ctx);
-  if ('error' in current) return current.error;
-  await deleteMaterialUpload(current.material.file_url);
+  if (!current.ok) return current.error;
   deleteMaterial(current.material.id);
+  await deleteMaterialUpload(current.material.file_url).catch((error) => console.error('material upload cleanup failed', error));
   return Response.json({ ok: true });
 }

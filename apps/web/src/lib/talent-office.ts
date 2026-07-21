@@ -14,9 +14,20 @@ export class TalentOfficeError extends Error {
 export type AssigneeInput = { memberId: number; ratio: number };
 
 function ownWriteDb() {
-  const conn = new Database(resolveDbPath(), { readonly: false });
+  if (process.env.LAB_FEED_DB_READONLY === '1') {
+    throw new TalentOfficeError('database writes are disabled', 503);
+  }
+  const conn = new Database(resolveDbPath(), { readonly: false, timeout: 15_000 });
   conn.pragma('foreign_keys = ON');
+  conn.pragma('busy_timeout = 15000');
   return conn;
+}
+
+function ensureColumn(conn: Database.Database, table: string, column: string, declaration: string) {
+  const columns = conn.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) {
+    conn.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`).run();
+  }
 }
 
 export function ensureTalentOfficeSchema(conn: Database.Database) {
@@ -29,16 +40,22 @@ export function ensureTalentOfficeSchema(conn: Database.Database) {
       system_scope_reason TEXT NOT NULL DEFAULT '',
       requester_member_id INTEGER NOT NULL REFERENCES members(id),
       status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','accepted','declined','approval_required','assigned','ready_for_review','changes_requested','completed')),
+      review_note TEXT NOT NULL DEFAULT '',
+      requires_approval INTEGER NOT NULL DEFAULT 0,
+      approval_reason TEXT NOT NULL DEFAULT '',
+      linked_project_id INTEGER REFERENCES projects(id),
       solution_summary TEXT NOT NULL DEFAULT '',
       solution_url TEXT NOT NULL DEFAULT '',
       completion_note TEXT NOT NULL DEFAULT '',
       completed_at TEXT,
+      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS talent_request_assignees (
       request_id INTEGER NOT NULL REFERENCES talent_requests(id) ON DELETE CASCADE,
       member_id INTEGER NOT NULL REFERENCES members(id),
+      role TEXT NOT NULL DEFAULT '',
       allocation_ratio REAL NOT NULL CHECK (allocation_ratio > 0 AND allocation_ratio <= 1),
       assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (request_id, member_id)
@@ -53,10 +70,23 @@ export function ensureTalentOfficeSchema(conn: Database.Database) {
       UNIQUE(request_id, member_id)
     );
   `);
-  const requestColumns = conn.prepare('PRAGMA table_info(talent_requests)').all() as Array<{ name: string }>;
-  if (!requestColumns.some((column) => column.name === 'completion_note')) {
-    conn.prepare("ALTER TABLE talent_requests ADD COLUMN completion_note TEXT NOT NULL DEFAULT ''").run();
-  }
+  ensureColumn(conn, 'talent_requests', 'review_note', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'requires_approval', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(conn, 'talent_requests', 'approval_reason', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'linked_project_id', 'INTEGER REFERENCES projects(id)');
+  ensureColumn(conn, 'talent_requests', 'solution_summary', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'solution_url', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'completion_note', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'submitted_at', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'created_at', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'updated_at', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_requests', 'completed_at', 'TEXT');
+  ensureColumn(conn, 'talent_request_assignees', 'role', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(conn, 'talent_request_assignees', 'allocation_ratio', 'REAL NOT NULL DEFAULT 1.0');
+  ensureColumn(conn, 'talent_request_assignees', 'assigned_at', "TEXT NOT NULL DEFAULT ''");
+  conn.prepare("UPDATE talent_requests SET submitted_at=COALESCE(NULLIF(submitted_at, ''), NULLIF(created_at, ''), datetime('now')) WHERE submitted_at='' OR submitted_at IS NULL").run();
+  conn.prepare("UPDATE talent_requests SET created_at=COALESCE(NULLIF(created_at, ''), NULLIF(submitted_at, ''), datetime('now')) WHERE created_at='' OR created_at IS NULL").run();
+  conn.prepare("UPDATE talent_requests SET updated_at=COALESCE(NULLIF(updated_at, ''), NULLIF(submitted_at, ''), datetime('now')) WHERE updated_at='' OR updated_at IS NULL").run();
 }
 
 function withDb<T>(fn: (conn: Database.Database) => T, supplied?: Database.Database): T {

@@ -1,10 +1,8 @@
-import { getCurrentMember } from '@/lib/auth';
+import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const member = await getCurrentMember();
-  if (!member) return Response.json({ error: 'not logged in' }, { status: 401 });
-  return Response.json(member);
+export async function GET(req: Request) {
+  return proxyLegacyApi(req, 'me');
 }

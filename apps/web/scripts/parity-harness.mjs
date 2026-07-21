@@ -158,7 +158,13 @@ const intentionallyDisabledRoutes = [
 
 // New internal Next features have no Flask equivalent, so parity is source/auth
 // coverage rather than an invalid legacy-vs-Next live comparison.
-const nextOnlyRoutes = ['/talent-office', '/talent-office/1'];
+const nextOnlyRoutes = [
+  '/feed',
+  '/developer',
+  '/goodbai',
+  '/talent-office',
+  '/talent-office/1',
+];
 
 const deliberatelyNotServedHtml = [
   // Historical/pre-refactor page variants that are not Flask route targets.

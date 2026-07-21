@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getCurrentMember } from '@/lib/auth';
+import { requireApiMember } from '@/lib/auth';
 import { materialUploadDir } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 type Ctx = { params: Promise<{ file: string[] }> };
 
 export async function GET(_req: Request, ctx: Ctx) {
-  const member = await getCurrentMember();
-  if (!member) return Response.json({ error: 'login required' }, { status: 401 });
+  const auth = await requireApiMember();
+  if (!auth.ok) return auth.error;
   const { file } = await ctx.params;
   const storedName = file.join('/');
   if (storedName !== path.basename(storedName)) {

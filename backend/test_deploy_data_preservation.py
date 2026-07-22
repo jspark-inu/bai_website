@@ -339,8 +339,11 @@ class DeployPreservationTests(unittest.TestCase):
             "curl",
             """
 case "$*" in
+  *127.0.0.1:5066/healthz*) printf '200' ;;
+  *127.0.0.1:5067/login*) printf '200' ;;
   *127.0.0.1:5067/api/healthz*) printf '200' ;;
   *127.0.0.1:5067/api/me*) printf '401' ;;
+  *127.0.0.1:5067/api/runtime-health*) printf '200' ;;
   *127.0.0.1:5066/api/wall*) printf '401' ;;
 esac
 exit 0
@@ -383,6 +386,8 @@ exit 0
             "curl",
             """
 case "$*" in
+  *127.0.0.1:5066/healthz*) printf '200' ;;
+  *127.0.0.1:5067/login*) printf '200' ;;
   *127.0.0.1:5067/api/healthz*) printf '200' ;;
   *127.0.0.1:5067/api/me*) printf '401' ;;
   *127.0.0.1:5067/api/runtime-health*) exit 22 ;;
@@ -415,6 +420,17 @@ exit 0
         self.assertIn('"$next_origin/api/me"', source)
         self.assertIn('"$next_origin/api/runtime-health"', source)
         self.assertIn("Deployment failed; restoring previous code", source)
+        backend_restart = source.rindex(
+            'launchctl kickstart -k "gui/$(id -u)/${backend_launchd_label}"'
+        )
+        backend_ready = source.index(
+            'wait_http_status "$api_origin/healthz" "200"', backend_restart
+        )
+        next_restart = source.index(
+            'launchctl kickstart -k "gui/$(id -u)/${launchd_label}"', backend_ready
+        )
+        self.assertLess(backend_restart, backend_ready)
+        self.assertLess(backend_ready, next_restart)
 
 
 if __name__ == "__main__":

@@ -48,11 +48,13 @@ die() {
 wait_http_status() {
   local url="$1"
   local expected_status="$2"
-  local actual_status
+  local actual_status response_body response_file
   local attempt
+  response_file="$(mktemp)"
   for attempt in $(seq 1 30); do
-    if actual_status="$(curl -sS -o /dev/null -w '%{http_code}' "$url")"; then
-      if [[ "$actual_status" == "$expected_status" || -z "$actual_status" ]]; then
+    if actual_status="$(curl -sS -o "$response_file" -w '%{http_code}' "$url")"; then
+      if [[ "$actual_status" == "$expected_status" ]]; then
+        rm -f "$response_file"
         return 0
       fi
     else
@@ -60,7 +62,9 @@ wait_http_status() {
     fi
     sleep 2
   done
-  echo "ERROR: HTTP readiness check failed for $url: expected $expected_status, got ${actual_status:-no-response}" >&2
+  response_body="$(<"$response_file")"
+  rm -f "$response_file"
+  echo "ERROR: HTTP readiness check failed for $url: expected $expected_status, got ${actual_status:-no-response}; body=${response_body:0:500}" >&2
   return 1
 }
 
@@ -291,10 +295,13 @@ main() {
   launchctl setenv BAI_API_ORIGIN "$api_origin"
   launchctl setenv BAI_UPLOAD_DIR "$live_upload_dir"
   launchctl setenv BAI_MAX_UPLOAD_BYTES "${BAI_MAX_UPLOAD_BYTES:-26214400}"
-  launchctl kickstart -k "gui/$(id -u)/${launchd_label}"
+  # Bring the API authority up first. Starting both services together allowed
+  # Next's deployment health route to race a restarting Flask process and fail
+  # the rollout even though both services became healthy moments later.
   launchctl kickstart -k "gui/$(id -u)/${backend_launchd_label}"
-  wait_http_status "$next_origin/login" "200"
   wait_http_status "$api_origin/healthz" "200"
+  launchctl kickstart -k "gui/$(id -u)/${launchd_label}"
+  wait_http_status "$next_origin/login" "200"
   wait_http_status "$next_origin/api/healthz" "200"
   wait_http_status "$next_origin/api/me" "401"
   runtime_db_fingerprint="$("$python_bin" -c \

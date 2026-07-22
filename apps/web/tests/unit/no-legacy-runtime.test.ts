@@ -59,14 +59,16 @@ describe('Next-only runtime boundary', () => {
   });
 
   it('removes the Flask origin, port, proxy, and Python invocation from production paths', () => {
-    const productionFiles = [
-      path.join(REPO_ROOT, '.env.example'),
+    const runtimeEntryFiles = [
       path.join(WEB_ROOT, 'package.json'),
       path.join(REPO_ROOT, 'scripts', 'deploy-react-to-live.sh'),
       path.join(REPO_ROOT, 'scripts', 'autodeploy-main.sh'),
+    ].filter(existsSync);
+    const productionFiles = [
+      path.join(REPO_ROOT, '.env.example'),
+      ...runtimeEntryFiles,
       ...sourceFiles(path.join(WEB_ROOT, 'src')),
-    ];
-    const runtimeEntryFiles = productionFiles.slice(1, 4);
+    ].filter(existsSync);
     const legacyOffenders = productionFiles.filter((file) => /BAI_API_ORIGIN|(?:127\.0\.0\.1:)?5066|proxyLegacyApi|legacy-api-proxy/.test(readFileSync(file, 'utf8')));
     const pythonRuntimeOffenders = runtimeEntryFiles.filter((file) => /\bpython(?:[0-9.]*)?\b|backup_db\.py|repo_dir\/backend/.test(readFileSync(file, 'utf8')));
 

@@ -56,6 +56,7 @@ describe('Next-owned API key lifecycle', () => {
       { method: 'POST' },
     ));
     expect(regenerateResponse.status).toBe(200);
+    expect(regenerateResponse.headers.get('cache-control')).toBe('private, no-store');
     expect(await regenerateResponse.json()).toEqual({ api_key: generatedKey });
 
     const goodbai = await import('@/app/api/post/route');

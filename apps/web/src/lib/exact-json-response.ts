@@ -26,3 +26,9 @@ export function exactJsonResponse(value: unknown, init?: ResponseInit): Response
   if (!headers.has('content-type')) headers.set('content-type', 'application/json');
   return new Response(body, { ...init, headers });
 }
+
+export function privateJsonResponse(value: unknown, init?: ResponseInit): Response {
+  const headers = new Headers(init?.headers);
+  headers.set('Cache-Control', 'private, no-store');
+  return exactJsonResponse(value, { ...init, headers });
+}

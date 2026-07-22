@@ -92,6 +92,7 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
   ] as const)('%s login issues a hardened Next cookie and authenticates protected routes', async (_label, login, name) => {
     const response = await login(jsonRequest('/api/login', { name, password: PASSWORD }) as never);
     expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(jarState.lastSet).toMatchObject({
       name: SESSION_COOKIE_NAME,
       options: { httpOnly: true, sameSite: 'lax', path: '/', maxAge: expect.any(Number) },
@@ -133,7 +134,9 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
     }) as never)).status).toBe(200);
     const valid = jarState.values.get(SESSION_COOKIE_NAME)!;
     jarState.values.set(SESSION_COOKIE_NAME, `${valid}tampered`);
-    expect((await compatMe(new Request('http://next.test/api/me'))).status).toBe(401);
+    const anonymous = await compatMe(new Request('http://next.test/api/me'));
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.headers.get('cache-control')).toBe('private, no-store');
 
     jarState.values.set(SESSION_COOKIE_NAME, valid);
     const db = new Database(dbPath);
@@ -162,6 +165,7 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
   it('preserves /api/me API-key compatibility through the Next session', async () => {
     await authLogin(jsonRequest('/api/auth/login', { name: 'PBKDF2 member', password: PASSWORD }) as never);
     const before = await compatMe(new Request('http://next.test/api/me?api_key=1'));
+    expect(before.headers.get('cache-control')).toBe('private, no-store');
     await expect(before.json()).resolves.toEqual({
       id: 1,
       name: 'PBKDF2 member',
@@ -173,6 +177,7 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
 
     const regenerated = await compatMePost(jsonRequest('/api/me', { action: 'regenerate_api_key' }));
     expect(regenerated.status).toBe(200);
+    expect(regenerated.headers.get('cache-control')).toBe('private, no-store');
     await expect(regenerated.json()).resolves.toMatchObject({
       member_id: 1, name: 'PBKDF2 member', role: 'student', api_key: expect.any(String),
     });

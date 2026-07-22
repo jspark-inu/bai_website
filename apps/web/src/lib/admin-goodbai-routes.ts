@@ -1,5 +1,5 @@
 import { requireApiMember } from './auth.ts';
-import { exactJsonResponse } from './exact-json-response.ts';
+import { exactJsonResponse, privateJsonResponse } from './exact-json-response.ts';
 import { readJsonObject, writeResultResponse } from './write-route.ts';
 import {
   adminMemberExists, createGoodbaiPost, getAdminMembers, getApiKeyMember, getOwnApiKey,
@@ -12,8 +12,8 @@ export async function ownApiKeyGET(_request?: Request) {
   if (!auth.ok) return auth.error;
   const payload = getOwnApiKey(auth.member);
   return payload
-    ? exactJsonResponse(payload)
-    : Response.json({ error: 'login required' }, { status: 401 });
+    ? privateJsonResponse(payload)
+    : privateJsonResponse({ error: 'login required' }, { status: 401 });
 }
 
 export async function ownApiKeyRegeneratePOST(_request?: Request) {
@@ -21,8 +21,8 @@ export async function ownApiKeyRegeneratePOST(_request?: Request) {
   if (!auth.ok) return auth.error;
   const apiKey = regenerateOwnApiKey(auth.member);
   return apiKey
-    ? exactJsonResponse({ api_key: apiKey })
-    : Response.json({ error: 'login required' }, { status: 401 });
+    ? privateJsonResponse({ api_key: apiKey })
+    : privateJsonResponse({ error: 'login required' }, { status: 401 });
 }
 
 async function requirePi() {
@@ -53,7 +53,10 @@ export async function adminMemberKeyRegeneratePOST(mid: string) {
   const auth = await requirePi();
   if (!auth.ok) return auth.error;
   if (!adminMemberExists(id)) return Response.json({ error: 'not found' }, { status: 404 });
-  return writeResultResponse(regenerateMemberApiKey(auth.member.id, id));
+  const result = regenerateMemberApiKey(auth.member.id, id);
+  return result.ok
+    ? privateJsonResponse(result.value)
+    : privateJsonResponse({ error: result.error }, { status: result.status });
 }
 
 export async function adminMemberPOST(request: Request, mid: string) {

@@ -81,7 +81,7 @@ describe('Next-native current-member authentication', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected an authentication error');
     expect(result.error.status).toBe(503);
-    expect(result.error.headers.get('cache-control')).toBe('no-store');
+    expect(result.error.headers.get('cache-control')).toBe('private, no-store');
     await expect(result.error.json()).resolves.toEqual({ error: 'authentication service unavailable' });
   });
 

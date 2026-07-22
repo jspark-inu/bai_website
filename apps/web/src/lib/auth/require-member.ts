@@ -1,4 +1,5 @@
 import { unstable_rethrow } from 'next/navigation';
+import { privateJsonResponse } from '../exact-json-response.ts';
 import { getMemberById } from '../db/repositories/members.ts';
 import { authSessionExists, deleteAuthSession, deleteExpiredAuthSessions, insertAuthSession } from '../db/repositories/auth-sessions.ts';
 import { openWriteDb } from '../db/client.ts';
@@ -72,14 +73,14 @@ export async function requireApiMember(): Promise<ApiMemberResult> {
   try {
     const member = await getCurrentMember();
     if (!member) {
-      return { ok: false, error: Response.json({ error: 'login required' }, { status: 401 }) };
+      return { ok: false, error: privateJsonResponse({ error: 'login required' }, { status: 401 }) };
     }
     return { ok: true, member };
   } catch (error) {
     if (!(error instanceof AuthServiceError)) throw error;
     return {
       ok: false,
-      error: Response.json(
+      error: privateJsonResponse(
         { error: 'authentication service unavailable' },
         { status: error.status, headers: { 'Cache-Control': 'no-store' } },
       ),

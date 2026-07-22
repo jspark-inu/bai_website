@@ -4,6 +4,8 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const krdsJs = fs.readFileSync(path.join(process.cwd(), 'public/static/krds.js'), 'utf8');
+const krdsCss = fs.readFileSync(path.join(process.cwd(), 'public/static/krds.css'), 'utf8');
+const globalsCss = fs.readFileSync(path.join(process.cwd(), 'src/styles/globals.css'), 'utf8');
 
 function escapeHtml(value: unknown) {
   return String(value ?? '').replace(/[&<>\"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] ?? ch));
@@ -28,6 +30,7 @@ function loadKrdsHelpers() {
   return context as typeof context & {
     markdownHtml: (body: string) => string;
     fullCard: (post: Record<string, unknown>) => string;
+    postTitle: (post: Record<string, unknown>) => string;
     talentBadge: (status: string) => string;
   };
 }
@@ -66,6 +69,18 @@ describe('KRDS feed renderer static behavior', () => {
     expect(html).toContain('<strong>베이스라인</strong>');
     expect(html).toContain('막힌 점');
     expect(html).toContain('공감 <span class="rc">');
+  });
+
+  it('keeps the site canvas white', () => {
+    expect(globalsCss.match(/--bg: #ffffff;/g)).toHaveLength(2);
+    expect(krdsCss).toContain('--bai-bg: #ffffff;');
+  });
+
+  it('shows the complete feed title without truncating long text', () => {
+    const { postTitle } = loadKrdsHelpers();
+    const longTitle = '긴 피드 제목도 사용자가 작성한 전체 내용을 생략 없이 확인할 수 있어야 합니다. '.repeat(4).trim();
+
+    expect(postTitle({ did: longTitle })).toBe(longTitle);
   });
 
   it('maps talent office statuses to KRDS semantic badges with text labels', () => {

@@ -36,7 +36,7 @@ function clipText(s, max) {
 }
 function postTitle(p) {
   const text = firstText(p.blocked) || firstText(p.did) || firstText(p.learned);
-  return clipText(text || (p.links ? "산출물 공유" : "진행 공유"), 82);
+  return text || (p.links ? "산출물 공유" : "진행 공유");
 }
 
 // ---------------- 마크다운 (feed.js와 동일 규칙) ----------------

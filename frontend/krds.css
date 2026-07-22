@@ -489,7 +489,7 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
 
 /* ============================================================
    BAI 합의 디자인 적용
-   SUIT Variable · #EAEAEA · #14332B · #7BBA91
+   SUIT Variable · #FFFFFF · #14332B · #7BBA91
    기존 API, DOM id, 폼 계약은 그대로 유지한다.
    ============================================================ */
 
@@ -531,7 +531,7 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
   --motion-base: .2s cubic-bezier(.2,.7,.2,1);
   --contents-size: 1180px;
   --sidebar-size: 272px;
-  --bai-bg: #eaeaea;
+  --bai-bg: #ffffff;
   --bai-surface: #f4f5f4;
   --bai-surface-tint: #dce3df;
   --bai-deep: #14332b;

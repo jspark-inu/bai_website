@@ -1,7 +1,7 @@
 @import url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css');
 
 :root {
-  --bg: #eaeaea;
+  --bg: #ffffff;
   --paper: #f4f5f4;
   --ink: #151b18;
   --muted: #46534e;
@@ -1144,7 +1144,7 @@ button.primary:hover {
 
 /* Astryx-inspired neutral product system for the React replacement. */
 :root {
-  --bg: #f6f6f4;
+  --bg: #ffffff;
   --paper: #eeeeeb;
   --surface: #ffffff;
   --surface-soft: #f8f8f7;

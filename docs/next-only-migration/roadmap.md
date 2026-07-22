@@ -204,3 +204,7 @@
 8. 30분 관찰 후 롤백 스냅샷과 백업 위치를 기록한다.
 
 **Acceptance:** Next 단일 프로세스에서 전체 기능이 정상이고 데이터 변화가 의도된 smoke 기록 외에는 없다.
+
+**Execution status (2026-07-23):** PI 승인으로 진행 중이다. 실행 정본은
+`docs/next-only-migration/cutover-checklist.md`이며, preflight와 rollback gate를 통과한 뒤
+표준 `origin/main` 자동배포로 cutover한다.

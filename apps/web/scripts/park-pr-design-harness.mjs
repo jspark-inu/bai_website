@@ -88,7 +88,7 @@ check('Approved KRDS visual and accessibility tokens are present in the served C
     '--krds-primary-50: #256EF4',
     '--krds-gray-90: #1E2124',
     '--krds-focus: 0 0 0 4px rgba(37, 110, 244, .45)',
-    '--bai-bg: #eaeaea',
+    '--bai-bg: #ffffff',
     '--bai-deep: #14332b',
     '--bai-sage: #7bba91',
     '--font-sans: "SUIT Variable"',
@@ -122,7 +122,7 @@ check('Next student routes delegate to the shared approved-design shell', () => 
 check('Next shell mounts the exact DOM contract required by approved krds.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
   const required = [
-    "const ASSET_VERSION = '20260722stability1'",
+    "const ASSET_VERSION = '20260722white-full-title2'",
     'script.id = \'bai-krds-script\'',
     'script.src = `/static/krds.js?v=${ASSET_VERSION}`',
     'script.onload = () => window.initApp?.()',

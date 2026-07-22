@@ -1,9 +1,30 @@
 // BAI 진행 공유 — KRDS 리디자인 SPA (기존 feed.js 대체 진입점)
 // pushState 경로 라우팅. API·페이로드·기능은 feed.js와 동일하게 보존.
 
+const RAW_FETCH = globalThis.fetch.bind(globalThis);
+globalThis.fetch = async (resource, options) => {
+  const response = await RAW_FETCH(resource, options);
+  const requestUrl = new URL(typeof resource === "string" ? resource : resource.url, location.origin);
+  const isAuthProbe = requestUrl.pathname === "/api/me" && !requestUrl.search;
+  const isAuthAction = requestUrl.pathname === "/api/login" || requestUrl.pathname === "/api/logout";
+  if (response.status === 401 && !isAuthProbe && !isAuthAction && location.pathname !== "/login") {
+    clearWallPoll();
+    location.replace("/login");
+  }
+  return response;
+};
+
 // ---------------- 공용 유틸 ----------------
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 function fmtDate(s) { return s ? esc(String(s).slice(0, 10)) : ""; }
+function weekStartLabel() {
+  const d = new Date();
+  const mondayOffset = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - mondayOffset);
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric", month: "long", day: "numeric", weekday: "long",
+  }).format(d);
+}
 function avatar(name, sm) {
   const ch = String(name || "?").trim().charAt(0) || "?";
   return `<span class="av${sm ? " sm" : ""}" aria-hidden="true">${esc(ch)}</span>`;
@@ -87,7 +108,9 @@ function clearWallPoll() { if (WALL_POLL) clearInterval(WALL_POLL); WALL_POLL = 
 
 async function getMe() {
   const r = await fetch("/api/me");
-  return r.ok ? r.json() : null;
+  if (r.status === 401) return null;
+  if (!r.ok) throw new Error(`member lookup failed (${r.status})`);
+  return r.json();
 }
 
 // ---------------- 조각 렌더러 ----------------
@@ -161,6 +184,21 @@ function fullCard(p) {
     </div>
   </div>`;
 }
+
+function questionCard(p) {
+  const blockedLines = String(p.blocked || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const question = blockedLines[0] || postTitle(p);
+  const context = clipText(blockedLines.slice(1).join(" ") || firstText(p.did) || firstText(p.learned), 160);
+  return `<article class="question-card">
+    <header class="question-author">${avatar(p.author_name)}
+      <div><a href="/member/${p.author_id}"><b>${esc(p.author_name)}</b></a>
+        <time datetime="${esc(p.created_at || "")}">${fmtDate(p.created_at)}</time></div></header>
+    <h2><a href="/post/${p.id}">${esc(question)}</a></h2>
+    ${context ? `<p class="question-context">${esc(context)}</p>` : ""}
+    ${p.tags ? `<div class="question-tags">${tagLabels(p.tags)}</div>` : ""}
+    <a class="btn btn-secondary question-answer" href="/post/${p.id}#comments">답변 작성</a>
+  </article>`;
+}
 async function toggleReact(pid, btn) {
   const r = await fetch(`/api/post/${pid}/react`, { method: "POST" });
   if (r.ok) {
@@ -214,17 +252,17 @@ function checkinHtml(w, mine) {
   const total = w && w.total ? w.total : 0;
   const reported = (w && w.reported) || [];
   const missing = (w && w.missing) || [];
-  const faces = reported.slice(0, 8).map(m =>
-    `<a class="ck-person" href="/member/${m.id}">${avatar(m.name, true)}<span>${esc(m.name)}</span></a>`).join("");
-  const missNames = missing.slice(0, 4).map(m => `<a href="/member/${m.id}">${esc(m.name)}</a>`).join("");
-  const more = missing.length > 4 ? `<span>외 ${missing.length - 4}명</span>` : "";
+  const people = [
+    ...reported.map(m => ({ ...m, done: true })),
+    ...missing.map(m => ({ ...m, done: false })),
+  ].map(m => `<a class="ck-person ${m.done ? "done" : ""}" href="/member/${m.id}" aria-label="${esc(m.name)} ${m.done ? "기록 완료" : "기록 전"}">${esc(m.name)}</a>`).join("");
   return `<section class="checkin" aria-label="이번 주 체크인 현황">
     <div class="ck-top">
       <div class="t">이번 주 BAI 체크인<b>${reported.length}명이 기록을 남겼습니다</b></div>
       <div class="ck-num">${total ? `${reported.length}/${total}` : "-"}<small>내 기록 ${mine}건</small></div>
     </div>
-    <div class="ck-people">${faces || '<span class="wall-empty">아직 이번 주 기록이 없습니다. 첫 기록을 남겨 주세요.</span>'}</div>
-    <div class="ck-missing">${missing.length ? `아직 기록 전: ${missNames} ${more}` : "<b>전원 체크인이 완료되었습니다</b>"}</div>
+    <div class="ck-people">${people || '<span class="wall-empty">아직 등록된 멤버가 없습니다.</span>'}</div>
+    <div class="ck-missing">${missing.length ? `아직 ${missing.length}명이 이번 주 기록을 기다리고 있습니다.` : "<b>전원 체크인이 완료되었습니다</b>"}</div>
   </section>`;
 }
 function memberMapHtml(members, posts) {
@@ -296,53 +334,35 @@ function wireWall() {
 }
 
 async function renderHome(view) {
-  view.innerHTML = `<div class="two-col"><div>
-    <div class="page-head">
-      <div><h1>전체 피드</h1><p class="desc">이번 주 진행, 배운 점, 막힌 질문을 한곳에 모읍니다.</p></div>
-      <button class="btn btn-primary" id="newBtn">기록 남기기</button>
-    </div>
-    <div id="summary"></div>
-    <div class="panel-form hidden" id="editor">
-      <div class="form-head"><b>오늘의 진행 공유</b><span>짧아도 됩니다. 한 일·배운 것·막힌 점 중 하나만 있으면 됩니다.</span></div>
-      ${postFormHtml()}
-      <div class="form-actions">
-        <button class="btn btn-primary" id="submitBtn">올리기</button>
-        <button class="btn btn-tertiary" id="cancelBtn">취소</button>
-        <p class="form-msg error" id="postErr" aria-live="polite"></p>
-      </div>
-    </div>
-    <div class="tabs" id="filters" role="tablist">
-      <button data-f="all" class="on" role="tab" aria-selected="true">전체</button>
-      <button data-f="mine" role="tab" aria-selected="false">내 글</button>
-      <button data-f="blocked" role="tab" aria-selected="false">막힌 질문</button>
-    </div>
-    <div id="feedlist"></div>
-  </div><div class="rail" id="rail"></div></div>`;
-
   const ALL = await (await fetch("/api/feed")).json();
   const w = await fetch("/api/weekly").then(r => r.ok ? r.json() : null).catch(() => null);
-  const members = await fetch("/api/members").then(r => r.ok ? r.json() : []).catch(() => []);
-  const mine = ALL.filter(p => p.author_id === ME.id).length;
+  const freeRecords = ALL.filter(p => !p.project_id && !String(p.blocked || "").trim());
+  const reported = (w && w.reported) || [];
+  const mine = Number((reported.find(m => Number(m.id) === Number(ME.id)) || {}).week_count || 0);
+  const checkedIn = reported.some(m => Number(m.id) === Number(ME.id));
 
-  document.getElementById("summary").innerHTML = checkinHtml(w, mine);
-  if (mine === 0) {
-    document.getElementById("summary").insertAdjacentHTML("beforeend",
-      `<div class="panel-info" style="margin-bottom:24px"><b>아직 이번 학기 기록이 없습니다.</b> 첫 진행 공유를 남겨 보세요.
-        <button class="btn sm btn-secondary" id="firstCta" style="margin-left:12px">기록 남기기</button></div>`);
-    document.getElementById("firstCta").onclick = () => {
-      document.getElementById("editor").classList.remove("hidden");
-      document.getElementById("did").focus();
-    };
-  }
-
-  let FILTER = "all";
-  const draw = () => {
-    let list = ALL;
-    if (FILTER === "mine") list = ALL.filter(p => p.author_id === ME.id);
-    else if (FILTER === "blocked") list = ALL.filter(p => p.blocked);
-    document.getElementById("feedlist").innerHTML = listOf(list, "조건에 맞는 글이 없습니다. 다른 필터를 선택해 주세요.");
-  };
-  draw();
+  view.innerHTML = `<section class="home-hero" aria-labelledby="homeTitle">
+    <div class="home-copy"><p class="date-line">${esc(weekStartLabel())}</p>
+      <h1 id="homeTitle">이번 주, 무엇을 남겼나요?</h1>
+      <p>한 일, 배운 것, 막힌 점 중 하나면 충분합니다.</p></div>
+    <section class="my-week-card" aria-label="나의 이번 주 상태">
+      <div class="my-week-status"><span>나의 이번 주</span><strong>${checkedIn ? "기록 완료" : "아직 기록 전"}</strong></div>
+      <p>${checkedIn ? "이번 주 기록이 안전하게 쌓였습니다." : "짧은 메모 하나로 이번 주 흐름을 남겨 보세요."}</p>
+      <button class="btn btn-secondary" id="newBtn">${checkedIn ? "기록 더 남기기" : "첫 기록 남기기"}</button>
+    </section>
+  </section>
+  <div class="panel-form hidden" id="editor">
+    <div class="form-head"><b>오늘의 진행 공유</b><span>짧아도 됩니다. 한 일, 배운 것, 막힌 점 중 하나만 있으면 됩니다.</span></div>
+    ${postFormHtml()}
+    <div class="form-actions"><button class="btn btn-primary" id="submitBtn">올리기</button>
+      <button class="btn btn-tertiary" id="cancelBtn">취소</button>
+      <p class="form-msg error" id="postErr" aria-live="polite"></p></div>
+  </div>
+  <div id="summary">${checkinHtml(w, mine)}</div>
+  <div class="home-activity-grid"><section class="home-records" aria-labelledby="recentTitle">
+    <div class="section-head"><div><p>최근 활동</p><h2 id="recentTitle">이번 주의 기록</h2></div><a class="btn sm btn-text" href="/feed">전체 보기</a></div>
+    <div id="feedlist">${listOf(freeRecords.slice(0, 4), "아직 자유 기록이 없습니다. 첫 기록을 남겨 주세요.")}</div>
+  </section><aside class="rail" id="rail">${wallHtml()}</aside></div>`;
 
   const editor = document.getElementById("editor");
   document.getElementById("newBtn").onclick = () => {
@@ -358,16 +378,54 @@ async function renderHome(view) {
       err.textContent = "한 일, 배운 것, 막힌 점 중 하나는 입력해 주세요."; return;
     }
     const r = await fetch("/api/web/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (r.ok) route(); else err.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    if (r.ok) route(location.pathname + location.search + location.hash, false); else err.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  };
+  wireWall();
+}
+
+async function renderFeed(view) {
+  view.innerHTML = `<div class="page-head"><div><h1>자유 기록</h1>
+    <p class="desc">프로젝트와 막힌 질문을 제외한 일상의 배움과 진행을 기록합니다.</p></div>
+    <button class="btn btn-primary" id="newBtn">기록 남기기</button></div>
+    <div class="panel-form hidden" id="editor">
+      <div class="form-head"><b>오늘의 진행 공유</b><span>프로젝트 기록과 막힌 질문은 각 소속 페이지에서도 확인할 수 있습니다.</span></div>
+      ${postFormHtml()}
+      <div class="form-actions"><button class="btn btn-primary" id="submitBtn">올리기</button>
+        <button class="btn btn-tertiary" id="cancelBtn">취소</button>
+        <p class="form-msg error" id="postErr" aria-live="polite"></p></div>
+    </div>
+    <div class="tabs" id="filters" role="tablist">
+      <button data-f="all" class="on" role="tab" aria-selected="true">전체</button>
+      <button data-f="mine" role="tab" aria-selected="false">내 기록</button>
+    </div><div id="feedlist"></div>`;
+  const allPosts = await (await fetch("/api/feed")).json();
+  const records = allPosts.filter(p => !p.project_id && !String(p.blocked || "").trim());
+  let filter = "all";
+  const draw = () => {
+    const list = filter === "mine" ? records.filter(p => p.author_id === ME.id) : records;
+    document.getElementById("feedlist").innerHTML = listOf(list, "조건에 맞는 자유 기록이 없습니다.");
+  };
+  draw();
+  const editor = document.getElementById("editor");
+  document.getElementById("newBtn").onclick = () => {
+    editor.classList.toggle("hidden");
+    if (!editor.classList.contains("hidden")) document.getElementById("did").focus();
+  };
+  document.getElementById("cancelBtn").onclick = () => editor.classList.add("hidden");
+  document.getElementById("submitBtn").onclick = async () => {
+    const payload = readPostPayload();
+    const err = document.getElementById("postErr");
+    err.textContent = "";
+    if (!payload.did && !payload.learned && !payload.blocked) {
+      err.textContent = "한 일, 배운 것, 막힌 점 중 하나는 입력해 주세요."; return;
+    }
+    const r = await fetch("/api/web/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (r.ok) route("/feed", false); else err.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   };
   document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
     document.querySelectorAll("#filters button").forEach(x => { x.classList.remove("on"); x.setAttribute("aria-selected", "false"); });
-    b.classList.add("on"); b.setAttribute("aria-selected", "true");
-    FILTER = b.dataset.f; draw();
+    b.classList.add("on"); b.setAttribute("aria-selected", "true"); filter = b.dataset.f; draw();
   });
-
-  document.getElementById("rail").innerHTML = memberMapHtml(members, ALL) + wallHtml();
-  wireWall();
 }
 
 // ---------------- 뷰: 글 상세 ----------------
@@ -443,13 +501,13 @@ async function renderPostDetail(view, pid) {
       err.textContent = "한 일, 배운 것, 막힌 점 중 하나는 입력해 주세요."; return;
     }
     const rr = await fetch(`/api/post/${pid}/edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (rr.ok) route(); else err.textContent = "수정하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    if (rr.ok) route(location.pathname + location.search + location.hash, false); else err.textContent = "수정하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   };
   const sendC = async () => {
     const body = document.getElementById("cbody").value.trim();
     if (!body) return;
     const rr = await fetch(`/api/post/${pid}/comment`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) });
-    if (rr.ok) route();
+    if (rr.ok) route(location.pathname + location.search + location.hash, false);
   };
   document.getElementById("cbtn").onclick = sendC;
   document.getElementById("cbody").addEventListener("keydown", e => { if (e.key === "Enter") sendC(); });
@@ -540,13 +598,14 @@ async function renderMaterials(view) {
   };
   const materialCard = m => {
     const canEdit = ME.role === "pi" || m.author_id === ME.id;
-    const meta = [m.category, m.guild, m.author_name, m.created_at ? m.created_at.slice(0, 10) : ""].filter(Boolean).join(" · ");
-    return `<div class="card">
-      <div class="detail-meta" style="margin-bottom:8px"><b style="font-size:1.7rem">${esc(m.title)}</b><span>${esc(meta)}</span>
-        ${canEdit ? `<span style="margin-left:auto"><button class="btn xs btn-tertiary" data-edit-material="${m.id}">수정</button>
-        <button class="btn xs btn-tertiary" data-delete-material="${m.id}">삭제</button></span>` : ""}</div>
-      ${m.url ? `<div style="margin-bottom:8px">${linkChips(m.url, 56)}</div>` : ""}
-      ${m.body ? `<div style="font-size:1.5rem">${markdownHtml(m.body)}</div>` : ""}
+    return `<div class="material-row card">
+      <div class="material-kind"><strong>${esc(m.category || "자료")}</strong>${m.guild ? `<span>${esc(m.guild)}</span>` : ""}</div>
+      <div class="material-main"><h2>${esc(m.title)}</h2>
+        ${m.body ? `<div class="material-body">${markdownHtml(m.body)}</div>` : ""}
+        ${m.url ? `<div class="material-links">${linkChips(m.url, 56)}</div>` : ""}</div>
+      <div class="material-side"><time>${fmtDate(m.created_at)}</time><strong>${esc(m.author_name || "작성자 미상")}</strong>
+        ${canEdit ? `<div class="material-actions"><button class="btn xs btn-tertiary" data-edit-material="${m.id}">수정</button>
+        <button class="btn xs btn-tertiary" data-delete-material="${m.id}">삭제</button></div>` : ""}</div>
     </div>`;
   };
   const load = async () => {
@@ -615,16 +674,17 @@ async function renderProjects(view) {
         <button class="btn btn-tertiary" id="projectCancelBtn">취소</button>
         <p class="form-msg error" id="projectErr" aria-live="polite"></p></div>
     </div>
-    <div id="projectList"></div>`;
+    <div class="project-grid" id="projectList"></div>`;
   const editor = document.getElementById("projectEditor");
   const draw = async () => {
     const rows = await (await fetch("/api/projects")).json();
     document.getElementById("projectList").innerHTML = rows.length ? rows.map(p => {
       const meta = [p.type, p.status, p.member_count ? `멤버 ${p.member_count}` : ""].filter(Boolean).join(" · ");
-      return `<a class="card" href="/projects/${p.id}" style="display:block;color:inherit;text-decoration:none">
-        <div class="detail-meta" style="margin-bottom:6px"><b style="font-size:1.7rem">${esc(p.title)}</b><span>${esc(meta)}</span></div>
-        ${p.summary || p.goal ? `<div style="font-size:1.5rem">${esc(p.summary || p.goal)}</div>` : ""}
-        ${p.site_url ? `<div style="margin-top:8px;font-size:1.4rem;color:var(--krds-gray-50)">${esc(p.site_url)}</div>` : ""}
+      return `<a class="project-card" href="/projects/${p.id}">
+        <div class="project-meta">${esc(meta || "프로젝트")}</div>
+        <h2>${esc(p.title)}</h2>
+        <p>${esc(p.summary || p.goal || "프로젝트 설명을 준비하고 있습니다.")}</p>
+        <div class="project-foot"><span>${esc(p.owner_name || "BAI")}</span>${p.site_url ? `<span>사이트 연결됨</span>` : ""}</div>
       </a>`;
     }).join("") : '<div class="empty">아직 등록된 프로젝트가 없습니다. 첫 프로젝트를 만들어 주세요.</div>';
   };
@@ -707,12 +767,11 @@ async function renderSearch(view, query) {
 // ---------------- 뷰: 막힌 질문 ----------------
 async function renderQuestions(view) {
   view.innerHTML = `<div class="page-head"><div><h1>막힌 질문</h1>
-    <p class="desc">막혔는데 아직 댓글이 없는 글입니다. 아는 내용이 있으면 답을 남겨 주세요.</p></div></div><div id="feedlist"></div>`;
+    <p class="desc">막혔는데 아직 댓글이 없는 글입니다. 아는 내용이 있으면 답을 남겨 주세요.</p></div></div><div class="question-feed" id="feedlist"></div>`;
   const d = await (await fetch("/api/questions")).json();
   document.getElementById("feedlist").innerHTML = d.posts.length
-    ? d.posts.map(fullCard).join('<div style="height:16px"></div>')
+    ? d.posts.map(questionCard).join("")
     : '<div class="empty">미해결 질문이 없습니다. 모든 질문에 답이 달렸습니다.</div>';
-  wireReacts(document.getElementById("feedlist"));
 }
 
 // ---------------- 뷰: 문의/FAQ ----------------
@@ -1065,63 +1124,71 @@ async function renderAdminMembers(view) {
 
 // ---------------- 뷰: 로그인 ----------------
 function renderLogin(view) {
+  document.body.classList.add("login-mode");
   document.getElementById("header").hidden = true;
   document.getElementById("crumbWrap").hidden = true;
-  document.getElementById("footer").hidden = false;
-  view.innerHTML = `<div class="login-wrap"><div class="login-box">
-    <h1>BAI 진행 공유</h1><div class="svc">주간 기록·질문·프로젝트</div>
-    <div class="login-note"><b>계정은 운영자가 발급합니다.</b>
-      진행 공유는 로그인한 BAI 멤버에게 보입니다.<br>
-      매주 한 번, 한 일·배운 것·막힌 점 중 하나만 짧게 남기면 됩니다.</div>
-    <div class="field"><label for="loginName">이름</label>
-      <input class="input" id="loginName" autocomplete="username"></div>
-    <div class="field"><label for="loginPw">비밀번호</label>
-      <input class="input" id="loginPw" type="password" autocomplete="current-password"></div>
-    <button class="btn lg btn-primary" id="loginBtn">로그인하기</button>
-    <p class="form-msg error" id="loginErr" aria-live="polite"></p>
-  </div></div>`;
-  const doLogin = async () => {
+  document.getElementById("footer").hidden = true;
+  view.innerHTML = `<div class="login-wrap">
+    <section class="login-box" aria-label="로그인">
+      <div class="login-box-head"><p>BAI</p><h1>로그인</h1>
+        <span>멤버 계정으로 로그인하세요.</span></div>
+      <form id="loginForm">
+        <div class="field"><label for="loginName">이름</label>
+          <input class="input" id="loginName" name="name" autocomplete="username" required></div>
+        <div class="field"><label for="loginPw">비밀번호</label>
+          <input class="input" id="loginPw" name="password" type="password" autocomplete="current-password" required></div>
+        <button class="btn lg btn-primary" id="loginBtn" type="submit">로그인</button>
+        <p class="form-msg error" id="loginErr" aria-live="polite"></p>
+      </form>
+      <div class="login-note"><b>로그인이 처음인가요?</b><span>BAI 운영자에게 계정 발급을 요청해 주세요.</span></div>
+    </section>
+  </div>`;
+  const doLogin = async event => {
+    if (event) event.preventDefault();
     const name = document.getElementById("loginName").value.trim();
     const password = document.getElementById("loginPw").value;
     const err = document.getElementById("loginErr");
+    const button = document.getElementById("loginBtn");
     err.textContent = "";
-    const r = await fetch("/api/login", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, password }),
-    });
-    if (r.ok) { location.href = "/"; }
-    else if (r.status === 429) err.textContent = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
-    else err.textContent = "이름 또는 비밀번호가 올바르지 않습니다.";
+    button.disabled = true; button.textContent = "확인 중";
+    try {
+      const r = await fetch("/api/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, password }),
+      });
+      if (r.ok) { location.href = "/"; return; }
+      if (r.status === 429) err.textContent = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+      else err.textContent = "이름 또는 비밀번호가 올바르지 않습니다.";
+    } catch {
+      err.textContent = "로그인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    } finally {
+      button.disabled = false; button.textContent = "로그인";
+    }
   };
-  document.getElementById("loginBtn").onclick = doLogin;
-  document.getElementById("loginPw").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+  document.getElementById("loginForm").onsubmit = doLogin;
   document.getElementById("loginName").focus();
 }
 
 // ---------------- 헤더/브레드크럼 ----------------
-const GNB_ITEMS = [
-  ["/", "전체 피드", "home"],
-  ["/talent-office", "인력사무소", "talent"],
-  ["/projects", "프로젝트", "projects"],
-  ["/materials", "자료실", "materials"],
-  ["/questions", "막힌 질문", "questions"],
-  ["/ask", "문의·FAQ", "ask"],
-  ["/members", "멤버", "members"],
-  ["/search", "검색", "search"],
+const GNB_GROUPS = [
+  ["오늘", [["/", "홈", "home"], ["/feed", "자유 기록", "feed"]]],
+  ["함께 만들기", [["/projects", "프로젝트", "projects"], ["/questions", "막힌 질문", "questions"], ["/talent-office", "인력사무소", "talent"]]],
+  ["아카이브", [["/materials", "자료실", "materials"], ["/members", "멤버", "members"]]],
+  ["도움", [["/search", "검색", "search"], ["/ask", "FAQ", "ask"]]],
 ];
+const GNB_ITEMS = GNB_GROUPS.flatMap(([, items]) => items);
 function buildHeader() {
-  document.getElementById("gnb").innerHTML = GNB_ITEMS.map(([href, label, key]) =>
-    `<a href="${href}" data-view="${key}">${label}</a>`).join("");
+  document.getElementById("gnb").innerHTML = GNB_GROUPS.map(([group, items]) =>
+    `<div class="nav-group"><p>${group}</p>${items.map(([href, label, key]) =>
+      `<a href="${href}" data-view="${key}"><span>${label}</span></a>`).join("")}</div>`).join("");
   const isPI = ME.role === "pi";
   const admin = isPI ? '<a href="/admin/members" data-view="admin">멤버 관리</a>' : "";
   const piOs = isPI ? '<a href="https://os.bai.haiinu.com/" target="_blank" rel="noopener">PI OS</a>' : "";
   document.getElementById("hdUtil").innerHTML = `
-    <a class="who" href="/member/${ME.id}">${esc(ME.name)}</a>
-    <a href="/developer" data-view="developer">Goodbai API</a>
-    ${admin}
-    <a href="/account" data-view="account">계정 설정</a>
-    ${piOs}
-    <button id="logoutBtn" type="button">로그아웃</button>`;
+    <a class="account-profile" href="/member/${ME.id}">${avatar(ME.name, true)}<span><b>${esc(ME.name)}</b><small>내 프로필</small></span></a>
+    <div class="account-links"><a href="/developer" data-view="developer">Goodbai API</a>
+      <a href="/account" data-view="account">계정 설정</a>
+      <button id="logoutBtn" type="button">로그아웃</button>${admin}${piOs}</div>`;
   document.getElementById("logoutBtn").onclick = async () => {
     await fetch("/api/logout", { method: "POST" });
     clearWallPoll();
@@ -1131,8 +1198,8 @@ function buildHeader() {
 function setCrumb(key, extra) {
   const wrap = document.getElementById("crumbWrap");
   const names = {
-    home: "전체 피드", projects: "프로젝트", materials: "자료실", questions: "막힌 질문",
-    ask: "문의·FAQ", members: "멤버", search: "검색", account: "계정",
+    home: "홈", feed: "자유 기록", projects: "프로젝트", materials: "자료실", questions: "막힌 질문",
+    ask: "FAQ", members: "멤버", search: "검색", account: "계정",
     developer: "Goodbai API", admin: "멤버 관리", talent: "인력사무소",
   };
   if (key === "home" && !extra) { wrap.hidden = true; return; }
@@ -1153,6 +1220,7 @@ function matchRoute(path) {
   const p = url.pathname;
   const params = url.searchParams;
   if (p === "/" || p === "" || p === "/index.html" || p === "/feed.html") return ["home", v => renderHome(v), null];
+  if (p === "/feed") return ["feed", v => renderFeed(v), null];
   if (p === "/questions") return ["questions", v => renderQuestions(v), null];
   if (p === "/ask") return ["ask", v => renderAsk(v), null];
   if (p === "/talent-office") return ["talent", v => renderTalentOffice(v), null];
@@ -1174,22 +1242,43 @@ function matchRoute(path) {
 async function route(path, push) {
   if (!ME) { renderLogin(document.getElementById("view")); return; }
   clearWallPoll();
+  const targetUrl = new URL(path, location.origin);
   const [key, fn, detailLabel] = matchRoute(path);
+  document.body.dataset.view = key;
   document.querySelectorAll("#gnb a[data-view], #hdUtil a[data-view]").forEach(a =>
     a.classList.toggle("on", a.dataset.view === key));
   setCrumb(key, detailLabel);
   if (push) history.pushState({}, "", path);
-  window.scrollTo(0, 0);
-  await fn(document.getElementById("view"));
+  if (!targetUrl.hash) window.scrollTo(0, 0);
+  const view = document.getElementById("view");
+  try {
+    await fn(view);
+  } catch (error) {
+    console.error("BAI view render failed", error);
+    view.innerHTML = `<div class="empty"><b>화면을 불러오지 못했습니다.</b><br>
+      저장된 기록은 그대로 있습니다. 잠시 후 다시 시도해 주세요.<br>
+      <button class="btn sm btn-secondary" id="retryViewBtn" type="button" style="margin-top:16px">다시 불러오기</button></div>`;
+    document.getElementById("retryViewBtn").onclick = () => route(location.pathname + location.search + location.hash, false);
+    return;
+  }
+  if (targetUrl.hash) document.querySelector(targetUrl.hash)?.scrollIntoView({ block: "start" });
 }
 function navigate(path) { route(path, true); }
 
 // ---------------- 초기화 ----------------
-const ROUTE_RE = /^\/(?:$|post\/|member\/|members|projects|talent-office|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
+const ROUTE_RE = /^\/(?:$|feed|post\/|member\/|members|projects|talent-office|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
 async function initApp() {
-  ME = await getMe();
   const view = document.getElementById("view");
+  try {
+    ME = await getMe();
+  } catch (error) {
+    console.error("BAI session check failed", error);
+    view.innerHTML = `<div class="empty"><b>BAI 서버에 연결하지 못했습니다.</b><br>
+      기록은 삭제되지 않았습니다. 잠시 후 새로고침해 주세요.</div>`;
+    return;
+  }
   if (!ME) { renderLogin(view); return; }
+  document.body.classList.remove("login-mode");
   if (location.pathname === "/login") { history.replaceState({}, "", "/"); }
   PROJECTS = await fetch("/api/projects").then(r => r.ok ? r.json() : []).catch(() => []);
   document.getElementById("header").hidden = false;
@@ -1198,14 +1287,23 @@ async function initApp() {
   if (!window.__krdsRouterWired) {
     // 내부 링크 위임 클릭 → 전체 새로고침 없이 SPA 이동
     document.addEventListener("click", e => {
+      const clickedToggle = e.target.closest("#sidebarToggle");
+      if (clickedToggle) {
+        const open = document.body.classList.toggle("sidebar-open");
+        clickedToggle.setAttribute("aria-expanded", String(open));
+        return;
+      }
       const a = e.target.closest("a"); if (!a) return;
       if (a.dataset.full || a.target === "_blank") return;
       const href = a.getAttribute("href") || "";
       if (!href.startsWith("/") || !ROUTE_RE.test(href)) return;
-      e.preventDefault(); navigate(href);
+      e.preventDefault();
+      document.body.classList.remove("sidebar-open");
+      document.getElementById("sidebarToggle")?.setAttribute("aria-expanded", "false");
+      navigate(href);
     });
-    window.addEventListener("popstate", () => route(location.pathname + location.search, false));
+    window.addEventListener("popstate", () => route(location.pathname + location.search + location.hash, false));
     window.__krdsRouterWired = true;
   }
-  route(location.pathname + location.search, false);
+  route(location.pathname + location.search + location.hash, false);
 }

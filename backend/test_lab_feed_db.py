@@ -1,6 +1,11 @@
-import tempfile, os
+import os
+import sqlite3
+import tempfile
+import threading
+import time
+
 import pytest
-from lab_feed_db import LabFeedDB
+from lab_feed_db import LabFeedDB, SQLITE_BUSY_TIMEOUT_MS
 
 
 @pytest.fixture
@@ -203,6 +208,171 @@ def test_migration_adds_links_column():
         os.remove(path)
 
 
+def test_init_schema_rolls_back_the_whole_upgrade_on_failure():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "CREATE TABLE members(id INTEGER PRIMARY KEY, name TEXT UNIQUE, "
+            "password_hash TEXT, api_key TEXT UNIQUE, role TEXT, created_at TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO members(id, name, password_hash, api_key, role, created_at) "
+            "VALUES (41, '기존학생', 'h', 'k', 'student', '2026-01-01')"
+        )
+        conn.commit()
+        conn.close()
+
+        db = LabFeedDB(path)
+        original = db._ensure_column
+
+        def fail_after_first_upgrade(conn, table, column, decl):
+            original(conn, table, column, decl)
+            if table == "members" and column == "status":
+                raise RuntimeError("simulated migration failure")
+
+        db._ensure_column = fail_after_first_upgrade
+        with pytest.raises(RuntimeError, match="simulated migration failure"):
+            db.init_schema()
+
+        conn = sqlite3.connect(path)
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(members)")]
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert "status" not in columns
+        assert "posts" not in tables
+        assert conn.execute("SELECT id, name FROM members").fetchall() == [(41, "기존학생")]
+        conn.close()
+    finally:
+        os.remove(path)
+
+
+def test_next_first_schema_upgrade_preserves_rows_ids_and_foreign_keys():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.executescript("""
+            CREATE TABLE members(
+                id INTEGER PRIMARY KEY, name TEXT UNIQUE, password_hash TEXT,
+                api_key TEXT UNIQUE, role TEXT, created_at TEXT
+            );
+            CREATE TABLE projects(
+                id INTEGER PRIMARY KEY, title TEXT, type TEXT, status TEXT,
+                goal TEXT, current_stage TEXT, deadline TEXT,
+                next_milestone TEXT, risk_level TEXT, pi_decision TEXT,
+                created_at TEXT, updated_at TEXT
+            );
+            CREATE TABLE posts(
+                id INTEGER PRIMARY KEY, author_id INTEGER REFERENCES members(id),
+                did TEXT, learned TEXT, blocked TEXT, tags TEXT, source TEXT,
+                created_at TEXT, updated_at TEXT
+            );
+            CREATE TABLE materials(
+                id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL REFERENCES members(id),
+                title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT '자료',
+                guild TEXT NOT NULL DEFAULT '', file_url TEXT NOT NULL DEFAULT '',
+                file_name TEXT NOT NULL DEFAULT ''
+            );
+            CREATE TABLE talent_requests(
+                id INTEGER PRIMARY KEY, title TEXT NOT NULL, problem TEXT NOT NULL,
+                expected_outcome TEXT NOT NULL DEFAULT '',
+                system_scope_reason TEXT NOT NULL DEFAULT '',
+                requester_member_id INTEGER NOT NULL REFERENCES members(id),
+                status TEXT NOT NULL DEFAULT 'submitted',
+                solution_summary TEXT NOT NULL DEFAULT '',
+                solution_url TEXT NOT NULL DEFAULT '',
+                completion_note TEXT NOT NULL DEFAULT '', completed_at TEXT,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE talent_request_assignees(
+                request_id INTEGER NOT NULL REFERENCES talent_requests(id),
+                member_id INTEGER NOT NULL REFERENCES members(id),
+                allocation_ratio REAL NOT NULL,
+                assigned_at TEXT NOT NULL,
+                PRIMARY KEY(request_id, member_id)
+            );
+            CREATE TABLE contribution_points(
+                id INTEGER PRIMARY KEY, request_id INTEGER NOT NULL REFERENCES talent_requests(id),
+                member_id INTEGER NOT NULL REFERENCES members(id), points REAL NOT NULL,
+                reason TEXT NOT NULL, awarded_at TEXT NOT NULL,
+                UNIQUE(request_id, member_id)
+            );
+
+            INSERT INTO members VALUES(41, '기존학생', 'hash', 'key', 'student', '2026-01-01');
+            INSERT INTO projects VALUES(17, '기존 프로젝트', '웹', 'active', '목표', '', '', '', 'normal', '', '2026-01-02', '2026-01-02');
+            INSERT INTO posts VALUES(73, 41, '기존 기록', '', '', '실험', 'web', '2026-01-03', '2026-01-03');
+            INSERT INTO materials VALUES(91, 41, '기존 자료', '본문', '', '온보딩', '공통', '/uploads/materials/old.pdf', 'old.pdf');
+            INSERT INTO talent_requests VALUES(31, '기존 요청', '문제', '결과', '공통 문제', 41, 'accepted', '', '', '', NULL, '2026-01-04', '2026-01-04');
+            INSERT INTO talent_request_assignees VALUES(31, 41, 1.0, '2026-01-05');
+            INSERT INTO contribution_points VALUES(51, 31, 41, 10, '기존 기여', '2026-01-06');
+        """)
+        conn.commit()
+        conn.close()
+
+        db = LabFeedDB(path)
+        db.init_schema()
+
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert conn.execute("SELECT id, name FROM members").fetchall()[0][0] == 41
+        assert conn.execute("SELECT id, did, author_id FROM posts").fetchone()[0] == 73
+        material = conn.execute("SELECT * FROM materials WHERE id=91").fetchone()
+        assert material["title"] == "기존 자료"
+        assert material["file_url"] == "/uploads/materials/old.pdf"
+        assert material["created_at"] and material["updated_at"]
+        request = conn.execute("SELECT * FROM talent_requests WHERE id=31").fetchone()
+        assert request["requester_member_id"] == 41
+        assert request["submitted_at"] == "2026-01-04"
+        assert request["review_note"] == ""
+        assignee = conn.execute(
+            "SELECT * FROM talent_request_assignees WHERE request_id=31"
+        ).fetchone()
+        assert assignee["member_id"] == 41 and assignee["role"] == ""
+        assert conn.execute("SELECT id FROM contribution_points").fetchone()[0] == 51
+        conn.close()
+
+        new_material = db.add_material(41, "새 자료", body="본문")
+        new_request = db.add_talent_request(41, "새 요청", "문제", "결과", "공통")
+        assert db.get_material(new_material)["created_at"]
+        assert db.get_talent_request(new_request)["submitted_at"]
+    finally:
+        os.remove(path)
+
+
+def test_connections_wait_briefly_for_a_concurrent_writer(db):
+    conn = db._conn()
+    assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == SQLITE_BUSY_TIMEOUT_MS
+    conn.execute("BEGIN IMMEDIATE")
+    errors = []
+
+    def write_after_lock():
+        try:
+            db.add_member("동시접속", "h", "concurrent-key", role="student")
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    worker = threading.Thread(target=write_after_lock)
+    worker.start()
+    time.sleep(0.05)
+    conn.commit()
+    conn.close()
+    worker.join(timeout=2)
+
+    assert not worker.is_alive()
+    assert errors == []
+    assert db.get_member_by_name("동시접속")["api_key"] == "concurrent-key"
+
+
 def test_talent_request_completion_awards_ten_points_once(db):
     requester = _member(db, "요청자")
     builder = _member(db, "개발자")
@@ -318,11 +488,25 @@ def test_student_project_metadata_and_members(db):
     listed = db.list_projects()[0]
     assert listed["id"] == pid
     assert listed["slug"] == "web-guild-portfolio"
+    assert listed["owner_name"] == "길드장"
     assert listed["member_count"] == 2
     assert db.list_project_members(pid) == [
         {"member_id": owner, "role": "길드장", "name": "길드장"},
         {"member_id": teammate, "role": "프론트", "name": "팀원"},
     ]
+
+
+def test_atomic_project_create_rolls_back_metadata_if_member_insert_fails(db):
+    owner = _member(db, "프로젝트장")
+    with pytest.raises(sqlite3.IntegrityError):
+        db.add_project_with_members(
+            member_roles=[(owner, "리드"), (999999, "없는 멤버")],
+            title="저장되면 안 되는 프로젝트",
+            summary="멤버 연결 실패를 재현",
+            owner_member_id=owner,
+        )
+
+    assert db.list_projects() == []
 
 
 def test_add_and_list_comments(db):

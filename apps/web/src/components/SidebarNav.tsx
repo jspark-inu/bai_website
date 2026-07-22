@@ -9,7 +9,7 @@ const feedItems = [
   ['/projects', '프로젝트', 'projects'],
   ['/materials', '자료실', 'materials'],
   ['/questions', '막힌 질문', 'questions'],
-  ['/ask', '문의/FAQ', 'ask'],
+  ['/ask', 'FAQ', 'ask'],
   ['/members', '멤버', 'members'],
   ['/search', '검색', 'search'],
 ] as const;

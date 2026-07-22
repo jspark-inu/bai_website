@@ -35,6 +35,9 @@ function relExists(rel) {
 
 const routePages = [
   'apps/web/src/app/page.tsx',
+  'apps/web/src/app/feed/page.tsx',
+  'apps/web/src/app/developer/page.tsx',
+  'apps/web/src/app/goodbai/page.tsx',
   'apps/web/src/app/materials/page.tsx',
   'apps/web/src/app/account/page.tsx',
   'apps/web/src/app/admin/members/page.tsx',
@@ -85,6 +88,10 @@ check('Approved KRDS visual and accessibility tokens are present in the served C
     '--krds-primary-50: #256EF4',
     '--krds-gray-90: #1E2124',
     '--krds-focus: 0 0 0 4px rgba(37, 110, 244, .45)',
+    '--bai-bg: #eaeaea',
+    '--bai-deep: #14332b',
+    '--bai-sage: #7bba91',
+    '--font-sans: "SUIT Variable"',
     '.skip-link',
     '.hd-main',
     '.crumb-wrap',
@@ -115,7 +122,7 @@ check('Next student routes delegate to the shared approved-design shell', () => 
 check('Next shell mounts the exact DOM contract required by approved krds.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
   const required = [
-    "const ASSET_VERSION = '20260713krds2'",
+    "const ASSET_VERSION = '20260722stability1'",
     'script.id = \'bai-krds-script\'',
     'script.src = `/static/krds.js?v=${ASSET_VERSION}`',
     'script.onload = () => window.initApp?.()',
@@ -128,6 +135,7 @@ check('Next shell mounts the exact DOM contract required by approved krds.js', (
     'className="crumb" id="crumb"',
     'className="main" id="view"',
     'className="ft" id="footer"',
+    'className="sidebar-toggle"',
   ];
   const missing = required.filter((token) => !shell.includes(token));
   expect(!missing.length, 'Next shell does not mount the approved KRDS DOM/script contract', missing);
@@ -165,12 +173,12 @@ check('Approved KRDS renderer controls the visible page labels', () => {
   const js = read('apps/web/public/static/krds.js');
   const missing = [
     'BAI 진행 공유',
-    '전체 피드',
+    '자유 기록',
     '인력사무소',
     '프로젝트',
     '자료실',
     '막힌 질문',
-    '문의·FAQ',
+    '["/ask", "FAQ", "ask"]',
     '공감 <span class="rc">',
     '진행 여정 (처음 → 최근)',
     'Goodbai API',

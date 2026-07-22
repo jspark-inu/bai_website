@@ -1,29 +1,40 @@
 import Database from 'better-sqlite3';
+import path from 'node:path';
 import type { Material, MemberPrivate, MemberPublic } from './types';
 
-const DEFAULT_DB_PATH = '/Users/hai_1/AI-Workspace/code/projects/dev/1C38-lab-feed/backend/lab-feed.db';
+const DEFAULT_DB_PATH = path.resolve(process.cwd(), '..', '..', 'backend', 'lab-feed.db');
+const SQLITE_BUSY_TIMEOUT_MS = 15_000;
 
 let db: Database.Database | null = null;
 let dbPathForHandle = '';
 
 export function resolveDbPath() {
-  return process.env.LAB_FEED_DB || DEFAULT_DB_PATH;
+  const configured = process.env.LAB_FEED_DB;
+  if (configured && process.env.NODE_ENV === 'production' && !path.isAbsolute(configured)) {
+    throw new Error('LAB_FEED_DB must be an absolute path in production');
+  }
+  return configured ? path.resolve(configured) : DEFAULT_DB_PATH;
 }
 
 export function getDb() {
   const nextPath = resolveDbPath();
   if (!db || dbPathForHandle !== nextPath) {
     db?.close();
-    db = new Database(nextPath, { readonly: process.env.LAB_FEED_DB_READONLY !== '0' });
+    db = new Database(nextPath, { readonly: process.env.LAB_FEED_DB_READONLY !== '0', timeout: SQLITE_BUSY_TIMEOUT_MS });
     db.pragma('foreign_keys = ON');
+    db.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
     dbPathForHandle = nextPath;
   }
   return db;
 }
 
 function getWriteDb() {
-  const writeDb = new Database(resolveDbPath(), { readonly: false });
+  if (process.env.LAB_FEED_DB_READONLY === '1') {
+    throw new Error('database writes are disabled by LAB_FEED_DB_READONLY=1');
+  }
+  const writeDb = new Database(resolveDbPath(), { readonly: false, timeout: SQLITE_BUSY_TIMEOUT_MS });
   writeDb.pragma('foreign_keys = ON');
+  writeDb.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
   return writeDb;
 }
 

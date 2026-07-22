@@ -1,6 +1,11 @@
 import os
 import re
+import math
+import sqlite3
+import time
+import ipaddress
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote
 from flask import Flask, request, jsonify, session, send_from_directory
 
 from lab_feed_db import LabFeedDB
@@ -21,16 +26,108 @@ FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 DEFAULT_DB = os.environ.get(
     "LAB_FEED_DB", os.path.join(os.path.dirname(__file__), "lab-feed.db")
 )
+CORE_DB_TABLES = {"members", "posts"}
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_COOLDOWN_SECONDS = 60.0
+KNOWN_INSECURE_SECRETS = {
+    "dev",
+    "dev-insecure-secret",
+    "change-me-generate-with-python-secrets",
+}
+
+
+def _env_enabled(name):
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _session_secret(explicit_secret=None):
+    """Return an intentional session secret; never use a public fallback."""
+    if explicit_secret is not None:
+        if not explicit_secret:
+            raise RuntimeError("session secret must not be empty")
+        return explicit_secret
+    configured = os.environ.get("LAB_FEED_SECRET", "").strip()
+    insecure = not configured or configured in KNOWN_INSECURE_SECRETS or len(configured) < 32
+    if insecure and not _env_enabled("LAB_FEED_ALLOW_INSECURE_SECRET"):
+        raise RuntimeError(
+            "LAB_FEED_SECRET must be a non-placeholder secret of at least 32 characters"
+        )
+    return configured or "dev-insecure-secret"
+
+
+def _require_existing_configured_db(db_path):
+    """Fail closed when an explicitly configured live DB is missing or wrong.
+
+    Creating a new database remains available for provisioning, but it must be
+    an explicit action via LAB_FEED_ALLOW_BOOTSTRAP=1. Tests may continue to
+    inject a temporary path through create_app(db_path=...).
+    """
+    if not db_path or not os.path.isfile(db_path):
+        raise RuntimeError(
+            "LAB_FEED_DB does not point to an existing database; "
+            "set LAB_FEED_ALLOW_BOOTSTRAP=1 only for intentional provisioning"
+        )
+    uri = "file:%s?mode=ro" % quote(os.path.abspath(db_path), safe="/")
+    try:
+        conn = sqlite3.connect(uri, uri=True)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            missing = sorted(CORE_DB_TABLES - tables)
+            if missing:
+                raise RuntimeError(
+                    "LAB_FEED_DB is missing core tables: %s" % ", ".join(missing)
+                )
+            quick_check = conn.execute("PRAGMA quick_check(1)").fetchone()[0]
+            if quick_check != "ok":
+                raise RuntimeError("LAB_FEED_DB failed SQLite quick_check")
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError as exc:
+        raise RuntimeError("LAB_FEED_DB is not a readable SQLite database") from exc
 
 
 def create_app(db_path=None, secret=None):
+    configured_db_path = os.environ.get("LAB_FEED_DB")
+    resolved_db_path = db_path or configured_db_path or DEFAULT_DB
+    bootstrap_enabled = _env_enabled("LAB_FEED_ALLOW_BOOTSTRAP")
+    if db_path is None and configured_db_path is not None:
+        if not configured_db_path:
+            raise RuntimeError("LAB_FEED_DB must not be empty")
+        if not os.path.isabs(configured_db_path):
+            raise RuntimeError("LAB_FEED_DB must be an absolute path")
+        if not bootstrap_enabled:
+            _require_existing_configured_db(configured_db_path)
+
+    # A configured existing DB is treated as a live-style deployment. Secure
+    # cookies are the default there; local HTTP development must opt out
+    # explicitly so a production environment cannot silently downgrade them.
+    live_style = db_path is None and configured_db_path is not None and not bootstrap_enabled
+    secure_cookie_setting = os.environ.get("LAB_FEED_COOKIE_SECURE")
+    if secure_cookie_setting is None:
+        secure_cookie = live_style
+    else:
+        secure_cookie = _env_enabled("LAB_FEED_COOKIE_SECURE")
+    if live_style and not secure_cookie and not _env_enabled("LAB_FEED_ALLOW_INSECURE_COOKIE"):
+        raise RuntimeError(
+            "live LAB_FEED_DB requires secure session cookies; "
+            "use LAB_FEED_ALLOW_INSECURE_COOKIE=1 only for local HTTP development"
+        )
+
     app = Flask(__name__, static_folder=None)
-    app.secret_key = secret or os.environ.get("LAB_FEED_SECRET", "dev-insecure-secret")
+    app.secret_key = _session_secret(secret)
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=secure_cookie,
+        LOGIN_FAILURE_LIMIT=LOGIN_FAILURE_LIMIT,
+        LOGIN_FAILURE_COOLDOWN_SECONDS=LOGIN_FAILURE_COOLDOWN_SECONDS,
     )
-    db = LabFeedDB(db_path or DEFAULT_DB)
+    db = LabFeedDB(resolved_db_path)
     db.init_schema()
     app.extensions["lab_feed_db"] = db
     login_failures = {}
@@ -141,7 +238,15 @@ def create_app(db_path=None, secret=None):
         return list(seen.items())
 
     def _login_key(name):
-        return "%s:%s" % (request.remote_addr or "local", name.strip().lower())
+        client_ip = request.remote_addr or "local"
+        if client_ip in {"127.0.0.1", "::1"}:
+            forwarded = (request.headers.get("X-BAI-Client-IP") or "").strip()
+            try:
+                if forwarded:
+                    client_ip = str(ipaddress.ip_address(forwarded))
+            except ValueError:
+                pass
+        return "%s:%s" % (client_ip, name.strip().lower())
 
     def _enrich(post):
         if "reaction_count" not in post:
@@ -152,8 +257,14 @@ def create_app(db_path=None, secret=None):
 
 
     @app.route("/healthz")
+    @app.route("/api/healthz")
     def healthz():
-        return jsonify({"ok": True, "service": "bai-site"})
+        try:
+            db.health_check()
+        except (sqlite3.Error, RuntimeError):
+            app.logger.exception("BAI database health check failed")
+            return jsonify({"ok": False, "service": "bai-site"}), 503
+        return jsonify({"ok": True, "service": "bai-site", "database": "ok"})
 
     # ---- 스킬용 JSON API (API키 인증) ----
     @app.route("/api/post", methods=["POST"])
@@ -177,11 +288,30 @@ def create_app(db_path=None, secret=None):
         data = request.get_json(silent=True) or {}
         name = data.get("name", "")
         key = _login_key(name)
-        if login_failures.get(key, 0) >= 5:
-            return jsonify({"error": "too many login failures"}), 429
+        now = time.monotonic()
+        expired = [
+            failure_key for failure_key, state in login_failures.items()
+            if state["expires_at"] <= now
+        ]
+        for failure_key in expired:
+            login_failures.pop(failure_key, None)
+        state = login_failures.get(key)
+        if state and state["locked_until"] > now:
+            response = jsonify({"error": "too many login failures"})
+            response.headers["Retry-After"] = str(
+                max(1, math.ceil(state["locked_until"] - now))
+            )
+            return response, 429
         member = auth.authenticate_web(db, name, data.get("password", ""))
         if not member:
-            login_failures[key] = login_failures.get(key, 0) + 1
+            failures = (state["failures"] if state else 0) + 1
+            cooldown = float(app.config["LOGIN_FAILURE_COOLDOWN_SECONDS"])
+            login_failures[key] = {
+                "failures": failures,
+                "locked_until": now + cooldown
+                if failures >= int(app.config["LOGIN_FAILURE_LIMIT"]) else 0,
+                "expires_at": now + cooldown,
+            }
             return jsonify({"error": "invalid credentials"}), 401
         login_failures.pop(key, None)
         session["member_id"] = member["id"]
@@ -346,38 +476,21 @@ def create_app(db_path=None, secret=None):
         p = _project_registry_payload()
         if not p["title"] or not (p["summary"] or p["repo_url"] or p["site_url"]):
             return jsonify({"error": "title and summary or link required"}), 400
-        pid = db.add_project(
-            title=p["title"],
-            type=p["type"],
-            goal=p["summary"],
-            summary=p["summary"],
-            repo_url=p["repo_url"],
-            site_url=p["site_url"],
-            owner_member_id=member["id"],
-        )
-        slug = _slugify_project(p["slug"] or p["title"], pid)
-        db.update_project(
-            pid,
-            title=p["title"],
-            type=p["type"],
-            status="active",
-            goal=p["summary"],
-            current_stage="",
-            deadline="",
-            next_milestone="",
-            risk_level="normal",
-            pi_decision="",
-            summary=p["summary"],
-            slug=slug,
-            repo_url=p["repo_url"],
-            site_url=p["site_url"],
-            owner_member_id=member["id"],
-        )
         try:
             member_roles = _member_roles_from_payload(p["members"], member["id"])
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        db.set_project_members(pid, member_roles)
+        pid = db.add_project_with_members(
+            member_roles=member_roles,
+            title=p["title"],
+            type=p["type"],
+            goal=p["summary"],
+            summary=p["summary"],
+            slug=_slugify_project(p["slug"] or p["title"]),
+            repo_url=p["repo_url"],
+            site_url=p["site_url"],
+            owner_member_id=member["id"],
+        )
         return jsonify({"id": pid})
 
     @app.route("/api/projects/<int:pid>")
@@ -410,8 +523,9 @@ def create_app(db_path=None, secret=None):
             member_roles = _member_roles_from_payload(p["members"], project["owner_member_id"] or member["id"])
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        db.update_project(
+        db.update_project_with_members(
             pid,
+            member_roles=member_roles,
             title=p["title"],
             type=p["type"],
             status=project["status"],
@@ -427,7 +541,6 @@ def create_app(db_path=None, secret=None):
             site_url=p["site_url"],
             owner_member_id=project["owner_member_id"] or member["id"],
         )
-        db.set_project_members(pid, member_roles)
         return jsonify({"id": pid})
 
     # ---- BAI 인력사무소 ----

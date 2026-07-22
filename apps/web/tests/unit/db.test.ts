@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { addWallMessage, getDb, listMaterials, listMembers, listWallMessages, resolveDbPath } from '@/lib/db';
 
 const originalDbPath = process.env.LAB_FEED_DB;
@@ -30,6 +30,16 @@ afterAll(() => {
 describe('SQLite adapter', () => {
   it('uses the isolated database fixture in tests', () => {
     expect(resolveDbPath()).toBe(fixtureDbPath);
+  });
+
+  it('rejects ambiguous relative database paths in production', () => {
+    vi.stubEnv('LAB_FEED_DB', 'backend/lab-feed.db');
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(() => resolveDbPath()).toThrow(/absolute path/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('opens the fixture database read-only by default', () => {

@@ -81,7 +81,7 @@ function feedSidebar(active, isPI) {
   const move = isPI ? '<div class="navsec">이동</div><a href="https://os.bai.haiinu.com/" target="_blank" rel="noopener">PI OS</a>' : "";
   return `<aside class="side"><div class="brand">BAI <span class="b">Feed</span></div>
     <div class="navsec">피드</div>
-    ${tab("/", "전체 피드", "home")}${tab("/talent-office", "인력사무소", "talent")}${tab("/projects", "프로젝트", "projects")}${tab("/materials", "자료실", "materials")}${tab("/questions", "막힌 질문", "questions")}${tab("/ask", "문의/FAQ", "ask")}${tab("/members", "멤버", "members")}${tab("/search", "검색", "search")}
+    ${tab("/", "전체 피드", "home")}${tab("/talent-office", "인력사무소", "talent")}${tab("/projects", "프로젝트", "projects")}${tab("/materials", "자료실", "materials")}${tab("/questions", "막힌 질문", "questions")}${tab("/ask", "FAQ", "ask")}${tab("/members", "멤버", "members")}${tab("/search", "검색", "search")}
     <div class="navsec">개발</div>${tab("/account?goodbai=1", "Goodbai API", "developer")}${admin}${tab("/account", "계정", "account")}
     ${move}</aside>`;
 }

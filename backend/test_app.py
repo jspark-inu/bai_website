@@ -1,4 +1,7 @@
-import tempfile, os
+import os
+import sqlite3
+import tempfile
+
 import pytest
 import app as app_module
 from lab_feed_db import LabFeedDB
@@ -23,6 +26,106 @@ def client():
 
 def _login(client, name="김영희", pw="pw"):
     return client.post("/api/login", json={"name": name, "password": pw})
+
+
+def test_explicit_missing_database_fails_closed_without_bootstrap(monkeypatch, tmp_path):
+    path = tmp_path / "missing-live.db"
+    monkeypatch.setenv("LAB_FEED_DB", str(path))
+    monkeypatch.delenv("LAB_FEED_ALLOW_BOOTSTRAP", raising=False)
+
+    with pytest.raises(RuntimeError, match="does not point to an existing database"):
+        app_module.create_app(secret="test-secret")
+    assert not path.exists()
+
+
+def test_explicit_database_without_core_tables_fails_closed(monkeypatch, tmp_path):
+    path = tmp_path / "wrong-live.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE unrelated(id INTEGER PRIMARY KEY)")
+    conn.close()
+    monkeypatch.setenv("LAB_FEED_DB", str(path))
+    monkeypatch.delenv("LAB_FEED_ALLOW_BOOTSTRAP", raising=False)
+
+    with pytest.raises(RuntimeError, match="missing core tables"):
+        app_module.create_app(secret="test-secret")
+
+
+@pytest.mark.parametrize("allow_bootstrap", [False, True])
+def test_explicit_database_path_must_be_absolute_even_for_bootstrap(
+        monkeypatch, tmp_path, allow_bootstrap):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LAB_FEED_DB", "relative-live.db")
+    if allow_bootstrap:
+        monkeypatch.setenv("LAB_FEED_ALLOW_BOOTSTRAP", "1")
+    else:
+        monkeypatch.delenv("LAB_FEED_ALLOW_BOOTSTRAP", raising=False)
+
+    with pytest.raises(RuntimeError, match="must be an absolute path"):
+        app_module.create_app(secret="test-secret")
+    assert not (tmp_path / "relative-live.db").exists()
+
+
+def test_explicit_bootstrap_override_allows_intentional_new_database(monkeypatch, tmp_path):
+    path = tmp_path / "intentional-new.db"
+    monkeypatch.setenv("LAB_FEED_DB", str(path))
+    monkeypatch.setenv("LAB_FEED_ALLOW_BOOTSTRAP", "1")
+
+    flask_app = app_module.create_app(secret="test-secret")
+    assert flask_app.extensions["lab_feed_db"].db_path == str(path)
+    conn = sqlite3.connect(path)
+    tables = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    conn.close()
+    assert {"members", "posts"}.issubset(tables)
+
+
+def test_environment_session_secret_is_required(monkeypatch, tmp_path):
+    monkeypatch.delenv("LAB_FEED_SECRET", raising=False)
+    monkeypatch.delenv("LAB_FEED_ALLOW_INSECURE_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="LAB_FEED_SECRET"):
+        app_module.create_app(db_path=str(tmp_path / "unused.db"))
+
+
+@pytest.mark.parametrize(
+    "value", ["dev", "dev-insecure-secret", "change-me-generate-with-python-secrets"]
+)
+def test_public_or_placeholder_session_secrets_are_rejected(monkeypatch, tmp_path, value):
+    monkeypatch.setenv("LAB_FEED_SECRET", value)
+    monkeypatch.delenv("LAB_FEED_ALLOW_INSECURE_SECRET", raising=False)
+
+    with pytest.raises(RuntimeError, match="non-placeholder secret"):
+        app_module.create_app(db_path=str(tmp_path / "unused.db"))
+
+
+def test_configured_live_database_defaults_to_secure_cookie(monkeypatch, tmp_path):
+    path = tmp_path / "live.db"
+    LabFeedDB(str(path)).init_schema()
+    monkeypatch.setenv("LAB_FEED_DB", str(path))
+    monkeypatch.setenv("LAB_FEED_SECRET", "a" * 32)
+    monkeypatch.delenv("LAB_FEED_ALLOW_BOOTSTRAP", raising=False)
+    monkeypatch.delenv("LAB_FEED_COOKIE_SECURE", raising=False)
+
+    flask_app = app_module.create_app()
+    assert flask_app.config["SESSION_COOKIE_SECURE"] is True
+
+
+def test_live_cookie_downgrade_requires_explicit_local_override(monkeypatch, tmp_path):
+    path = tmp_path / "live.db"
+    LabFeedDB(str(path)).init_schema()
+    monkeypatch.setenv("LAB_FEED_DB", str(path))
+    monkeypatch.setenv("LAB_FEED_SECRET", "b" * 32)
+    monkeypatch.setenv("LAB_FEED_COOKIE_SECURE", "0")
+    monkeypatch.delenv("LAB_FEED_ALLOW_INSECURE_COOKIE", raising=False)
+
+    with pytest.raises(RuntimeError, match="secure session cookies"):
+        app_module.create_app()
+
+    monkeypatch.setenv("LAB_FEED_ALLOW_INSECURE_COOKIE", "1")
+    flask_app = app_module.create_app()
+    assert flask_app.config["SESSION_COOKIE_SECURE"] is False
 
 
 # ---- 스킬 API ----
@@ -124,26 +227,72 @@ def test_login_rate_limits_repeated_failures(client):
     assert _login(client, pw="bad").status_code == 429
 
 
+def test_login_rate_limit_expires_after_a_finite_cooldown(client, monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(app_module.time, "monotonic", lambda: now[0])
+
+    for _ in range(app_module.LOGIN_FAILURE_LIMIT):
+        assert _login(client, pw="bad").status_code == 401
+    locked = _login(client, pw="pw")
+    assert locked.status_code == 429
+    assert int(locked.headers["Retry-After"]) > 0
+
+    now[0] += app_module.LOGIN_FAILURE_COOLDOWN_SECONDS + 0.1
+    assert _login(client, pw="pw").status_code == 200
+
+
+def test_login_rate_limit_isolated_by_validated_proxy_client_ip(client):
+    attacker_headers = {"X-BAI-Client-IP": "203.0.113.9"}
+    member_headers = {"X-BAI-Client-IP": "198.51.100.17"}
+    for _ in range(app_module.LOGIN_FAILURE_LIMIT):
+        assert client.post(
+            "/api/login",
+            json={"name": "김영희", "password": "bad"},
+            headers=attacker_headers,
+        ).status_code == 401
+    assert client.post(
+        "/api/login",
+        json={"name": "김영희", "password": "pw"},
+        headers=attacker_headers,
+    ).status_code == 429
+    assert client.post(
+        "/api/login",
+        json={"name": "김영희", "password": "pw"},
+        headers=member_headers,
+    ).status_code == 200
+
+
 def test_session_cookie_defaults_are_public_launch_safe(client):
     assert client.application.config["SESSION_COOKIE_HTTPONLY"] is True
     assert client.application.config["SESSION_COOKIE_SAMESITE"] == "Lax"
 
 
-def test_login_page_explains_onboarding_and_visibility(client):
-    # 로그인은 KRDS SPA 셸(krds.html) 안에서 렌더링되고, 안내 문구는 krds.js에 있다.
+def test_healthz_checks_the_database_and_is_available_through_api_alias(client):
+    response = client.get("/api/healthz")
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "service": "bai-site",
+        "database": "ok",
+    }
+
+
+def test_login_page_keeps_the_approved_compact_account_guidance(client):
+    # 로그인은 KRDS SPA 셸 안에서 로그인 박스만 간결하게 렌더링한다.
     shell = client.get("/login").get_data(as_text=True)
     assert "krds.js" in shell
     body = client.get("/static/krds.js").get_data(as_text=True)
-    assert "계정은 운영자가 발급합니다" in body
-    assert "진행 공유는 로그인한 BAI 멤버에게 보입니다" in body
-    assert "매주 한 번" in body
+    assert "멤버 계정으로 로그인하세요." in body
+    assert "BAI 운영자에게 계정 발급을 요청해 주세요." in body
+    assert "함께 만든 과정이" not in body
     assert 'location.href = "/"' in body
     assert "/cockpit" not in body
 
 
 def test_feed_shell_contains_first_post_cta_copy(client):
     body = client.get("/static/krds.js").get_data(as_text=True)
-    assert "첫 진행 공유를 남겨 보세요" in body
+    assert "첫 기록 남기기" in body
+    assert "아직 자유 기록이 없습니다. 첫 기록을 남겨 주세요." in body
     assert "checkinHtml" in body
     assert "이번 주 BAI 체크인" in body
 
@@ -403,6 +552,22 @@ def test_student_can_create_project_registry_entry(client):
     assert detail["project"]["owner_member_id"] == 1
     assert detail["project"]["repo_url"] == "https://github.com/bai/web-guild"
     assert detail["members"] == [{"member_id": 1, "role": "길드장", "name": "김영희"}]
+
+
+def test_project_create_rejects_invalid_members_without_leaving_a_row(client):
+    db = client.application.extensions["lab_feed_db"]
+    _login(client)
+    before = [project["id"] for project in db.list_projects()]
+
+    response = client.post("/api/projects", json={
+        "title": "남으면 안 되는 프로젝트",
+        "summary": "유효하지 않은 멤버 요청",
+        "members": [{"member_id": 999999, "role": "팀원"}],
+    })
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "invalid member_id"
+    assert [project["id"] for project in db.list_projects()] == before
 
 
 def test_project_detail_api_returns_members_and_links(client):

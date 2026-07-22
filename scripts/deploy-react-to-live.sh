@@ -45,6 +45,25 @@ die() {
   exit 1
 }
 
+wait_http_status() {
+  local url="$1"
+  local expected_status="$2"
+  local actual_status
+  local attempt
+  for attempt in $(seq 1 30); do
+    if actual_status="$(curl -sS -o /dev/null -w '%{http_code}' "$url")"; then
+      if [[ "$actual_status" == "$expected_status" || -z "$actual_status" ]]; then
+        return 0
+      fi
+    else
+      actual_status="curl-failed"
+    fi
+    sleep 2
+  done
+  echo "ERROR: HTTP readiness check failed for $url: expected $expected_status, got ${actual_status:-no-response}" >&2
+  return 1
+}
+
 main() {
   local repo_dir live_web_dir launchd_label live_backend_dir backend_launchd_label
   local live_db_path live_backup_dir live_upload_dir python_bin initial_install_override
@@ -52,7 +71,7 @@ main() {
   local web_db_relative web_backup_relative web_upload_relative proxy_health_status
   local proxy_me_status runtime_db_fingerprint runtime_upload_fingerprint
   local live_frontend_dir rollback_root rollback_snapshot rollback_build_status
-  local runtime_env_file api_origin next_origin required_name
+  local runtime_env_file api_origin next_origin required_name runtime_health_url
   local rollback_armed=0
   local initial_install=0
   local -a web_preserve_args backend_preserve_args
@@ -61,10 +80,13 @@ main() {
   if [[ -e "$runtime_env_file" || -L "$runtime_env_file" ]]; then
     [[ -f "$runtime_env_file" && -r "$runtime_env_file" && ! -L "$runtime_env_file" ]] || \
       die "BAI runtime env must be a readable regular file, not a symlink: $runtime_env_file"
-    set -a
-    # shellcheck disable=SC1090
-    source "$runtime_env_file"
-    set +a
+    if [[ -z "${LAB_FEED_DB:-}" || -z "${BAI_UPLOAD_DIR:-}" || -z "${BAI_LIVE_BACKUP_DIR:-}" || \
+      -z "${BAI_ROLLBACK_DIR:-}" || -z "${LAB_FEED_SECRET:-}" || -z "${BAI_API_ORIGIN:-}" ]]; then
+      set -a
+      # shellcheck disable=SC1090
+      source "$runtime_env_file"
+      set +a
+    fi
   fi
   for required_name in LAB_FEED_DB BAI_UPLOAD_DIR BAI_LIVE_BACKUP_DIR BAI_ROLLBACK_DIR LAB_FEED_SECRET BAI_API_ORIGIN; do
     [[ -n "${!required_name:-}" ]] || die \
@@ -271,22 +293,20 @@ main() {
   launchctl setenv BAI_MAX_UPLOAD_BYTES "${BAI_MAX_UPLOAD_BYTES:-26214400}"
   launchctl kickstart -k "gui/$(id -u)/${launchd_label}"
   launchctl kickstart -k "gui/$(id -u)/${backend_launchd_label}"
-  curl -fsSI https://bai.haiinu.com/login >/dev/null
-  curl -fsS "$api_origin/healthz" >/dev/null
-  proxy_health_status="$(curl -sS -o /dev/null -w '%{http_code}' "$next_origin/api/healthz")"
-  test "$proxy_health_status" = "200"
-  proxy_me_status="$(curl -sS -o /dev/null -w '%{http_code}' "$next_origin/api/me")"
-  test "$proxy_me_status" = "401"
+  wait_http_status "$next_origin/login" "200"
+  wait_http_status "$api_origin/healthz" "200"
+  wait_http_status "$next_origin/api/healthz" "200"
+  wait_http_status "$next_origin/api/me" "401"
   runtime_db_fingerprint="$("$python_bin" -c \
     'import hashlib, os, sys; print(hashlib.sha256(os.path.abspath(sys.argv[1]).encode()).hexdigest())' \
     "$live_db_path")"
   runtime_upload_fingerprint="$("$python_bin" -c \
     'import hashlib, os, sys; print(hashlib.sha256(os.path.abspath(sys.argv[1]).encode()).hexdigest())' \
     "$live_upload_dir")"
-  curl -fsS --get \
-    --data-urlencode "db=$runtime_db_fingerprint" \
-    --data-urlencode "uploads=$runtime_upload_fingerprint" \
-    "$next_origin/api/runtime-health" >/dev/null
+  runtime_health_url="$next_origin/api/runtime-health"
+  wait_http_status \
+    "$runtime_health_url?db=$runtime_db_fingerprint&uploads=$runtime_upload_fingerprint" \
+    "200"
   backend_wall_status="$(curl -sS -o /dev/null -w '%{http_code}' "$api_origin/api/wall")"
   test "$backend_wall_status" = "401"
   rollback_armed=0

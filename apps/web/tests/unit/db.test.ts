@@ -4,8 +4,11 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { addWallMessage, getDb, listMaterials, listMembers, listWallMessages, resolveDbPath } from '@/lib/db';
+import { closeDbForTests, openWriteDb } from '@/lib/db/client';
+import { runMigrations } from '@/lib/db/migrations';
 
 const originalDbPath = process.env.LAB_FEED_DB;
+const originalReadonly = process.env.LAB_FEED_DB_READONLY;
 const fixtureDir = mkdtempSync(path.join(tmpdir(), 'bai-db-test-'));
 const fixtureDbPath = path.join(fixtureDir, 'lab-feed.db');
 
@@ -19,11 +22,16 @@ beforeAll(() => {
   `);
   fixture.close();
   process.env.LAB_FEED_DB = fixtureDbPath;
+  process.env.LAB_FEED_DB_READONLY = '0';
+  runMigrations();
 });
 
 afterAll(() => {
+  closeDbForTests();
   if (originalDbPath === undefined) delete process.env.LAB_FEED_DB;
   else process.env.LAB_FEED_DB = originalDbPath;
+  if (originalReadonly === undefined) delete process.env.LAB_FEED_DB_READONLY;
+  else process.env.LAB_FEED_DB_READONLY = originalReadonly;
   rmSync(fixtureDir, { recursive: true, force: true });
 });
 
@@ -46,6 +54,27 @@ describe('SQLite adapter', () => {
     const db = getDb();
     const row = db.prepare("select name from sqlite_master where type='table' and name='materials'").get() as { name?: string } | undefined;
     expect(row?.name).toBe('materials');
+  });
+
+  it('fails closed for writes unless LAB_FEED_DB_READONLY is exactly zero', () => {
+    for (const value of [undefined, '1', 'false']) {
+      if (value === undefined) delete process.env.LAB_FEED_DB_READONLY;
+      else process.env.LAB_FEED_DB_READONLY = value;
+      expect(() => openWriteDb()).toThrow(/LAB_FEED_DB_READONLY/);
+    }
+    process.env.LAB_FEED_DB_READONLY = '0';
+    const conn = openWriteDb();
+    conn.close();
+  });
+
+  it('does not reuse a pooled handle after the readonly mode changes', () => {
+    process.env.LAB_FEED_DB_READONLY = '1';
+    const readonly = getDb();
+    expect(readonly.readonly).toBe(true);
+    process.env.LAB_FEED_DB_READONLY = '0';
+    const writable = getDb();
+    expect(writable).not.toBe(readonly);
+    expect(writable.readonly).toBe(false);
   });
 
   it('lists existing members without exposing credential columns', () => {

@@ -28,6 +28,7 @@
         "./src/*"
       ]
     },
+    "allowImportingTsExtensions": true,
     "ignoreDeprecations": "6.0"
   },
   "include": [

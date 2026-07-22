@@ -434,6 +434,18 @@ exit 0
         self.assertLess(backend_restart, backend_ready)
         self.assertLess(backend_ready, next_restart)
 
+    def test_migration_runs_after_live_build_and_backup_before_any_restart(self):
+        source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+        backup_call = source.index('"$repo_dir/scripts/backup_db.py"')
+        live_build = source.index("npm run build", source.index('cd "$live_web_dir"'))
+        migration = source.index(
+            'LAB_FEED_DB="$live_db_path" LAB_FEED_DB_READONLY=0 npm run migrate'
+        )
+        first_restart = source.index('launchctl kickstart -k', migration)
+        self.assertLess(backup_call, migration)
+        self.assertLess(live_build, migration)
+        self.assertLess(migration, first_restart)
+
     def test_automation_uses_the_same_node_runtime_as_production(self):
         expected_path_prefix = 'export PATH="/Users/hai_1/.local/bin:'
         for script in (AUTODEPLOY_SCRIPT, PR_REVIEW_SCRIPT):

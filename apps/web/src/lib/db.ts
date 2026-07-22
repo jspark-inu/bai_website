@@ -1,87 +1,20 @@
-import Database from 'better-sqlite3';
-import path from 'node:path';
-import type { Material, MemberPrivate, MemberPublic } from './types';
+import type { Material } from './types';
+import { getDb, openWriteDb } from './db/client';
 
-const DEFAULT_DB_PATH = path.resolve(process.cwd(), '..', '..', 'backend', 'lab-feed.db');
-const SQLITE_BUSY_TIMEOUT_MS = 15_000;
-
-let db: Database.Database | null = null;
-let dbPathForHandle = '';
-
-export function resolveDbPath() {
-  const configured = process.env.LAB_FEED_DB;
-  if (configured && process.env.NODE_ENV === 'production' && !path.isAbsolute(configured)) {
-    throw new Error('LAB_FEED_DB must be an absolute path in production');
-  }
-  return configured ? path.resolve(configured) : DEFAULT_DB_PATH;
-}
-
-export function getDb() {
-  const nextPath = resolveDbPath();
-  if (!db || dbPathForHandle !== nextPath) {
-    db?.close();
-    db = new Database(nextPath, { readonly: process.env.LAB_FEED_DB_READONLY !== '0', timeout: SQLITE_BUSY_TIMEOUT_MS });
-    db.pragma('foreign_keys = ON');
-    db.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
-    dbPathForHandle = nextPath;
-  }
-  return db;
-}
-
-function getWriteDb() {
-  if (process.env.LAB_FEED_DB_READONLY === '1') {
-    throw new Error('database writes are disabled by LAB_FEED_DB_READONLY=1');
-  }
-  const writeDb = new Database(resolveDbPath(), { readonly: false, timeout: SQLITE_BUSY_TIMEOUT_MS });
-  writeDb.pragma('foreign_keys = ON');
-  writeDb.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
-  return writeDb;
-}
-
-function ensureColumn(conn: Database.Database, table: string, column: string, decl: string) {
-  const cols = conn.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  if (!cols.some((col) => col.name === column)) {
-    conn.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`).run();
-  }
-}
-
-export function ensureMaterialUploadSchema(conn = getWriteDb()) {
-  let shouldClose = arguments.length === 0;
-  try {
-    ensureColumn(conn, 'materials', 'file_url', "TEXT NOT NULL DEFAULT ''");
-    ensureColumn(conn, 'materials', 'file_name', "TEXT NOT NULL DEFAULT ''");
-  } finally {
-    if (shouldClose) conn.close();
-  }
-}
-
-function ensureWallSchema(conn: Database.Database) {
-  conn.exec(`CREATE TABLE IF NOT EXISTS wall_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    author_id INTEGER NOT NULL REFERENCES members(id),
-    body TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`);
-}
+export { getDb, resolveDbPath } from './db/client';
+export { getMemberById, getMemberByName, listMembers, listMembersWithStats } from './db/repositories/members';
 
 export function listWallMessages(limit = 12) {
-  const conn = getWriteDb();
-  try {
-    ensureWallSchema(conn);
-    const safeLimit = Math.max(1, Math.min(Math.trunc(limit || 12), 40));
-    const rows = conn
-      .prepare('SELECT id, body, created_at FROM wall_messages ORDER BY id DESC LIMIT ?')
-      .all(safeLimit) as Array<Record<string, unknown>>;
-    return rows.reverse();
-  } finally {
-    conn.close();
-  }
+  const safeLimit = Math.max(1, Math.min(Math.trunc(limit || 12), 40));
+  const rows = getDb()
+    .prepare('SELECT id, body, created_at FROM wall_messages ORDER BY id DESC LIMIT ?')
+    .all(safeLimit) as Array<Record<string, unknown>>;
+  return rows.reverse();
 }
 
 export function addWallMessage(authorId: number, body: string) {
-  const conn = getWriteDb();
+  const conn = openWriteDb();
   try {
-    ensureWallSchema(conn);
     const result = conn
       .prepare('INSERT INTO wall_messages (author_id, body) VALUES (?, ?)')
       .run(authorId, body);
@@ -89,39 +22,6 @@ export function addWallMessage(authorId: number, body: string) {
   } finally {
     conn.close();
   }
-}
-
-export function listMembers(): MemberPublic[] {
-  return getDb()
-    .prepare("SELECT id, name, role FROM members WHERE status='active' ORDER BY name ASC")
-    .all() as MemberPublic[];
-}
-
-export function listMembersWithStats() {
-  return getDb()
-    .prepare(`SELECT m.id, m.name, m.role,
-      COUNT(p.id) AS post_count,
-      MAX(p.created_at) AS last_post_at
-      FROM members m
-      LEFT JOIN posts p ON p.author_id=m.id
-      WHERE m.status='active'
-      GROUP BY m.id
-      ORDER BY m.name ASC`)
-    .all() as Array<MemberPublic & { post_count: number; last_post_at: string | null }>;
-}
-
-export function getMemberByName(name: string): MemberPrivate | null {
-  const row = getDb()
-    .prepare("SELECT id, name, role, status, password_hash FROM members WHERE name=? AND status='active'")
-    .get(name) as MemberPrivate | undefined;
-  return row ?? null;
-}
-
-export function getMemberById(id: number): MemberPublic | null {
-  const row = getDb()
-    .prepare("SELECT id, name, role FROM members WHERE id=? AND status='active'")
-    .get(id) as MemberPublic | undefined;
-  return row ?? null;
 }
 
 export function listMaterials(filters: { category?: string; guild?: string } = {}): Material[] {
@@ -158,9 +58,8 @@ export function addMaterial(input: {
   fileUrl?: string;
   fileName?: string;
 }) {
-  const conn = getWriteDb();
+  const conn = openWriteDb();
   try {
-    ensureMaterialUploadSchema(conn);
     const result = conn
       .prepare(`INSERT INTO materials
         (author_id, title, body, url, category, guild, file_url, file_name)
@@ -190,9 +89,8 @@ export function updateMaterial(id: number, input: {
   fileUrl?: string;
   fileName?: string;
 }) {
-  const conn = getWriteDb();
+  const conn = openWriteDb();
   try {
-    ensureMaterialUploadSchema(conn);
     conn
       .prepare(`UPDATE materials SET
         title=?, body=?, url=?, category=?, guild=?, file_url=?, file_name=?,
@@ -214,7 +112,7 @@ export function updateMaterial(id: number, input: {
 }
 
 export function deleteMaterial(id: number) {
-  const conn = getWriteDb();
+  const conn = openWriteDb();
   try {
     conn.prepare('DELETE FROM materials WHERE id=?').run(id);
   } finally {

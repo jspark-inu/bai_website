@@ -1,5 +1,6 @@
-import Database from 'better-sqlite3';
-import { resolveDbPath } from './db';
+import type Database from 'better-sqlite3';
+import { openWriteDb } from './db/client';
+import { withTransaction } from './db/transaction';
 
 export const TALENT_REQUEST_STATES = ['submitted', 'accepted', 'declined', 'approval_required', 'assigned', 'ready_for_review', 'changes_requested', 'completed'] as const;
 export type TalentRequestState = typeof TALENT_REQUEST_STATES[number];
@@ -13,86 +14,21 @@ export class TalentOfficeError extends Error {
 
 export type AssigneeInput = { memberId: number; ratio: number };
 
-function ownWriteDb() {
-  if (process.env.LAB_FEED_DB_READONLY === '1') {
-    throw new TalentOfficeError('database writes are disabled', 503);
-  }
-  const conn = new Database(resolveDbPath(), { readonly: false, timeout: 15_000 });
-  conn.pragma('foreign_keys = ON');
-  conn.pragma('busy_timeout = 15000');
-  return conn;
-}
-
-function ensureColumn(conn: Database.Database, table: string, column: string, declaration: string) {
-  const columns = conn.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!columns.some((item) => item.name === column)) {
-    conn.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`).run();
-  }
-}
-
-export function ensureTalentOfficeSchema(conn: Database.Database) {
-  conn.exec(`
-    CREATE TABLE IF NOT EXISTS talent_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      problem TEXT NOT NULL,
-      expected_outcome TEXT NOT NULL DEFAULT '',
-      system_scope_reason TEXT NOT NULL DEFAULT '',
-      requester_member_id INTEGER NOT NULL REFERENCES members(id),
-      status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','accepted','declined','approval_required','assigned','ready_for_review','changes_requested','completed')),
-      review_note TEXT NOT NULL DEFAULT '',
-      requires_approval INTEGER NOT NULL DEFAULT 0,
-      approval_reason TEXT NOT NULL DEFAULT '',
-      linked_project_id INTEGER REFERENCES projects(id),
-      solution_summary TEXT NOT NULL DEFAULT '',
-      solution_url TEXT NOT NULL DEFAULT '',
-      completion_note TEXT NOT NULL DEFAULT '',
-      completed_at TEXT,
-      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE TABLE IF NOT EXISTS talent_request_assignees (
-      request_id INTEGER NOT NULL REFERENCES talent_requests(id) ON DELETE CASCADE,
-      member_id INTEGER NOT NULL REFERENCES members(id),
-      role TEXT NOT NULL DEFAULT '',
-      allocation_ratio REAL NOT NULL CHECK (allocation_ratio > 0 AND allocation_ratio <= 1),
-      assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (request_id, member_id)
-    );
-    CREATE TABLE IF NOT EXISTS contribution_points (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      request_id INTEGER NOT NULL REFERENCES talent_requests(id) ON DELETE CASCADE,
-      member_id INTEGER NOT NULL REFERENCES members(id),
-      points REAL NOT NULL CHECK (points > 0),
-      reason TEXT NOT NULL,
-      awarded_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(request_id, member_id)
-    );
-  `);
-  ensureColumn(conn, 'talent_requests', 'review_note', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'requires_approval', 'INTEGER NOT NULL DEFAULT 0');
-  ensureColumn(conn, 'talent_requests', 'approval_reason', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'linked_project_id', 'INTEGER REFERENCES projects(id)');
-  ensureColumn(conn, 'talent_requests', 'solution_summary', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'solution_url', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'completion_note', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'submitted_at', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'created_at', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'updated_at', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_requests', 'completed_at', 'TEXT');
-  ensureColumn(conn, 'talent_request_assignees', 'role', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(conn, 'talent_request_assignees', 'allocation_ratio', 'REAL NOT NULL DEFAULT 1.0');
-  ensureColumn(conn, 'talent_request_assignees', 'assigned_at', "TEXT NOT NULL DEFAULT ''");
-  conn.prepare("UPDATE talent_requests SET submitted_at=COALESCE(NULLIF(submitted_at, ''), NULLIF(created_at, ''), datetime('now')) WHERE submitted_at='' OR submitted_at IS NULL").run();
-  conn.prepare("UPDATE talent_requests SET created_at=COALESCE(NULLIF(created_at, ''), NULLIF(submitted_at, ''), datetime('now')) WHERE created_at='' OR created_at IS NULL").run();
-  conn.prepare("UPDATE talent_requests SET updated_at=COALESCE(NULLIF(updated_at, ''), NULLIF(submitted_at, ''), datetime('now')) WHERE updated_at='' OR updated_at IS NULL").run();
-}
-
 function withDb<T>(fn: (conn: Database.Database) => T, supplied?: Database.Database): T {
-  const conn = supplied ?? ownWriteDb();
+  let conn: Database.Database;
+  if (supplied) {
+    conn = supplied;
+  } else {
+    try {
+      conn = openWriteDb();
+    } catch (error) {
+      if (process.env.LAB_FEED_DB_READONLY !== '0') {
+        throw new TalentOfficeError('database writes are disabled by LAB_FEED_DB_READONLY=1', 503);
+      }
+      throw error;
+    }
+  }
   try {
-    ensureTalentOfficeSchema(conn);
     return fn(conn);
   } finally {
     if (!supplied) conn.close();
@@ -167,14 +103,13 @@ export function assignTalentRequest(requestId: number, assignees: AssigneeInput[
   return withDb((db) => {
     const request = getRequestOrThrow(db, requestId);
     if (request.status !== 'accepted' && request.status !== 'changes_requested') throw new TalentOfficeError('request is not ready for assignment', 409);
-    const transaction = db.transaction(() => {
+    withTransaction(db, () => {
       for (const assignee of assignees) requireMember(db, assignee.memberId);
       db.prepare('DELETE FROM talent_request_assignees WHERE request_id=?').run(requestId);
       const stmt = db.prepare('INSERT INTO talent_request_assignees (request_id, member_id, allocation_ratio) VALUES (?, ?, ?)');
       assignees.forEach((a) => stmt.run(requestId, a.memberId, a.ratio));
       db.prepare("UPDATE talent_requests SET status='assigned', updated_at=datetime('now') WHERE id=?").run(requestId);
     });
-    transaction();
   }, conn);
 }
 
@@ -193,7 +128,7 @@ export function completeTalentRequest(requestId: number, note: string, conn?: Da
   const completionNote = note.trim();
   if (!completionNote) throw new TalentOfficeError('completion note is required');
   return withDb((db) => {
-    const transaction = db.transaction(() => {
+    withTransaction(db, () => {
       const request = getRequestOrThrow(db, requestId);
       if (request.status !== 'ready_for_review') throw new TalentOfficeError('request is not ready for completion', 409);
       const assignees = db.prepare('SELECT member_id AS memberId, allocation_ratio AS ratio FROM talent_request_assignees WHERE request_id=? ORDER BY member_id').all(requestId) as AssigneeInput[];
@@ -213,7 +148,6 @@ export function completeTalentRequest(requestId: number, note: string, conn?: Da
       db.prepare("UPDATE talent_requests SET status='completed', completion_note=?, completed_at=datetime('now'), updated_at=datetime('now') WHERE id=?")
         .run(completionNote, requestId);
     });
-    transaction();
     return getTalentRequest(requestId, db);
   }, conn);
 }

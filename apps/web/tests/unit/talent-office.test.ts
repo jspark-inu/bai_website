@@ -6,12 +6,13 @@ import {
   changeTalentRequestState,
   completeTalentRequest,
   createTalentRequest,
-  ensureTalentOfficeSchema,
   getTalentRequest,
   submitTalentSolution,
 } from '@/lib/talent-office';
+import { runMigrations } from '@/lib/db/migrations';
 
 const connections: Database.Database[] = [];
+const originalReadonly = process.env.LAB_FEED_DB_READONLY;
 
 function setup() {
   const db = new Database(':memory:');
@@ -19,9 +20,11 @@ function setup() {
   db.exec(`CREATE TABLE members (
     id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'student',
     status TEXT NOT NULL DEFAULT 'active'
-  ); CREATE TABLE projects (id INTEGER PRIMARY KEY)`);
+  );
+  CREATE TABLE projects (id INTEGER PRIMARY KEY);
+  CREATE TABLE materials (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL, title TEXT NOT NULL)`);
   db.exec("INSERT INTO members (id, name, role, status) VALUES (1, '요청자', 'student', 'active'), (2, '개발자A', 'operator', 'active'), (3, '개발자B', 'operator', 'active')");
-  ensureTalentOfficeSchema(db);
+  runMigrations(db);
   connections.push(db);
   return db;
 }
@@ -36,15 +39,35 @@ function requestReadyForReview(db: Database.Database) {
 
 afterEach(() => {
   connections.splice(0).forEach((db) => db.close());
+  if (originalReadonly === undefined) delete process.env.LAB_FEED_DB_READONLY;
+  else process.env.LAB_FEED_DB_READONLY = originalReadonly;
 });
 
 describe('talent office domain invariants', () => {
+  it('preserves the 503 domain contract when database writes are disabled', () => {
+    process.env.LAB_FEED_DB_READONLY = '1';
+
+    try {
+      createTalentRequest({
+        title: '요청',
+        problem: '시스템 문제',
+        systemScopeReason: '여러 구성원이 반복해서 겪습니다.',
+        requesterId: 1,
+      });
+      throw new Error('expected createTalentRequest to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(TalentOfficeError);
+      expect(error).toMatchObject({ status: 503 });
+    }
+  });
+
   it('upgrades the Flask-first schema without changing existing request identities', () => {
     const db = new Database(':memory:');
     db.pragma('foreign_keys = ON');
     db.exec(`
       CREATE TABLE members (id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'student', status TEXT NOT NULL DEFAULT 'active');
       CREATE TABLE projects (id INTEGER PRIMARY KEY);
+      CREATE TABLE materials (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL, title TEXT NOT NULL);
       CREATE TABLE talent_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT, requester_member_id INTEGER NOT NULL REFERENCES members(id),
         title TEXT NOT NULL, problem TEXT NOT NULL, expected_outcome TEXT NOT NULL, system_scope_reason TEXT NOT NULL,
@@ -57,7 +80,7 @@ describe('talent office domain invariants', () => {
       INSERT INTO members (id, name) VALUES (1, '기존 요청자');
       INSERT INTO talent_requests (id, requester_member_id, title, problem, expected_outcome, system_scope_reason) VALUES (41, 1, '기존 요청', '기존 문제', '기존 결과', '기존 근거');
     `);
-    ensureTalentOfficeSchema(db);
+    runMigrations(db);
     connections.push(db);
 
     const row = db.prepare('SELECT id, title, submitted_at, created_at, completion_note FROM talent_requests WHERE id=41').get();

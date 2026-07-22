@@ -51,11 +51,11 @@
 **Steps:**
 1. production absolute-path 및 readonly 실패 테스트를 먼저 작성한다.
 2. transaction commit/rollback 테스트를 작성한다.
-3. `schema_migrations` ledger와 idempotent migration 테스트를 작성한다.
+3. `schema_migrations` ledger와 idempotent migration 테스트를 작성하고, `migrations.ts`가 Python `SCHEMA`와 `init_schema`의 전체 생성·호환성·timestamp/trigger lifecycle을 canonical owner로 인수한다.
 4. `ensureColumn`과 `ensureWallSchema`를 request path에서 제거한다.
 5. `npm test -- tests/unit/db.test.ts tests/unit/migrations.test.ts`를 통과시킨다.
 
-**Acceptance:** 요청 처리 중 DDL이 실행되지 않고 모든 쓰기가 동일 transaction helper를 사용할 수 있다.
+**Acceptance:** `migrations.ts`가 빈 DB와 기존 partial DB 모두에서 전체 BAI schema를 data loss 없이 구성하며, 요청 처리 중 DDL이 실행되지 않고 모든 쓰기가 동일 transaction helper를 사용할 수 있다.
 
 ### Task 3: 읽기 API 이전
 

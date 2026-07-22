@@ -286,6 +286,10 @@ main() {
   npm test
   npm run build
 
+  # Migrate the verified live database using the newly built release before
+  # either service restarts. Any failure enters the existing rollback trap.
+  LAB_FEED_DB="$live_db_path" LAB_FEED_DB_READONLY=0 npm run migrate
+
   # Both launchd services inherit the same runtime paths and session secret.
   # This prevents Next and Flask from opening different databases after restart.
   launchctl setenv LAB_FEED_DB "$live_db_path"

@@ -224,14 +224,23 @@ jobs:
               core.notice(`Auto-merge is already armed for PR #${pr.number}.`);
               return;
             }
-            const result = await github.graphql(
-              `mutation($pullRequestId: ID!) {
-                enablePullRequestAutoMerge(input: {
-                  pullRequestId: $pullRequestId,
-                  mergeMethod: SQUASH
-                }) { pullRequest { number autoMergeRequest { enabledAt } } }
-              }`,
-              { pullRequestId: pr.node_id },
-            );
-            const enabledAt = result.enablePullRequestAutoMerge.pullRequest.autoMergeRequest.enabledAt;
-            core.notice(`Auto-merge armed for PR #${pr.number} at ${enabledAt}.`);
+            try {
+              const result = await github.graphql(
+                `mutation($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $pullRequestId,
+                    mergeMethod: SQUASH
+                  }) { pullRequest { number autoMergeRequest { enabledAt } } }
+                }`,
+                { pullRequestId: pr.node_id },
+              );
+              const enabledAt = result.enablePullRequestAutoMerge.pullRequest.autoMergeRequest.enabledAt;
+              core.notice(`Auto-merge armed for PR #${pr.number} at ${enabledAt}.`);
+            } catch (error) {
+              // The governance route has already authorized the current head.
+              // Treat auto-merge arming as a best-effort convenience so a
+              // repository setting, transient GraphQL failure, or token-scope
+              // mismatch does not turn an otherwise mergeable approved PR into
+              // a failing required check.
+              core.warning(`PR #${pr.number} is approved for merge, but auto-merge could not be armed: ${error.message}`);
+            }

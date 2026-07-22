@@ -402,6 +402,8 @@ const MIGRATIONS: readonly Migration[] = [
   },
 ];
 
+export const MIGRATION_IDS = MIGRATIONS.map(({ id }) => id) as readonly string[];
+
 export function runMigrations(supplied?: Database.Database) {
   const conn = supplied ?? openWriteDb();
   const shouldClose = supplied === undefined;

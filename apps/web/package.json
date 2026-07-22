@@ -8,8 +8,9 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 5067",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "migrate": "node scripts/run-migrations.mjs",
+    "backup": "node scripts/backup-db.mjs",
     "parity": "node scripts/parity-harness.mjs",
     "design:park": "node scripts/park-pr-design-harness.mjs",
     "harness:talent-office": "node scripts/talent-office-harness.mjs"

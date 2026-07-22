@@ -1,19 +1,20 @@
 ---
 title: BAI Next 단일 런타임 전환 handoff
 status: active
-updated_at: 2026-07-22T23:34:14+09:00
+updated_at: 2026-07-23T00:10:53+09:00
 project: bai_website
 workspace: /Users/hai_1/AI-Workspace/code/projects/dev/bai_website
 branch: main
 baseline_head: 3266d80
 implementation_commit: 4728452
-current_phase: Task 7 완료 / Task 8 준비
+current_head: 4ec81a9
+current_phase: Task 8 완료 / Task 9 운영 승인 대기
 canonical: true
 ---
 
 # BAI Next 단일 런타임 전환 handoff
 
-> 이 문서는 Task 7 이후 남은 Task 8–9를 새 Hermes 세션들이 연속 수행하기 위한 canonical handoff다. 구현 전 반드시 live repository 상태를 다시 확인하며, 이 문서의 수치와 경로를 현재 상태보다 우선하지 않는다.
+> 이 문서는 Task 8까지의 구현·검증 결과와 사용자 승인 뒤에만 수행할 Task 9 운영 cutover를 잇는 canonical handoff다. 구현 전 반드시 live repository 상태를 다시 확인하며, 이 문서의 수치와 경로를 현재 상태보다 우선하지 않는다.
 
 ## 1. 최종 목표
 
@@ -34,19 +35,20 @@ Flask/Python과 Next가 함께 요청을 처리하는 현재 구조를 Next.js �
 
 ## 2. 현재 live handoff 기준선
 
-2026-07-22 23:34 KST 기준:
+2026-07-23 00:10 KST 기준:
 
 - Branch: `main`
 - Task 6–7 시작 Baseline HEAD: `3266d80`
 - Task 6–7 implementation commit: `4728452`
-- Working tree: clean
-- Task 1–7: 완료
-- Task 8–9: 미완료
+- Task 8 작업 시작 HEAD: `4ec81a9` (`4728452`의 직계 후속 handoff commit)
+- Working tree: Task 8 구현과 이 handoff 갱신이 의도적으로 uncommitted 상태
+- Task 1–8: 완료
+- Task 9: 미완료, 운영 실행 승인 대기
 - Push, deploy, production 변경: 수행하지 않음
 
 ### Working tree 보호 규칙
 
-Task 6–7 구현은 `4728452`에 커밋되어 있다. 다음 세션은 시작 시 이 커밋과 clean working tree를 확인하고, 이후 발견되는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
+Task 6–7 구현은 `4728452`에 커밋되어 있다. Task 8은 사용자 지시에 따라 commit하지 않았으므로 현재 working tree diff 자체가 인계 대상이다. 다음 세션은 `4ec81a9`와 Task 8 diff를 먼저 확인하고, 이 문서에 없는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
 
 금지:
 
@@ -107,7 +109,7 @@ Task 6에서 완료된 범위:
 | Task | 목적 | 운영 영향 | 권장 세션 |
 |---|---|---:|---|
 | 7 | Next 인증·세션 전환 | 코드/테스트만, 배포 금지 | 독립 세션 1개 이상 |
-| 8 | Flask proxy·Python runtime 제거 | 저장소·배포 구조 변경, live 중단 금지 | Task 7 이후 새 세션 |
+| 8 | Flask proxy·Python runtime 제거 | 완료, uncommitted; live 변경 없음 | 완료 |
 | 9 | 운영 cutover·rollback 검증 | 실제 운영 영향 있음 | 별도 세션, 명시적 사용자 승인 필수 |
 
 각 task는 fresh specification review와 fresh security/quality review가 모두 통과해야 종료한다. Reviewer의 PASS는 부모 세션이 핵심 artifact와 실행 결과를 재검증한다.
@@ -326,6 +328,47 @@ Open risks와 다음 단계 경계:
 - Archive 확인 전 `backend/`, `frontend/`를 삭제하지 않는다.
 - Task 8 완료를 Task 9 cutover 완료로 표현하지 않는다.
 
+## 11.1 Task 8 완료 상태
+
+2026-07-23 00:10 KST 기준 Task 8 구현과 두 차례 fresh review를 종료했다.
+
+완료 범위:
+
+- Flask route manifest의 모든 method/path를 실제 `route.ts` export와 비교해 explicit Next coverage 100%를 증명
+- Catch-all `/api/[...path]`, `legacy-api-proxy.ts`, `BAI_API_ORIGIN`, production port 5066 의존성 제거
+- 기존 Flask `/api/healthz` 응답 계약을 보존하는 explicit Next health route 추가
+- `/api/runtime-health`를 Flask fetch 없이 DB quick/foreign-key check, migration ledger, uploads 읽기·쓰기 권한, 실제 경로 fingerprint 검증으로 전환
+- SQLite online backup, source/destination integrity, core schema, foreign keys, fsync, atomic publication, overwrite 방지, retention을 수행하는 Node backup CLI 추가
+- 배포 경로에서 backend/frontend rsync, Python backup/runtime, Flask restart/health/rollback을 제거하고 Next만 snapshot·sync·migrate·restart하도록 변경
+- live web target이 `/`, source-overlap, symlink인 경우 destructive rsync 전에 fail-closed하도록 보강
+- 예시 secret `change-me-*`가 길이 검사만 통과하지 못하도록 앱과 배포기 모두 fail-closed
+- Flask launch agent 비활성화·복구 및 Python backup agent 재배선 경계를 README에 문서화
+- `backend/`, `frontend/`는 oracle/design/Task 9 rollback source로 그대로 보존
+
+최종 검증:
+
+- Frontend full suite: 33 files, 350/350
+- Backend Flask oracle: 281 passed + 2 subtests
+- TypeScript (`next typegen && tsc --noEmit`): PASS
+- Next production build: PASS, explicit `/api/healthz` 포함, catch-all API route 없음
+- Static parity harness: 6/6
+- Talent-office harness: 5/5, focused contracts 55/55
+- Node verified-backup tests: 4/4 (open WAL, unrelated DB, foreign-key violation, existing backup overwrite 방지)
+- Next-only deploy preservation/hermetic tests: 15/15; shell syntax: PASS
+- Flask 없는 격리 Next HTTP smoke: health 200, unknown API 404, login/me/feed 200, Goodbai 201, upload 200, runtime-health 200, migration ledger 5/5
+- Production entry/source static scan: Flask proxy/origin/port 5066/Python invocation 0
+- `git diff --check`: PASS
+- Fresh specification review: PASS
+- Fresh deployment/security review: PASS after placeholder-secret bypass and broad/symlink deploy target findings were fixed and reverified
+- Critical/high/important unresolved finding: 0
+
+Open risks와 Task 9 경계:
+
+- 이 상태는 repository/deploy-path 준비 완료이지 live cutover 완료가 아니다. `005_auth_sessions`를 포함한 migration, 서비스 재시작, Flask 중단, backup agent 재배선은 수행하지 않았다.
+- `npm run design:park`는 Task 8 변경 전부터 남아 있던 승인 CSS 배경값·asset-version 기대치 drift로 7/9였다. Task 8 acceptance 범위와 변경 파일에서 유입된 회귀는 아니며, Task 9 UI/browser preflight 전에 별도 정합화가 필요하다.
+- CI의 Python backend suite와 `backend/`, `frontend/`는 production runtime이 아니라 rollback/contract oracle로 의도적으로 남아 있다. 운영 관찰과 archive completeness 확인 뒤에만 별도 승인으로 archive 또는 삭제한다.
+- 사용자 승인 없는 commit, push, deploy, production DB/uploads/service/launch-agent 변경은 계속 금지된다.
+
 ---
 
 # Task 9 — 운영 cutover와 최종 검증
@@ -456,4 +499,4 @@ Rollback은 코드뿐 아니라 DB migration compatibility, launch agent, port o
 
 다음 문장을 새 세션에 전달한다.
 
-> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration을 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 live git status, Task 6–7 implementation commit `4728452`, clean working tree를 검증하라. 예상치 못한 변경이 있으면 사용자 작업으로 간주해 보존하라. 현재 phase인 Task 8만 구현·검증하되, 문서의 Task 8 acceptance와 review loop를 모두 통과할 때까지 계속하라. 사용자 승인 없이 commit, push, deploy, production DB/uploads/service/launch-agent 변경을 하지 마라. Task 8 완료 후 이 handoff를 갱신하고 멈춰라.
+> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration의 Task 9 preflight만 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 live git status, `4728452`, Task 8 시작 HEAD `4ec81a9`, uncommitted Task 8 diff를 보존·검증하라. 사용자에게 운영 cutover 실행 승인이 명시되지 않았다면 read-only inspection과 rehearsal을 넘지 말고 commit, push, deploy, production DB/uploads/service/launch-agent를 변경하지 마라. 승인된 경우에도 Task 9 preflight와 rollback gate를 모두 통과한 뒤에만 운영 side effect를 수행하라.

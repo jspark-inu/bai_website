@@ -1,7 +1,6 @@
 import importlib.util
 import os
 from pathlib import Path
-import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -161,77 +160,33 @@ class DeployPreservationTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def _preserve_args(self):
-        command = (
-            f"source {shlex.quote(str(DEPLOY_SCRIPT))}; "
-            "printf '%s\\n' \"${BACKEND_STATIC_PRESERVE_ARGS[@]}\""
-        )
-        result = subprocess.run(
-            ["bash", "-c", command], check=True, text=True, capture_output=True
-        )
-        return result.stdout.splitlines()
-
     def _write_executable(self, directory, name, body):
         path = directory / name
         path.write_text("#!/usr/bin/env bash\nset -eu\n" + body, encoding="utf-8")
         path.chmod(0o755)
         return path
 
-    @unittest.skipUnless(shutil.which("rsync"), "rsync is required for preservation test")
-    def test_backend_rsync_filters_preserve_uploads_and_all_sqlite_sidecars(self):
-        source = self.root / "source"
-        live = self.root / "live"
-        source.mkdir()
-        live.mkdir()
-        (source / "app.py").write_text("new backend", encoding="utf-8")
-        (live / "obsolete.py").write_text("delete me", encoding="utf-8")
-        protected = {
-            "lab-feed.db": b"database",
-            "lab-feed.db-journal": b"journal",
-            "lab-feed.db-wal": b"wal",
-            "lab-feed.db-shm": b"shm",
-            "other.sqlite-journal": b"sqlite journal",
-            "other.sqlite-wal": b"sqlite wal",
-            "other.sqlite3-shm": b"sqlite3 shm",
-        }
-        for name, data in protected.items():
-            (live / name).write_bytes(data)
-        upload = live / "uploads" / "materials" / "evidence.pdf"
-        upload.parent.mkdir(parents=True)
-        upload.write_bytes(b"existing attachment")
-
-        subprocess.run(
-            ["rsync", "-a", "--delete", *self._preserve_args(), f"{source}/", f"{live}/"],
-            check=True,
-        )
-
-        self.assertEqual((live / "app.py").read_text(encoding="utf-8"), "new backend")
-        self.assertFalse((live / "obsolete.py").exists())
-        self.assertEqual(upload.read_bytes(), b"existing attachment")
-        for name, data in protected.items():
-            self.assertEqual((live / name).read_bytes(), data)
-
     def test_deploy_fails_before_build_or_sync_when_live_db_is_missing(self):
         repo = self.root / "repo"
         (repo / "apps" / "web").mkdir(parents=True)
         (repo / "scripts").mkdir()
-        live_backend = self.root / "live-backend"
-        live_backend.mkdir()
-        marker = live_backend / "must-remain.txt"
+        live_data = self.root / "live-data"
+        live_data.mkdir()
+        marker = live_data / "must-remain.txt"
         marker.write_text("untouched", encoding="utf-8")
         env = os.environ.copy()
         env.update(
             {
                 "BAI_WEBSITE_REPO": str(repo),
-                "BAI_LIVE_BACKEND_DIR": str(live_backend),
                 "BAI_LIVE_WEB_DIR": str(self.root / "live-web"),
-                "LAB_FEED_DB": str(live_backend / "lab-feed.db"),
+                "LAB_FEED_DB": str(live_data / "lab-feed.db"),
                 "BAI_LIVE_BACKUP_DIR": str(self.root / "backups"),
                 "BAI_ROLLBACK_DIR": str(self.root / "rollbacks"),
-                "BAI_UPLOAD_DIR": str(live_backend / "uploads"),
+                "BAI_UPLOAD_DIR": str(live_data / "uploads"),
                 "LAB_FEED_SECRET": "s" * 32,
                 "LAB_FEED_COOKIE_SECURE": "1",
-                "BAI_API_ORIGIN": "http://127.0.0.1:5066",
+                "BAI_HEALTH_ATTEMPTS": "1",
+                "BAI_HEALTH_DELAY_SECONDS": "0",
             }
         )
         result = subprocess.run(
@@ -245,23 +200,21 @@ class DeployPreservationTests(unittest.TestCase):
     def test_deploy_refuses_missing_session_secret_before_live_mutation(self):
         repo = self.root / "repo-no-secret"
         (repo / "apps" / "web").mkdir(parents=True)
-        live_backend = self.root / "live-backend-no-secret"
-        live_backend.mkdir()
-        db_path = live_backend / "lab-feed.db"
+        live_data = self.root / "live-data-no-secret"
+        live_data.mkdir()
+        db_path = live_data / "lab-feed.db"
         db_path.write_bytes(b"must remain untouched")
         env = os.environ.copy()
         env.pop("LAB_FEED_SECRET", None)
         env.update(
             {
                 "BAI_WEBSITE_REPO": str(repo),
-                "BAI_LIVE_BACKEND_DIR": str(live_backend),
                 "BAI_LIVE_WEB_DIR": str(self.root / "live-web-no-secret"),
                 "LAB_FEED_DB": str(db_path),
                 "BAI_LIVE_BACKUP_DIR": str(self.root / "backups-no-secret"),
                 "BAI_ROLLBACK_DIR": str(self.root / "rollbacks-no-secret"),
-                "BAI_UPLOAD_DIR": str(live_backend / "uploads"),
+                "BAI_UPLOAD_DIR": str(live_data / "uploads"),
                 "LAB_FEED_COOKIE_SECURE": "1",
-                "BAI_API_ORIGIN": "http://127.0.0.1:5066",
                 "BAI_RUNTIME_ENV_FILE": str(self.root / "missing-runtime.env"),
             }
         )
@@ -278,23 +231,21 @@ class DeployPreservationTests(unittest.TestCase):
         repo = self.root / "repo-override"
         (repo / "apps" / "web").mkdir(parents=True)
         (repo / "scripts").mkdir()
-        live_backend = self.root / "live-backend-override"
-        upload = live_backend / "uploads" / "materials" / "existing.pdf"
+        live_data = self.root / "live-data-override"
+        upload = live_data / "uploads" / "materials" / "existing.pdf"
         upload.parent.mkdir(parents=True)
         upload.write_bytes(b"must survive")
         env = os.environ.copy()
         env.update(
             {
                 "BAI_WEBSITE_REPO": str(repo),
-                "BAI_LIVE_BACKEND_DIR": str(live_backend),
                 "BAI_LIVE_WEB_DIR": str(self.root / "live-web-override"),
-                "LAB_FEED_DB": str(live_backend / "lab-feed.db"),
+                "LAB_FEED_DB": str(live_data / "lab-feed.db"),
                 "BAI_LIVE_BACKUP_DIR": str(self.root / "backups-override"),
                 "BAI_ROLLBACK_DIR": str(self.root / "rollbacks-override"),
-                "BAI_UPLOAD_DIR": str(live_backend / "uploads"),
+                "BAI_UPLOAD_DIR": str(live_data / "uploads"),
                 "LAB_FEED_SECRET": "s" * 32,
                 "LAB_FEED_COOKIE_SECURE": "1",
-                "BAI_API_ORIGIN": "http://127.0.0.1:5066",
                 "BAI_ALLOW_MISSING_LIVE_DB_FOR_INITIAL_INSTALL": (
                     "I_UNDERSTAND_THIS_CREATES_A_NEW_EMPTY_BAI_DATABASE"
                 ),
@@ -309,44 +260,42 @@ class DeployPreservationTests(unittest.TestCase):
         self.assertFalse((self.root / "live-web-override").exists())
 
     @unittest.skipUnless(shutil.which("rsync"), "rsync is required for preservation test")
-    def test_web_sync_preserves_configured_upload_directory_below_web_root(self):
+    def test_next_only_web_sync_preserves_data_and_never_mutates_legacy_sources(self):
         repo = self.root / "repo-web-upload"
-        for relative in ("apps/web", "backend", "frontend", "scripts"):
+        for relative in ("apps/web", "scripts"):
             (repo / relative).mkdir(parents=True, exist_ok=True)
         (repo / "apps/web" / "page.tsx").write_text("new web", encoding="utf-8")
-        (repo / "backend" / "app.py").write_text("new backend", encoding="utf-8")
-        (repo / "frontend" / "krds.js").write_text("new frontend", encoding="utf-8")
 
         live_web = self.root / "live-web"
-        live_backend = self.root / "live-backend"
         upload = live_web / "runtime-uploads" / "materials" / "existing.pdf"
         upload.parent.mkdir(parents=True)
         upload.write_bytes(b"must survive web rsync")
         (live_web / ".env.local").write_text("PRESERVE=1", encoding="utf-8")
         (live_web / "obsolete.txt").write_text("delete", encoding="utf-8")
+        live_data = self.root / "live-data"
+        live_data.mkdir()
+        (live_data / "lab-feed.db").write_bytes(b"backup stub fixture")
+        live_backend = self.root / "legacy-backend"
         live_backend.mkdir()
-        (live_backend / "lab-feed.db").write_bytes(b"backup stub fixture")
-        live_frontend = live_backend.parent / "frontend"
+        (live_backend / "app.py").write_text("preserved backend", encoding="utf-8")
+        live_frontend = self.root / "legacy-frontend"
         live_frontend.mkdir()
-        (live_frontend / "krds.js").write_text("old frontend", encoding="utf-8")
+        (live_frontend / "krds.js").write_text("preserved frontend", encoding="utf-8")
 
         stubs = self.root / "stubs"
         stubs.mkdir()
         self._write_executable(stubs, "npm", "exit 0\n")
         self._write_executable(stubs, "launchctl", "exit 0\n")
         self._write_executable(stubs, "git", "printf 'deadbee\\n'\n")
-        backup_python = self._write_executable(stubs, "backup-python", "exit 0\n")
         self._write_executable(
             stubs,
             "curl",
             """
 case "$*" in
-  *127.0.0.1:5066/healthz*) printf '200' ;;
   *127.0.0.1:5067/login*) printf '200' ;;
   *127.0.0.1:5067/api/healthz*) printf '200' ;;
   *127.0.0.1:5067/api/me*) printf '401' ;;
   *127.0.0.1:5067/api/runtime-health*) printf '200' ;;
-  *127.0.0.1:5066/api/wall*) printf '401' ;;
 esac
 exit 0
 """,
@@ -358,15 +307,12 @@ exit 0
                 "PATH": str(stubs) + os.pathsep + env.get("PATH", ""),
                 "BAI_WEBSITE_REPO": str(repo),
                 "BAI_LIVE_WEB_DIR": str(live_web),
-                "BAI_LIVE_BACKEND_DIR": str(live_backend),
-                "LAB_FEED_DB": str(live_backend / "lab-feed.db"),
+                "LAB_FEED_DB": str(live_data / "lab-feed.db"),
                 "BAI_LIVE_BACKUP_DIR": str(self.root / "backups"),
                 "BAI_ROLLBACK_DIR": str(self.root / "rollbacks"),
                 "BAI_UPLOAD_DIR": str(live_web / "runtime-uploads"),
-                "BAI_BACKUP_PYTHON": str(backup_python),
                 "LAB_FEED_SECRET": "s" * 32,
                 "LAB_FEED_COOKIE_SECURE": "1",
-                "BAI_API_ORIGIN": "http://127.0.0.1:5066",
             }
         )
         subprocess.run(["bash", str(DEPLOY_SCRIPT)], env=env, check=True)
@@ -375,25 +321,21 @@ exit 0
         self.assertEqual((live_web / ".env.local").read_text(), "PRESERVE=1")
         self.assertFalse((live_web / "obsolete.txt").exists())
         self.assertEqual((live_web / "page.tsx").read_text(), "new web")
-        self.assertEqual((live_backend / "app.py").read_text(), "new backend")
-        self.assertEqual((live_frontend / "krds.js").read_text(), "new frontend")
+        self.assertEqual((live_backend / "app.py").read_text(), "preserved backend")
+        self.assertEqual((live_frontend / "krds.js").read_text(), "preserved frontend")
 
         # A later release that fails its runtime health check must restore the
         # preceding code while leaving data/config untouched.
         (repo / "apps/web" / "page.tsx").write_text("bad web", encoding="utf-8")
-        (repo / "backend" / "app.py").write_text("bad backend", encoding="utf-8")
-        (repo / "frontend" / "krds.js").write_text("bad frontend", encoding="utf-8")
         self._write_executable(
             stubs,
             "curl",
             """
 case "$*" in
-  *127.0.0.1:5066/healthz*) printf '200' ;;
   *127.0.0.1:5067/login*) printf '200' ;;
   *127.0.0.1:5067/api/healthz*) printf '200' ;;
   *127.0.0.1:5067/api/me*) printf '401' ;;
   *127.0.0.1:5067/api/runtime-health*) exit 22 ;;
-  *127.0.0.1:5066/api/wall*) printf '401' ;;
 esac
 exit 0
 """,
@@ -404,39 +346,46 @@ exit 0
         self.assertNotEqual(failed.returncode, 0)
         self.assertIn("restoring previous code", failed.stderr)
         self.assertEqual((live_web / "page.tsx").read_text(), "new web")
-        self.assertEqual((live_backend / "app.py").read_text(), "new backend")
-        self.assertEqual((live_frontend / "krds.js").read_text(), "new frontend")
+        self.assertEqual((live_backend / "app.py").read_text(), "preserved backend")
+        self.assertEqual((live_frontend / "krds.js").read_text(), "preserved frontend")
         self.assertEqual(upload.read_bytes(), b"must survive web rsync")
         self.assertEqual((live_web / ".env.local").read_text(), "PRESERVE=1")
 
     def test_backup_gate_runs_after_checks_and_before_first_live_sync(self):
         source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-        backup_call = source.index('"$repo_dir/scripts/backup_db.py"')
+        backup_call = source.index("npm run backup")
         first_build = source.index("npm ci")
         first_rsync = source.index("rsync -a --checksum --delete")
         self.assertLess(first_build, backup_call)
         self.assertLess(backup_call, first_rsync)
         self.assertIn("I_UNDERSTAND_THIS_CREATES_A_NEW_EMPTY_BAI_DATABASE", source)
-        self.assertIn('"$api_origin/healthz"', source)
         self.assertIn('"$next_origin/api/healthz"', source)
         self.assertIn('"$next_origin/api/me"', source)
         self.assertIn('"$next_origin/api/runtime-health"', source)
         self.assertIn("Deployment failed; restoring previous code", source)
-        backend_restart = source.rindex(
-            'launchctl kickstart -k "gui/$(id -u)/${backend_launchd_label}"'
-        )
-        backend_ready = source.index(
-            'wait_http_status "$api_origin/healthz" "200"', backend_restart
-        )
-        next_restart = source.index(
-            'launchctl kickstart -k "gui/$(id -u)/${launchd_label}"', backend_ready
-        )
-        self.assertLess(backend_restart, backend_ready)
-        self.assertLess(backend_ready, next_restart)
+        self.assertNotIn("backend_launchd_label", source)
+        self.assertNotIn("BAI_API_ORIGIN", source)
+        self.assertNotIn("5066", source)
+        self.assertNotIn("backup_db.py", source)
+
+    def test_deploy_script_has_no_python_or_legacy_source_sync(self):
+        source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn("python_bin", source)
+        self.assertNotIn("BAI_BACKUP_PYTHON", source)
+        self.assertNotIn("backup_db.py", source)
+        self.assertNotIn('"$repo_dir/backend/"', source)
+        self.assertNotIn('"$repo_dir/frontend/"', source)
+        self.assertNotIn("com.user.baifeed", source)
+
+    def test_deploy_rejects_broad_or_source_overlapping_live_targets(self):
+        source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('/|"$repo_dir"|"$repo_dir/"*)', source)
+        self.assertIn('live web directory cannot be a symlink', source)
+        self.assertIn('dev|dev-insecure-secret|change-me-*)', source)
 
     def test_migration_runs_after_live_build_and_backup_before_any_restart(self):
         source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
-        backup_call = source.index('"$repo_dir/scripts/backup_db.py"')
+        backup_call = source.index("npm run backup")
         live_build = source.index("npm run build", source.index('cd "$live_web_dir"'))
         migration = source.index(
             'LAB_FEED_DB="$live_db_path" LAB_FEED_DB_READONLY=0 npm run migrate'

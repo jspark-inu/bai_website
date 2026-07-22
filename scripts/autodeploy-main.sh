@@ -18,7 +18,7 @@ FAILED_HEAD_FILE="$STATE_DIR/bai_website-main.failed.head"
 mkdir -p "$LOG_DIR"
 exec >>"$LOG_DIR/autodeploy.log" 2>&1
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] autodeploy check"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Next-only autodeploy check"
 
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "Another deploy is already running."

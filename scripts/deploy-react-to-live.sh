@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# These filters protect live data even while rsync runs with --delete. Keep the
-# broad sidecar patterns: SQLite rollback journals and WAL/SHM files are part of
-# the live database and must never be removed independently of the main file.
+# Protect runtime state even when the Next release is synchronized with
+# --delete. SQLite sidecars, uploads, environment files, and build caches are
+# never release artifacts.
 WEB_STATIC_PRESERVE_ARGS=(
   --exclude 'node_modules/'
   --exclude '.next/'
@@ -17,28 +17,6 @@ WEB_STATIC_PRESERVE_ARGS=(
   --exclude '*.sqlite3-*'
   --exclude '*.tsbuildinfo'
 )
-BACKEND_STATIC_PRESERVE_ARGS=(
-  --exclude 'venv/'
-  --exclude 'backups/'
-  --exclude 'uploads/'
-  --exclude '.env'
-  --exclude '.env.*'
-  --exclude '*.db'
-  --exclude '*.db-*'
-  --exclude '*.db-journal'
-  --exclude '*.db-wal'
-  --exclude '*.db-shm'
-  --exclude '*.sqlite'
-  --exclude '*.sqlite-*'
-  --exclude '*.sqlite-journal'
-  --exclude '*.sqlite-wal'
-  --exclude '*.sqlite-shm'
-  --exclude '*.sqlite3'
-  --exclude '*.sqlite3-*'
-  --exclude '*.sqlite3-journal'
-  --exclude '*.sqlite3-wal'
-  --exclude '*.sqlite3-shm'
-)
 
 die() {
   echo "ERROR: $*" >&2
@@ -49,9 +27,13 @@ wait_http_status() {
   local url="$1"
   local expected_status="$2"
   local actual_status response_body response_file
-  local attempt
+  local attempt attempts delay_seconds
+  attempts="${BAI_HEALTH_ATTEMPTS:-30}"
+  delay_seconds="${BAI_HEALTH_DELAY_SECONDS:-2}"
+  [[ "$attempts" =~ ^[1-9][0-9]*$ ]] || die "BAI_HEALTH_ATTEMPTS must be a positive integer"
+  [[ "$delay_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "BAI_HEALTH_DELAY_SECONDS must be non-negative"
   response_file="$(mktemp)"
-  for attempt in $(seq 1 30); do
+  for attempt in $(seq 1 "$attempts"); do
     if actual_status="$(curl -sS -o "$response_file" -w '%{http_code}' "$url")"; then
       if [[ "$actual_status" == "$expected_status" ]]; then
         rm -f "$response_file"
@@ -60,7 +42,7 @@ wait_http_status() {
     else
       actual_status="curl-failed"
     fi
-    sleep 2
+    sleep "$delay_seconds"
   done
   response_body="$(<"$response_file")"
   rm -f "$response_file"
@@ -68,31 +50,33 @@ wait_http_status() {
   return 1
 }
 
+path_fingerprint() {
+  node -e 'const crypto=require("node:crypto"),path=require("node:path");process.stdout.write(crypto.createHash("sha256").update(path.resolve(process.argv[1])).digest("hex"))' "$1"
+}
+
 main() {
-  local repo_dir live_web_dir launchd_label live_backend_dir backend_launchd_label
-  local live_db_path live_backup_dir live_upload_dir python_bin initial_install_override
-  local live_db_basename live_backup_relative live_upload_relative backend_wall_status
-  local web_db_relative web_backup_relative web_upload_relative proxy_health_status
-  local proxy_me_status runtime_db_fingerprint runtime_upload_fingerprint
-  local live_frontend_dir rollback_root rollback_snapshot rollback_build_status
-  local runtime_env_file api_origin next_origin required_name runtime_health_url
+  local repo_dir live_web_dir launchd_label live_db_path live_backup_dir live_upload_dir
+  local rollback_root rollback_snapshot rollback_build_status runtime_env_file
+  local next_origin required_name runtime_health_url initial_install_override
+  local web_db_relative web_backup_relative web_upload_relative
+  local runtime_db_fingerprint runtime_upload_fingerprint db_parent
   local rollback_armed=0
   local initial_install=0
-  local -a web_preserve_args backend_preserve_args
+  local -a web_preserve_args
 
   runtime_env_file="${BAI_RUNTIME_ENV_FILE:-/Users/hai_1/AI-Workspace/code/runtime/config/bai-website.env}"
   if [[ -e "$runtime_env_file" || -L "$runtime_env_file" ]]; then
     [[ -f "$runtime_env_file" && -r "$runtime_env_file" && ! -L "$runtime_env_file" ]] || \
       die "BAI runtime env must be a readable regular file, not a symlink: $runtime_env_file"
     if [[ -z "${LAB_FEED_DB:-}" || -z "${BAI_UPLOAD_DIR:-}" || -z "${BAI_LIVE_BACKUP_DIR:-}" || \
-      -z "${BAI_ROLLBACK_DIR:-}" || -z "${LAB_FEED_SECRET:-}" || -z "${BAI_API_ORIGIN:-}" ]]; then
+      -z "${BAI_ROLLBACK_DIR:-}" || -z "${LAB_FEED_SECRET:-}" ]]; then
       set -a
       # shellcheck disable=SC1090
       source "$runtime_env_file"
       set +a
     fi
   fi
-  for required_name in LAB_FEED_DB BAI_UPLOAD_DIR BAI_LIVE_BACKUP_DIR BAI_ROLLBACK_DIR LAB_FEED_SECRET BAI_API_ORIGIN; do
+  for required_name in LAB_FEED_DB BAI_UPLOAD_DIR BAI_LIVE_BACKUP_DIR BAI_ROLLBACK_DIR LAB_FEED_SECRET; do
     [[ -n "${!required_name:-}" ]] || die \
       "$required_name must be explicit in BAI_RUNTIME_ENV_FILE or the deploy environment"
   done
@@ -100,7 +84,7 @@ main() {
     die "LAB_FEED_SECRET must contain at least 32 characters"
   fi
   case "$LAB_FEED_SECRET" in
-    dev|dev-insecure-secret|change-me-generate-with-python-secrets)
+    dev|dev-insecure-secret|change-me-*)
       die "LAB_FEED_SECRET is still a public development placeholder" ;;
   esac
   case "${LAB_FEED_COOKIE_SECURE:-}" in
@@ -111,70 +95,45 @@ main() {
   repo_dir="${BAI_WEBSITE_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
   live_web_dir="${BAI_LIVE_WEB_DIR:-/Users/hai_1/AI-Workspace/code/projects/dev/1C38-lab-feed/apps/web}"
   launchd_label="${BAI_NEXT_LAUNCHD_LABEL:-com.user.bai-next}"
-  live_backend_dir="${BAI_LIVE_BACKEND_DIR:-/Users/hai_1/AI-Workspace/code/projects/dev/1C38-lab-feed/backend}"
-  live_frontend_dir="$(dirname "$live_backend_dir")/frontend"
-  backend_launchd_label="${BAI_BACKEND_LAUNCHD_LABEL:-com.user.baifeed}"
-  live_db_path="${LAB_FEED_DB:-$live_backend_dir/lab-feed.db}"
-  live_backup_dir="${BAI_LIVE_BACKUP_DIR:-/Users/hai_1/AI-Workspace/code/runtime/backups/bai_website}"
-  live_upload_dir="${BAI_UPLOAD_DIR:-$live_backend_dir/uploads}"
-  python_bin="${BAI_BACKUP_PYTHON:-python3}"
-  rollback_root="${BAI_ROLLBACK_DIR:-/Users/hai_1/AI-Workspace/code/runtime/rollbacks/bai_website}"
-  api_origin="${BAI_API_ORIGIN%/}"
+  live_db_path="$LAB_FEED_DB"
+  live_backup_dir="$BAI_LIVE_BACKUP_DIR"
+  live_upload_dir="$BAI_UPLOAD_DIR"
+  rollback_root="$BAI_ROLLBACK_DIR"
   next_origin="${BAI_NEXT_ORIGIN:-http://127.0.0.1:5067}"
   initial_install_override="${BAI_ALLOW_MISSING_LIVE_DB_FOR_INITIAL_INSTALL:-}"
 
-  case "$api_origin" in
-    http://127.0.0.1:*|http://localhost:*) ;;
-    *) die "BAI_API_ORIGIN must use the local Flask service: $api_origin" ;;
-  esac
   case "$next_origin" in
     http://127.0.0.1:*|http://localhost:*) ;;
     *) die "BAI_NEXT_ORIGIN must use the local Next service: $next_origin" ;;
   esac
-
-  case "$live_db_path" in
-    /*) ;;
-    *) die "LAB_FEED_DB must be an absolute path: $live_db_path" ;;
-  esac
+  for required_name in live_db_path live_web_dir live_backup_dir live_upload_dir rollback_root; do
+    case "${!required_name}" in
+      /*) ;;
+      *) die "$required_name must be an absolute path: ${!required_name}" ;;
+    esac
+  done
   case "$live_web_dir" in
-    /*) ;;
-    *) die "BAI_LIVE_WEB_DIR must be an absolute path: $live_web_dir" ;;
+    /|"$repo_dir"|"$repo_dir/"*)
+      die "BAI_LIVE_WEB_DIR must not be a broad or source-overlapping path: $live_web_dir" ;;
   esac
-  case "$live_backend_dir" in
-    /*) ;;
-    *) die "BAI_LIVE_BACKEND_DIR must be an absolute path: $live_backend_dir" ;;
-  esac
-  case "$live_backup_dir" in
-    /*) ;;
-    *) die "BAI_LIVE_BACKUP_DIR must be an absolute path: $live_backup_dir" ;;
-  esac
-  case "$live_upload_dir" in
-    /*) ;;
-    *) die "BAI_UPLOAD_DIR must be an absolute path: $live_upload_dir" ;;
-  esac
-  case "$rollback_root" in
-    /*) ;;
-    *) die "BAI_ROLLBACK_DIR must be an absolute path: $rollback_root" ;;
-  esac
+  if [[ -L "$live_web_dir" ]]; then
+    die "live web directory cannot be a symlink: $live_web_dir"
+  fi
   if [[ "$live_upload_dir" == "$live_web_dir" || "$live_backup_dir" == "$live_web_dir" ]]; then
     die "runtime upload/backup directories cannot equal BAI_LIVE_WEB_DIR"
   fi
-  if [[ "$live_upload_dir" == "$live_backend_dir" || "$live_backup_dir" == "$live_backend_dir" ]]; then
-    die "runtime upload/backup directories cannot equal BAI_LIVE_BACKEND_DIR"
-  fi
 
-  # Fail closed before build or rsync. The override is intentionally verbose
-  # and only permits a truly empty initial installation; this script itself
-  # never creates a database.
+  # Fail closed before dependency installation, build, backup, or live sync.
   if [[ -f "$live_db_path" ]]; then
     :
   elif [[ "$initial_install_override" == "I_UNDERSTAND_THIS_CREATES_A_NEW_EMPTY_BAI_DATABASE" ]]; then
     if [[ -e "$live_db_path" || -L "$live_db_path" ]]; then
       die "initial-install override refused because the DB path exists but is not a regular file: $live_db_path"
     fi
-    if [[ -d "$live_backend_dir" ]] && find "$live_backend_dir" -maxdepth 1 -type f \
+    db_parent="$(dirname "$live_db_path")"
+    if [[ -d "$db_parent" ]] && find "$db_parent" -maxdepth 1 -type f \
       \( -name '*.db*' -o -name '*.sqlite*' -o -name '*.sqlite3*' \) -print -quit | grep -q .; then
-      die "initial-install override refused because another SQLite database exists in $live_backend_dir"
+      die "initial-install override refused because another SQLite database exists beside $live_db_path"
     fi
     if [[ -d "$live_upload_dir" ]] && find "$live_upload_dir" -type f -print -quit | grep -q .; then
       die "initial-install override refused because existing uploads indicate this is not an empty installation"
@@ -191,13 +150,11 @@ main() {
   npm test
   npm run build
 
-  # Recheck and snapshot immediately before the first live-directory mutation.
-  # backup_db.py performs source quick_check, online backup, destination
-  # integrity_check, fsync, and atomic publication; any failure stops deploy.
+  # The Node backup command performs source quick_check, foreign-key/schema
+  # validation, SQLite online backup, destination integrity_check, fsync, and
+  # atomic publication before any live code changes.
   if [[ "$initial_install" -eq 0 ]]; then
-    "$python_bin" "$repo_dir/scripts/backup_db.py" \
-      --db "$live_db_path" \
-      --backup-dir "$live_backup_dir"
+    npm run backup -- --db "$live_db_path" --backup-dir "$live_backup_dir"
   fi
 
   web_preserve_args=("${WEB_STATIC_PRESERVE_ARGS[@]}")
@@ -214,34 +171,14 @@ main() {
     web_preserve_args+=(--exclude "/$web_upload_relative/")
   fi
 
-  # The Next app proxies legacy APIs to the local Flask service. Keep that
-  # service on the same merged revision while preserving runtime data.
-  backend_preserve_args=("${BACKEND_STATIC_PRESERVE_ARGS[@]}")
-  if [[ "$(dirname "$live_db_path")" == "$live_backend_dir" ]]; then
-    live_db_basename="$(basename "$live_db_path")"
-    backend_preserve_args+=(--exclude "/$live_db_basename" --exclude "/$live_db_basename-*")
-  fi
-  if [[ "$live_backup_dir" == "$live_backend_dir/"* ]]; then
-    live_backup_relative="${live_backup_dir#"$live_backend_dir/"}"
-    backend_preserve_args+=(--exclude "/$live_backup_relative/")
-  fi
-  if [[ "$live_upload_dir" == "$live_backend_dir/"* ]]; then
-    live_upload_relative="${live_upload_dir#"$live_backend_dir/"}"
-    backend_preserve_args+=(--exclude "/$live_upload_relative/")
-  fi
-
-  # Capture the current source release before the first live mutation. Runtime
-  # data and environment files stay in place and are never part of code rollback.
+  # Only the Next release is snapshotted and synchronized. Legacy sources and
+  # runtime data remain untouched for the separately approved cutover/rollback.
   if [[ "$initial_install" -eq 0 ]]; then
     [[ -d "$live_web_dir" ]] || die "live web directory is missing: $live_web_dir"
-    [[ -d "$live_backend_dir" ]] || die "live backend directory is missing: $live_backend_dir"
-    [[ -d "$live_frontend_dir" ]] || die "live frontend directory is missing: $live_frontend_dir"
     mkdir -p "$rollback_root"
     rollback_snapshot="$(mktemp -d "$rollback_root/deploy-XXXXXX")"
-    mkdir -p "$rollback_snapshot/web" "$rollback_snapshot/backend" "$rollback_snapshot/frontend"
+    mkdir -p "$rollback_snapshot/web"
     rsync -a "${web_preserve_args[@]}" "$live_web_dir/" "$rollback_snapshot/web/"
-    rsync -a "${backend_preserve_args[@]}" "$live_backend_dir/" "$rollback_snapshot/backend/"
-    rsync -a "$live_frontend_dir/" "$rollback_snapshot/frontend/"
     echo "Code rollback snapshot: $rollback_snapshot"
   fi
 
@@ -252,15 +189,12 @@ main() {
       set +e
       echo "Deployment failed; restoring previous code from $rollback_snapshot" >&2
       rsync -a --checksum --delete "${web_preserve_args[@]}" "$rollback_snapshot/web/" "$live_web_dir/"
-      rsync -a --checksum --delete "${backend_preserve_args[@]}" "$rollback_snapshot/backend/" "$live_backend_dir/"
-      rsync -a --checksum --delete "$rollback_snapshot/frontend/" "$live_frontend_dir/"
       (
         cd "$live_web_dir" || exit 1
         npm ci && npm run build
       )
       rollback_build_status=$?
       launchctl kickstart -k "gui/$(id -u)/${launchd_label}"
-      launchctl kickstart -k "gui/$(id -u)/${backend_launchd_label}"
       if [[ "$rollback_build_status" -eq 0 ]]; then
         echo "Previous code restored. Database backup remains in $live_backup_dir" >&2
       else
@@ -275,10 +209,6 @@ main() {
   rsync -a --checksum --delete \
     "${web_preserve_args[@]}" \
     "$repo_dir/apps/web/" "$live_web_dir/"
-  rsync -a --checksum --delete \
-    "${backend_preserve_args[@]}" \
-    "$repo_dir/backend/" "$live_backend_dir/"
-  rsync -a --checksum --delete "$repo_dir/frontend/" "$live_frontend_dir/"
 
   cd "$live_web_dir"
   npm ci
@@ -286,40 +216,25 @@ main() {
   npm test
   npm run build
 
-  # Migrate the verified live database using the newly built release before
-  # either service restarts. Any failure enters the existing rollback trap.
+  mkdir -p "$live_upload_dir"
   LAB_FEED_DB="$live_db_path" LAB_FEED_DB_READONLY=0 npm run migrate
 
-  # Both launchd services inherit the same runtime paths and session secret.
-  # This prevents Next and Flask from opening different databases after restart.
   launchctl setenv LAB_FEED_DB "$live_db_path"
   launchctl setenv LAB_FEED_SECRET "$LAB_FEED_SECRET"
   launchctl setenv LAB_FEED_COOKIE_SECURE "1"
   launchctl setenv LAB_FEED_DB_READONLY "0"
-  launchctl setenv BAI_API_ORIGIN "$api_origin"
   launchctl setenv BAI_UPLOAD_DIR "$live_upload_dir"
   launchctl setenv BAI_MAX_UPLOAD_BYTES "${BAI_MAX_UPLOAD_BYTES:-26214400}"
-  # Bring the API authority up first. Starting both services together allowed
-  # Next's deployment health route to race a restarting Flask process and fail
-  # the rollout even though both services became healthy moments later.
-  launchctl kickstart -k "gui/$(id -u)/${backend_launchd_label}"
-  wait_http_status "$api_origin/healthz" "200"
   launchctl kickstart -k "gui/$(id -u)/${launchd_label}"
   wait_http_status "$next_origin/login" "200"
   wait_http_status "$next_origin/api/healthz" "200"
   wait_http_status "$next_origin/api/me" "401"
-  runtime_db_fingerprint="$("$python_bin" -c \
-    'import hashlib, os, sys; print(hashlib.sha256(os.path.abspath(sys.argv[1]).encode()).hexdigest())' \
-    "$live_db_path")"
-  runtime_upload_fingerprint="$("$python_bin" -c \
-    'import hashlib, os, sys; print(hashlib.sha256(os.path.abspath(sys.argv[1]).encode()).hexdigest())' \
-    "$live_upload_dir")"
+  runtime_db_fingerprint="$(path_fingerprint "$live_db_path")"
+  runtime_upload_fingerprint="$(path_fingerprint "$live_upload_dir")"
   runtime_health_url="$next_origin/api/runtime-health"
   wait_http_status \
     "$runtime_health_url?db=$runtime_db_fingerprint&uploads=$runtime_upload_fingerprint" \
     "200"
-  backend_wall_status="$(curl -sS -o /dev/null -w '%{http_code}' "$api_origin/api/wall")"
-  test "$backend_wall_status" = "401"
   rollback_armed=0
   trap - ERR
   echo "Deployed $(git -C "$repo_dir" rev-parse --short HEAD) to https://bai.haiinu.com"

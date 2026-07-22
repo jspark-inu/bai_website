@@ -25,7 +25,9 @@ export type SessionPayload = {
 
 function sessionSecret(explicit?: string): Buffer {
   const configured = explicit ?? process.env.LAB_FEED_SECRET ?? '';
-  const unsafe = configured.length < 32 || KNOWN_INSECURE_SECRETS.has(configured);
+  const unsafe = configured.length < 32
+    || configured.startsWith('change-me-')
+    || KNOWN_INSECURE_SECRETS.has(configured);
   if (unsafe) {
     throw new Error('LAB_FEED_SECRET must be a non-placeholder secret of at least 32 characters');
   }

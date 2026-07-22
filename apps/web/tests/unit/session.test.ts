@@ -54,6 +54,9 @@ describe('Next session token', () => {
     process.env.LAB_FEED_SECRET = 'dev';
     expect(() => verifySessionToken('v1.invalid', { now: () => NOW }))
       .toThrow(/LAB_FEED_SECRET/);
+    process.env.LAB_FEED_SECRET = 'change-me-use-at-least-32-random-characters';
+    expect(() => signSessionToken(1, { now: () => NOW, randomId: () => 'fixed-session-id' }))
+      .toThrow(/LAB_FEED_SECRET/);
   });
 
   it('uses an explicit hardened cookie contract', () => {

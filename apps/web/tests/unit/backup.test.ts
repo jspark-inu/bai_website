@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -45,6 +45,8 @@ describe('Next-only verified database backup', () => {
 
     const destination = path.join(backupDir, 'lab-feed-wal-fixture.db');
     expect(existsSync(destination)).toBe(true);
+    expect(statSync(backupDir).mode & 0o777).toBe(0o700);
+    expect(statSync(destination).mode & 0o777).toBe(0o600);
     const restored = new Database(destination, { readonly: true, fileMustExist: true });
     expect(restored.pragma('integrity_check', { simple: true })).toBe('ok');
     expect(restored.prepare('SELECT name FROM members').pluck().get()).toBe('기존 멤버');

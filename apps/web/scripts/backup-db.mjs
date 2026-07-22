@@ -65,13 +65,15 @@ export async function createVerifiedBackup({ dbPath, backupDir, stamp = timestam
   const source = new Database(sourcePath, { readonly: true, fileMustExist: true });
   try {
     validateDatabase(source, 'quick_check(1)');
-    fs.mkdirSync(destinationDir, { recursive: true });
+    fs.mkdirSync(destinationDir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(destinationDir, 0o700);
     const destination = path.join(destinationDir, `lab-feed-${stamp}.db`);
     if (fs.existsSync(destination)) fail(`refusing to overwrite existing backup: ${destination}`);
 
     const temporary = path.join(destinationDir, `.lab-feed-backup-${crypto.randomUUID()}.db.tmp`);
     try {
       await source.backup(temporary);
+      fs.chmodSync(temporary, 0o600);
       const backup = new Database(temporary, { fileMustExist: true });
       try {
         backup.pragma('journal_mode = DELETE');
@@ -90,6 +92,7 @@ export async function createVerifiedBackup({ dbPath, backupDir, stamp = timestam
     const retained = fs.readdirSync(destinationDir)
       .filter((name) => /^lab-feed-.+\.db$/.test(name))
       .sort();
+    for (const backupName of retained) fs.chmodSync(path.join(destinationDir, backupName), 0o600);
     for (const old of retained.slice(0, Math.max(0, retained.length - keep))) {
       fs.rmSync(path.join(destinationDir, old));
     }

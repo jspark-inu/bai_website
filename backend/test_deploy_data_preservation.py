@@ -386,12 +386,16 @@ exit 0
     def test_migration_runs_after_live_build_and_backup_before_any_restart(self):
         source = DEPLOY_SCRIPT.read_text(encoding="utf-8")
         backup_call = source.index("npm run backup")
-        live_build = source.index("npm run build", source.index('cd "$live_web_dir"'))
+        live_sync = source.index("rsync -a --checksum --delete")
+        cache_cleanup = source.index('rm -rf -- "$live_web_dir/.next"')
+        live_build = source.index("npm run build", cache_cleanup)
         migration = source.index(
             'LAB_FEED_DB="$live_db_path" LAB_FEED_DB_READONLY=0 npm run migrate'
         )
         first_restart = source.index('launchctl kickstart -k', migration)
         self.assertLess(backup_call, migration)
+        self.assertLess(live_sync, cache_cleanup)
+        self.assertLess(cache_cleanup, live_build)
         self.assertLess(live_build, migration)
         self.assertLess(migration, first_restart)
 

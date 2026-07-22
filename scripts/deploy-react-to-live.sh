@@ -210,6 +210,11 @@ main() {
     "${web_preserve_args[@]}" \
     "$repo_dir/apps/web/" "$live_web_dir/"
 
+  # `.next` is generated state, not runtime data. Preserving it across a
+  # release can leave route validators for source files removed by the new
+  # release, causing `next typegen && tsc` to fail before the fresh build.
+  rm -rf -- "$live_web_dir/.next"
+
   cd "$live_web_dir"
   npm ci
   npm run typecheck

@@ -52,11 +52,12 @@ def test_shared_legacy_api_fixtures_match_flask_test_client():
         flask_app.config["TESTING"] = True
 
         with flask_app.test_client() as client:
-            authenticated_role = None
             for fixture in fixtures:
                 request = fixture["request"]
                 session_role = request.get("sessionRole")
-                if session_role and authenticated_role != session_role:
+                with client.session_transaction() as session:
+                    session.clear()
+                if session_role:
                     assert session_role == SYNTHETIC_STUDENT["role"]
                     login = client.post(
                         "/api/login",
@@ -66,7 +67,6 @@ def test_shared_legacy_api_fixtures_match_flask_test_client():
                         },
                     )
                     assert login.status_code == 200
-                    authenticated_role = session_role
 
                 response = client.open(
                     request["path"],

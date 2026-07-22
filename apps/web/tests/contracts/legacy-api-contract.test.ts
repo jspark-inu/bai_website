@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -229,6 +230,11 @@ def future():
       expect(route.response.success).toEqual(expect.any(String));
       expect(Object.keys(route.response.statuses)).toContain(String(route.response.successStatus));
     }
+  });
+
+  it('freezes every exact manifest metadata value', () => {
+    const digest = createHash('sha256').update(JSON.stringify(legacyApiManifest)).digest('hex');
+    expect(digest).toBe('7c9d9c163313aa8109a0d0173ac5c11faa4aa8bbeaf2f1fec4c823eb4954ae81');
   });
 
   it('loads the shared executable success, 401, 403, and 404 fixtures', () => {

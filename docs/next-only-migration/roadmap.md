@@ -62,19 +62,20 @@
 **Objective:** 부작용 없는 조회 API를 명시적 Next routes로 이전한다.
 
 **Files:**
-- Create routes under `apps/web/src/app/api/{feed,members,member,post,tag,search,questions,weekly,projects}/`
+- Create routes under `apps/web/src/app/api/{feed,inquiries,members,member,post,tag,search,questions,weekly,projects}/`
 - Create repositories: `posts.ts`, `projects.ts`, `inquiries.ts`
-- Create services: `posts.ts`, `projects.ts`
-- Test: `apps/web/tests/contracts/read-api-parity.test.ts`
+- Create services: `posts.ts`, `projects.ts`, `inquiries.ts`
+- Test: `apps/web/tests/contracts/read-api-parity.test.ts`, `backend/test_read_api_parity.py`
+- Fixture: `apps/web/tests/contracts/read-api-parity-fixture.json`
 
 **Steps:**
 1. 도메인별 Flask parity test를 실패 상태로 작성한다.
 2. members/member routes를 구현하고 통과시킨다.
-3. feed/post/tag/search/questions/weekly routes를 구현하고 통과시킨다.
+3. feed/post/tag/search/questions/inquiries/weekly routes를 구현하고 통과시킨다.
 4. projects list/detail routes를 구현하고 통과시킨다.
 5. 각 route가 catch-all보다 우선 처리되는지 확인한다.
 
-**Acceptance:** 모든 읽기 API가 Next에서 직접 SQLite를 읽고 Flask로 네트워크 요청을 보내지 않는다.
+**Acceptance:** 모든 읽기 API의 도메인 데이터는 Next에서 직접 SQLite를 읽으며 Flask data proxy를 사용하지 않는다. Task 7 전까지 세션 검증은 Flask `/api/me`를 인증 권한자로 유지한다.
 
 ### Task 4: 게시물·댓글·반응·wall·문의 쓰기 이전
 

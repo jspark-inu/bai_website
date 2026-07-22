@@ -1,0 +1,1143 @@
+{
+  "seed": {
+    "members": [
+      {
+        "id": 1,
+        "name": "Fixture Alice",
+        "password_hash": "fixture-hash",
+        "api_key": "fixture-key-alice",
+        "role": "student",
+        "status": "active",
+        "created_at": "2020-01-01 00:00:00"
+      },
+      {
+        "id": 2,
+        "name": "Fixture Bob",
+        "password_hash": "fixture-hash",
+        "api_key": "fixture-key-bob",
+        "role": "pi",
+        "status": "active",
+        "created_at": "2020-01-02 00:00:00"
+      },
+      {
+        "id": 3,
+        "name": "Fixture Cara",
+        "password_hash": "fixture-hash",
+        "api_key": "fixture-key-cara",
+        "role": "student",
+        "status": "active",
+        "created_at": "2020-01-03 00:00:00"
+      },
+      {
+        "id": 4,
+        "name": "Fixture Disabled",
+        "password_hash": "fixture-hash",
+        "api_key": "fixture-key-disabled",
+        "role": "student",
+        "status": "disabled",
+        "created_at": "2020-01-04 00:00:00"
+      }
+    ],
+    "projects": [
+      {
+        "id": 10,
+        "title": "Active Alpha",
+        "type": "research",
+        "status": "active",
+        "goal": "Alpha goal",
+        "summary": "Alpha summary",
+        "slug": "active-alpha",
+        "repo_url": "https://fixture.invalid/alpha",
+        "site_url": "",
+        "owner_member_id": 1,
+        "current_stage": "build",
+        "deadline": "2030-01-01",
+        "next_milestone": "demo",
+        "risk_level": "normal",
+        "pi_decision": "continue",
+        "created_at": "2020-02-01 00:00:00",
+        "updated_at": "2020-02-02 00:00:00"
+      },
+      {
+        "id": 11,
+        "title": "Archived Project",
+        "type": "archive",
+        "status": "archived",
+        "goal": "Old",
+        "summary": "Old summary",
+        "slug": "archived",
+        "repo_url": "",
+        "site_url": "",
+        "owner_member_id": 2,
+        "current_stage": "done",
+        "deadline": "2020-01-01",
+        "next_milestone": "",
+        "risk_level": "low",
+        "pi_decision": "close",
+        "created_at": "2020-02-03 00:00:00",
+        "updated_at": "2020-02-04 00:00:00"
+      },
+      {
+        "id": 12,
+        "title": "Active No Deadline",
+        "type": "service",
+        "status": "active",
+        "goal": "Beta",
+        "summary": "Beta summary",
+        "slug": "active-beta",
+        "repo_url": "",
+        "site_url": "https://fixture.invalid/beta",
+        "owner_member_id": 3,
+        "current_stage": "idea",
+        "deadline": "",
+        "next_milestone": "plan",
+        "risk_level": "high",
+        "pi_decision": "review",
+        "created_at": "2020-02-05 00:00:00",
+        "updated_at": "2020-02-06 00:00:00"
+      }
+    ],
+    "project_members": [
+      {
+        "project_id": 10,
+        "member_id": 1,
+        "role": "lead"
+      },
+      {
+        "project_id": 10,
+        "member_id": 2,
+        "role": "advisor"
+      },
+      {
+        "project_id": 12,
+        "member_id": 3,
+        "role": "lead"
+      }
+    ],
+    "posts": [
+      {
+        "id": 100,
+        "author_id": 1,
+        "did": "Built alpha model",
+        "learned": "GAN basics",
+        "blocked": "Need GPU",
+        "tags": "GAN, alpha",
+        "links": "https://fixture.invalid/a",
+        "source": "web",
+        "project_id": 10,
+        "created_at": "2020-03-01 00:00:00",
+        "updated_at": "2020-03-01 01:00:00"
+      },
+      {
+        "id": 101,
+        "author_id": 2,
+        "did": "Reviewed needle design",
+        "learned": "Review notes",
+        "blocked": "Waiting",
+        "tags": "review",
+        "links": "",
+        "source": "api",
+        "project_id": 10,
+        "created_at": "2026-07-19 14:59:59",
+        "updated_at": "2026-07-19 15:00:00"
+      },
+      {
+        "id": 102,
+        "author_id": 1,
+        "did": "Built beta",
+        "learned": "GANs differ",
+        "blocked": "Answered issue",
+        "tags": "GANs alpha",
+        "links": "",
+        "source": "web",
+        "project_id": 12,
+        "created_at": "2026-07-19 15:00:00",
+        "updated_at": "2026-07-19 15:00:01"
+      },
+      {
+        "id": 103,
+        "author_id": 3,
+        "did": "Documentation",
+        "learned": "Search links",
+        "blocked": "",
+        "tags": "docs",
+        "links": "https://fixture.invalid/needle-resource",
+        "source": "web",
+        "project_id": null,
+        "created_at": "2020-03-04 00:00:00",
+        "updated_at": "2020-03-04 01:00:00"
+      },
+      {
+        "id": 104,
+        "author_id": 2,
+        "did": "Old question",
+        "learned": "",
+        "blocked": "Need answer",
+        "tags": "alpha question",
+        "links": "",
+        "source": "web",
+        "project_id": null,
+        "created_at": "2020-03-05 00:00:00",
+        "updated_at": "2020-03-05 01:00:00"
+      }
+    ],
+    "comments": [
+      {
+        "id": 200,
+        "post_id": 101,
+        "author_id": 1,
+        "body": "A response",
+        "created_at": "2020-04-01 00:00:00"
+      },
+      {
+        "id": 201,
+        "post_id": 102,
+        "author_id": 2,
+        "body": "Resolved",
+        "created_at": "2020-04-02 00:00:00"
+      }
+    ],
+    "reactions": [
+      {
+        "id": 300,
+        "post_id": 100,
+        "member_id": 2,
+        "kind": "thumbsup",
+        "created_at": "2020-05-01 00:00:00"
+      },
+      {
+        "id": 301,
+        "post_id": 100,
+        "member_id": 3,
+        "kind": "thumbsup",
+        "created_at": "2020-05-02 00:00:00"
+      },
+      {
+        "id": 302,
+        "post_id": 101,
+        "member_id": 1,
+        "kind": "thumbsup",
+        "created_at": "2020-05-03 00:00:00"
+      },
+      {
+        "id": 303,
+        "post_id": 100,
+        "member_id": 2,
+        "kind": "heart",
+        "created_at": "2020-05-04 00:00:00"
+      }
+    ],
+    "inquiries": [
+      {
+        "id": 30,
+        "member_id": 1,
+        "question": "Open question",
+        "answer": "",
+        "status": "open",
+        "created_at": "2020-06-01 00:00:00",
+        "answered_at": null,
+        "answered_by": null
+      },
+      {
+        "id": 31,
+        "member_id": 3,
+        "question": "Older FAQ",
+        "answer": "Older answer",
+        "status": "answered",
+        "created_at": "2020-06-02 00:00:00",
+        "answered_at": "2020-06-10 00:00:00",
+        "answered_by": 2
+      },
+      {
+        "id": 32,
+        "member_id": 1,
+        "question": "Newer FAQ",
+        "answer": "Newer answer",
+        "status": "answered",
+        "created_at": "2020-06-03 00:00:00",
+        "answered_at": "2020-06-20 00:00:00",
+        "answered_by": 2
+      }
+    ]
+  },
+  "requests": [
+    {
+      "name": "feed",
+      "path": "/api/feed",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": [
+          {
+            "author_id": 2,
+            "author_name": "Fixture Bob",
+            "blocked": "Need answer",
+            "comment_count": 0,
+            "created_at": "2020-03-05 00:00:00",
+            "did": "Old question",
+            "id": 104,
+            "learned": "",
+            "links": "",
+            "project_id": null,
+            "project_title": null,
+            "reaction_count": 0,
+            "source": "web",
+            "tags": "alpha question",
+            "updated_at": "2020-03-05 01:00:00"
+          },
+          {
+            "author_id": 3,
+            "author_name": "Fixture Cara",
+            "blocked": "",
+            "comment_count": 0,
+            "created_at": "2020-03-04 00:00:00",
+            "did": "Documentation",
+            "id": 103,
+            "learned": "Search links",
+            "links": "https://fixture.invalid/needle-resource",
+            "project_id": null,
+            "project_title": null,
+            "reaction_count": 0,
+            "source": "web",
+            "tags": "docs",
+            "updated_at": "2020-03-04 01:00:00"
+          },
+          {
+            "author_id": 1,
+            "author_name": "Fixture Alice",
+            "blocked": "Answered issue",
+            "comment_count": 1,
+            "created_at": "2026-07-19 15:00:00",
+            "did": "Built beta",
+            "id": 102,
+            "learned": "GANs differ",
+            "links": "",
+            "project_id": 12,
+            "project_title": "Active No Deadline",
+            "reaction_count": 0,
+            "source": "web",
+            "tags": "GANs alpha",
+            "updated_at": "2026-07-19 15:00:01"
+          },
+          {
+            "author_id": 2,
+            "author_name": "Fixture Bob",
+            "blocked": "Waiting",
+            "comment_count": 1,
+            "created_at": "2026-07-19 14:59:59",
+            "did": "Reviewed needle design",
+            "id": 101,
+            "learned": "Review notes",
+            "links": "",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 1,
+            "source": "api",
+            "tags": "review",
+            "updated_at": "2026-07-19 15:00:00"
+          },
+          {
+            "author_id": 1,
+            "author_name": "Fixture Alice",
+            "blocked": "Need GPU",
+            "comment_count": 0,
+            "created_at": "2020-03-01 00:00:00",
+            "did": "Built alpha model",
+            "id": 100,
+            "learned": "GAN basics",
+            "links": "https://fixture.invalid/a",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 3,
+            "source": "web",
+            "tags": "GAN, alpha",
+            "updated_at": "2020-03-01 01:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "feed-project-filter",
+      "path": "/api/feed?project_id=%D9%A1%D9%A0",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": [
+          {
+            "author_id": 2,
+            "author_name": "Fixture Bob",
+            "blocked": "Waiting",
+            "comment_count": 1,
+            "created_at": "2026-07-19 14:59:59",
+            "did": "Reviewed needle design",
+            "id": 101,
+            "learned": "Review notes",
+            "links": "",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 1,
+            "source": "api",
+            "tags": "review",
+            "updated_at": "2026-07-19 15:00:00"
+          },
+          {
+            "author_id": 1,
+            "author_name": "Fixture Alice",
+            "blocked": "Need GPU",
+            "comment_count": 0,
+            "created_at": "2020-03-01 00:00:00",
+            "did": "Built alpha model",
+            "id": 100,
+            "learned": "GAN basics",
+            "links": "https://fixture.invalid/a",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 3,
+            "source": "web",
+            "tags": "GAN, alpha",
+            "updated_at": "2020-03-01 01:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "feed-invalid-project-filter",
+      "path": "/api/feed?project_id=2.0",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": [
+          {
+            "author_id": 2,
+            "author_name": "Fixture Bob",
+            "blocked": "Need answer",
+            "comment_count": 0,
+            "created_at": "2020-03-05 00:00:00",
+            "did": "Old question",
+            "id": 104,
+            "learned": "",
+            "links": "",
+            "project_id": null,
+            "project_title": null,
+            "reaction_count": 0,
+            "source": "web",
+            "tags": "alpha question",
+            "updated_at": "2020-03-05 01:00:00"
+          },
+          {
+            "author_id": 3,
+            "author_name": "Fixture Cara",
+            "blocked": "",
+            "comment_count": 0,
+            "created_at": "2020-03-04 00:00:00",
+            "did": "Documentation",
+            "id": 103,
+            "learned": "Search links",
+            "links": "https://fixture.invalid/needle-resource",
+            "project_id": null,
+            "project_title": null,
+            "reaction_count": 0,
+            "source": "web",
+            "tags": "docs",
+            "updated_at": "2020-03-04 01:00:00"
+          },
+          {
+            "author_id": 1,
+            "author_name": "Fixture Alice",
+            "blocked": "Answered issue",
+            "comment_count": 1,
+            "created_at": "2026-07-19 15:00:00",
+            "did": "Built beta",
+            "id": 102,
+            "learned": "GANs differ",
+            "links": "",
+            "project_id": 12,
+            "project_title": "Active No Deadline",
+            "reaction_count": 0,
+            "source": "web",
+            "tags": "GANs alpha",
+            "updated_at": "2026-07-19 15:00:01"
+          },
+          {
+            "author_id": 2,
+            "author_name": "Fixture Bob",
+            "blocked": "Waiting",
+            "comment_count": 1,
+            "created_at": "2026-07-19 14:59:59",
+            "did": "Reviewed needle design",
+            "id": 101,
+            "learned": "Review notes",
+            "links": "",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 1,
+            "source": "api",
+            "tags": "review",
+            "updated_at": "2026-07-19 15:00:00"
+          },
+          {
+            "author_id": 1,
+            "author_name": "Fixture Alice",
+            "blocked": "Need GPU",
+            "comment_count": 0,
+            "created_at": "2020-03-01 00:00:00",
+            "did": "Built alpha model",
+            "id": 100,
+            "learned": "GAN basics",
+            "links": "https://fixture.invalid/a",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 3,
+            "source": "web",
+            "tags": "GAN, alpha",
+            "updated_at": "2020-03-01 01:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "post-detail",
+      "path": "/api/post/100",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "comments": [],
+          "post": {
+            "author_id": 1,
+            "author_name": "Fixture Alice",
+            "blocked": "Need GPU",
+            "comment_count": 0,
+            "created_at": "2020-03-01 00:00:00",
+            "did": "Built alpha model",
+            "id": 100,
+            "learned": "GAN basics",
+            "links": "https://fixture.invalid/a",
+            "project_id": 10,
+            "project_title": "Active Alpha",
+            "reaction_count": 2,
+            "source": "web",
+            "tags": "GAN, alpha",
+            "updated_at": "2020-03-01 01:00:00"
+          },
+          "reacted_by": [
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "name": "member-detail",
+      "path": "/api/member/1",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "first_post_at": "2020-03-01 00:00:00",
+          "last_post_at": "2026-07-19 15:00:00",
+          "member": {
+            "id": 1,
+            "name": "Fixture Alice",
+            "role": "student"
+          },
+          "post_count": 2,
+          "posts": [
+            {
+              "author_id": 1,
+              "author_name": "Fixture Alice",
+              "blocked": "Need GPU",
+              "comment_count": 0,
+              "created_at": "2020-03-01 00:00:00",
+              "did": "Built alpha model",
+              "id": 100,
+              "learned": "GAN basics",
+              "links": "https://fixture.invalid/a",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 3,
+              "source": "web",
+              "tags": "GAN, alpha",
+              "updated_at": "2020-03-01 01:00:00"
+            },
+            {
+              "author_id": 1,
+              "author_name": "Fixture Alice",
+              "blocked": "Answered issue",
+              "comment_count": 1,
+              "created_at": "2026-07-19 15:00:00",
+              "did": "Built beta",
+              "id": 102,
+              "learned": "GANs differ",
+              "links": "",
+              "project_id": 12,
+              "project_title": "Active No Deadline",
+              "reaction_count": 0,
+              "source": "web",
+              "tags": "GANs alpha",
+              "updated_at": "2026-07-19 15:00:01"
+            }
+          ],
+          "tag_counts": {
+            "GAN": 1,
+            "GANs": 1,
+            "alpha": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "tag-exact-decoded",
+      "path": "/api/tag/GAN",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "posts": [
+            {
+              "author_id": 1,
+              "author_name": "Fixture Alice",
+              "blocked": "Need GPU",
+              "comment_count": 0,
+              "created_at": "2020-03-01 00:00:00",
+              "did": "Built alpha model",
+              "id": 100,
+              "learned": "GAN basics",
+              "links": "https://fixture.invalid/a",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 3,
+              "source": "web",
+              "tags": "GAN, alpha",
+              "updated_at": "2020-03-01 01:00:00"
+            }
+          ],
+          "tag": "GAN"
+        }
+      }
+    },
+    {
+      "name": "tag-percent-sequence-preserved",
+      "path": "/api/tag/GAN%2520",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "posts": [],
+          "tag": "GAN%20"
+        }
+      }
+    },
+    {
+      "name": "search-links-case-insensitive",
+      "path": "/api/search?q=NEEDLE",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "posts": [
+            {
+              "author_id": 3,
+              "author_name": "Fixture Cara",
+              "blocked": "",
+              "comment_count": 0,
+              "created_at": "2020-03-04 00:00:00",
+              "did": "Documentation",
+              "id": 103,
+              "learned": "Search links",
+              "links": "https://fixture.invalid/needle-resource",
+              "project_id": null,
+              "project_title": null,
+              "reaction_count": 0,
+              "source": "web",
+              "tags": "docs",
+              "updated_at": "2020-03-04 01:00:00"
+            },
+            {
+              "author_id": 2,
+              "author_name": "Fixture Bob",
+              "blocked": "Waiting",
+              "comment_count": 1,
+              "created_at": "2026-07-19 14:59:59",
+              "did": "Reviewed needle design",
+              "id": 101,
+              "learned": "Review notes",
+              "links": "",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 1,
+              "source": "api",
+              "tags": "review",
+              "updated_at": "2026-07-19 15:00:00"
+            }
+          ],
+          "q": "NEEDLE"
+        }
+      }
+    },
+    {
+      "name": "search-empty",
+      "path": "/api/search?q=%20%20",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "posts": [],
+          "q": "  "
+        }
+      }
+    },
+    {
+      "name": "questions",
+      "path": "/api/questions",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "posts": [
+            {
+              "author_id": 1,
+              "author_name": "Fixture Alice",
+              "blocked": "Need GPU",
+              "comment_count": 0,
+              "created_at": "2020-03-01 00:00:00",
+              "did": "Built alpha model",
+              "id": 100,
+              "learned": "GAN basics",
+              "links": "https://fixture.invalid/a",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 3,
+              "source": "web",
+              "tags": "GAN, alpha",
+              "updated_at": "2020-03-01 01:00:00"
+            },
+            {
+              "author_id": 2,
+              "author_name": "Fixture Bob",
+              "blocked": "Need answer",
+              "comment_count": 0,
+              "created_at": "2020-03-05 00:00:00",
+              "did": "Old question",
+              "id": 104,
+              "learned": "",
+              "links": "",
+              "project_id": null,
+              "project_title": null,
+              "reaction_count": 0,
+              "source": "web",
+              "tags": "alpha question",
+              "updated_at": "2020-03-05 01:00:00"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "inquiries",
+      "path": "/api/inquiries",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "answered": [
+            {
+              "answer": "Newer answer",
+              "answered_at": "2020-06-20 00:00:00",
+              "answered_by": 2,
+              "answerer_name": "Fixture Bob",
+              "author_name": "Fixture Alice",
+              "created_at": "2020-06-03 00:00:00",
+              "id": 32,
+              "member_id": 1,
+              "question": "Newer FAQ",
+              "status": "answered"
+            },
+            {
+              "answer": "Older answer",
+              "answered_at": "2020-06-10 00:00:00",
+              "answered_by": 2,
+              "answerer_name": "Fixture Bob",
+              "author_name": "Fixture Cara",
+              "created_at": "2020-06-02 00:00:00",
+              "id": 31,
+              "member_id": 3,
+              "question": "Older FAQ",
+              "status": "answered"
+            }
+          ],
+          "open": [
+            {
+              "answer": "",
+              "answered_at": null,
+              "answered_by": null,
+              "answerer_name": null,
+              "author_name": "Fixture Alice",
+              "created_at": "2020-06-01 00:00:00",
+              "id": 30,
+              "member_id": 1,
+              "question": "Open question",
+              "status": "open"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "members",
+      "path": "/api/members",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": [
+          {
+            "id": 1,
+            "last_post_at": "2026-07-19 15:00:00",
+            "name": "Fixture Alice",
+            "post_count": 2,
+            "role": "student"
+          },
+          {
+            "id": 2,
+            "last_post_at": "2026-07-19 14:59:59",
+            "name": "Fixture Bob",
+            "post_count": 2,
+            "role": "pi"
+          },
+          {
+            "id": 3,
+            "last_post_at": "2020-03-04 00:00:00",
+            "name": "Fixture Cara",
+            "post_count": 1,
+            "role": "student"
+          }
+        ]
+      }
+    },
+    {
+      "name": "projects",
+      "path": "/api/projects",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": [
+          {
+            "activity_count": 2,
+            "created_at": "2020-02-01 00:00:00",
+            "current_stage": "build",
+            "deadline": "2030-01-01",
+            "goal": "Alpha goal",
+            "id": 10,
+            "member_count": 2,
+            "next_milestone": "demo",
+            "owner_member_id": 1,
+            "owner_name": "Fixture Alice",
+            "pi_decision": "continue",
+            "repo_url": "https://fixture.invalid/alpha",
+            "risk_level": "normal",
+            "site_url": "",
+            "slug": "active-alpha",
+            "status": "active",
+            "summary": "Alpha summary",
+            "title": "Active Alpha",
+            "type": "research",
+            "updated_at": "2020-02-02 00:00:00"
+          },
+          {
+            "activity_count": 1,
+            "created_at": "2020-02-05 00:00:00",
+            "current_stage": "idea",
+            "deadline": "",
+            "goal": "Beta",
+            "id": 12,
+            "member_count": 1,
+            "next_milestone": "plan",
+            "owner_member_id": 3,
+            "owner_name": "Fixture Cara",
+            "pi_decision": "review",
+            "repo_url": "",
+            "risk_level": "high",
+            "site_url": "https://fixture.invalid/beta",
+            "slug": "active-beta",
+            "status": "active",
+            "summary": "Beta summary",
+            "title": "Active No Deadline",
+            "type": "service",
+            "updated_at": "2020-02-06 00:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "project-detail",
+      "path": "/api/projects/10",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "activity": [
+            {
+              "author_id": 2,
+              "author_name": "Fixture Bob",
+              "blocked": "Waiting",
+              "comment_count": 1,
+              "created_at": "2026-07-19 14:59:59",
+              "did": "Reviewed needle design",
+              "id": 101,
+              "learned": "Review notes",
+              "links": "",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 1,
+              "source": "api",
+              "tags": "review",
+              "updated_at": "2026-07-19 15:00:00"
+            },
+            {
+              "author_id": 1,
+              "author_name": "Fixture Alice",
+              "blocked": "Need GPU",
+              "comment_count": 0,
+              "created_at": "2020-03-01 00:00:00",
+              "did": "Built alpha model",
+              "id": 100,
+              "learned": "GAN basics",
+              "links": "https://fixture.invalid/a",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 3,
+              "source": "web",
+              "tags": "GAN, alpha",
+              "updated_at": "2020-03-01 01:00:00"
+            }
+          ],
+          "members": [
+            {
+              "member_id": 1,
+              "name": "Fixture Alice",
+              "role": "lead"
+            },
+            {
+              "member_id": 2,
+              "name": "Fixture Bob",
+              "role": "advisor"
+            }
+          ],
+          "project": {
+            "created_at": "2020-02-01 00:00:00",
+            "current_stage": "build",
+            "deadline": "2030-01-01",
+            "goal": "Alpha goal",
+            "id": 10,
+            "next_milestone": "demo",
+            "owner_member_id": 1,
+            "pi_decision": "continue",
+            "repo_url": "https://fixture.invalid/alpha",
+            "risk_level": "normal",
+            "site_url": "",
+            "slug": "active-alpha",
+            "status": "active",
+            "summary": "Alpha summary",
+            "title": "Active Alpha",
+            "type": "research",
+            "updated_at": "2020-02-02 00:00:00"
+          }
+        }
+      }
+    },
+    {
+      "name": "weekly",
+      "path": "/api/weekly",
+      "authenticated": true,
+      "response": {
+        "status": 200,
+        "json": {
+          "missing": [
+            {
+              "id": 2,
+              "last_post_at": "2026-07-19 14:59:59",
+              "name": "Fixture Bob",
+              "reported": false,
+              "role": "pi",
+              "week_count": 0
+            },
+            {
+              "id": 3,
+              "last_post_at": "2020-03-04 00:00:00",
+              "name": "Fixture Cara",
+              "reported": false,
+              "role": "student",
+              "week_count": 0
+            }
+          ],
+          "reported": [
+            {
+              "id": 1,
+              "last_post_at": "2026-07-19 15:00:00",
+              "name": "Fixture Alice",
+              "reported": true,
+              "role": "student",
+              "week_count": 1
+            }
+          ],
+          "reported_count": 1,
+          "total": 3
+        }
+      }
+    },
+    {
+      "name": "post-not-found",
+      "path": "/api/post/999",
+      "authenticated": true,
+      "response": {
+        "status": 404,
+        "json": {
+          "error": "not found"
+        }
+      }
+    },
+    {
+      "name": "member-not-found",
+      "path": "/api/member/999",
+      "authenticated": true,
+      "response": {
+        "status": 404,
+        "json": {
+          "error": "not found"
+        }
+      }
+    },
+    {
+      "name": "project-not-found",
+      "path": "/api/projects/999",
+      "authenticated": true,
+      "response": {
+        "status": 404,
+        "json": {
+          "error": "not found"
+        }
+      }
+    },
+    {
+      "name": "feed-unauthorized",
+      "path": "/api/feed",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "post-unauthorized",
+      "path": "/api/post/100",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "member-unauthorized",
+      "path": "/api/member/1",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "tag-unauthorized",
+      "path": "/api/tag/GAN",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "search-unauthorized",
+      "path": "/api/search?q=needle",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "questions-unauthorized",
+      "path": "/api/questions",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "inquiries-unauthorized",
+      "path": "/api/inquiries",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "members-unauthorized",
+      "path": "/api/members",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "projects-unauthorized",
+      "path": "/api/projects",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "project-detail-unauthorized",
+      "path": "/api/projects/10",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    },
+    {
+      "name": "weekly-unauthorized",
+      "path": "/api/weekly",
+      "authenticated": false,
+      "response": {
+        "status": 401,
+        "json": {
+          "error": "login required"
+        }
+      }
+    }
+  ]
+}

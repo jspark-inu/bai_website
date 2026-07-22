@@ -205,6 +205,9 @@
 
 **Acceptance:** Next 단일 프로세스에서 전체 기능이 정상이고 데이터 변화가 의도된 smoke 기록 외에는 없다.
 
-**Execution status (2026-07-23):** PI 승인으로 진행 중이다. 실행 정본은
-`docs/next-only-migration/cutover-checklist.md`이며, preflight와 rollback gate를 통과한 뒤
-표준 `origin/main` 자동배포로 cutover한다.
+**Execution status (2026-07-23):** `caa8fc0`가 표준 `origin/main` 자동배포로 운영에 반영됐다.
+Migration `004`·`005`, Next readiness, Node backup job, Flask persistent disable/5066 closed, 공개 URL 47-check
+CRUD smoke, 기존 pre-cutover API key smoke, DB/upload 기준선 복원이 통과했다. 30분 관찰도 61/61 samples,
+blocking regression 0으로 통과했으며 결과와 운영 수용 원장 closeout은
+`docs/next-only-migration/cutover-checklist.md`에서 추적한다. Flask/Python source archival은 별도 운영 수용과
+사용자 승인을 기다린다.

@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "project": "1C38",
+  "task": 9,
+  "deployed_head": "caa8fc09d8fce9edb20e93b2371c7256d5254de5",
+  "generated_at": "2026-07-23T01:40:02+09:00",
+  "live_smoke": {
+    "origin": "https://bai.haiinu.com",
+    "checks_passed": 47,
+    "checks_failed": 0,
+    "coverage": [
+      "browser-login-hydration-assets",
+      "session-login-logout-replay-rejection",
+      "read-api-contracts",
+      "post-project-admin-api-key-crud",
+      "goodbai",
+      "materials-upload-download-replace-delete",
+      "talent-office-lifecycle",
+      "inquiry-wall",
+      "runtime-health"
+    ],
+    "cleanup": {
+      "domain_counts_restored": true,
+      "upload_inventory_restored": true,
+      "smoke_residue": 0,
+      "quick_check": "ok",
+      "foreign_key_errors": 0
+    }
+  },
+  "existing_api_key_smoke": {
+    "credential_origin": "pre-cutover-active-member",
+    "secret_recorded": false,
+    "http_status": 200,
+    "persisted_source": "skill",
+    "author_match": true,
+    "posts_before": 10,
+    "posts_after": 10,
+    "residue": 0,
+    "quick_check": "ok",
+    "foreign_key_errors": 0
+  },
+  "concurrent_live_activity": {
+    "observed_at": "2026-07-23T01:12:32+09:00",
+    "classification": "legitimate-real-user-write",
+    "record_type": "post",
+    "source": "web",
+    "posts_before": 10,
+    "posts_after": 11,
+    "smoke_residue": false,
+    "preserved": true
+  },
+  "runtime_security": {
+    "flask_persistently_disabled": true,
+    "flask_port_5066_listeners": 0,
+    "next_port_5067_listeners": 1,
+    "auth_cache_control": "private, no-store",
+    "launchagent_strict_env_loading": true,
+    "runtime_env_mode": "0600",
+    "database_mode": "0600",
+    "backup_file_mode": "0600",
+    "backup_directory_mode": "0700",
+    "uploads_directory_mode": "0700"
+  },
+  "observation": {
+    "status": "passed",
+    "started_at": "2026-07-23T01:07:13+09:00",
+    "ended_at": "2026-07-23T01:40:02+09:00",
+    "samples_expected": 61,
+    "samples_passed": 61,
+    "blocking_regressions": 0
+  },
+  "rollback": {
+    "database_backup": "/Users/hai_1/AI-Workspace/code/runtime/backups/bai_website/lab-feed-task9-final-20260723-0055.db",
+    "bundle": "/Users/hai_1/AI-Workspace/code/runtime/rollbacks/bai_website/task9-20260723-0055",
+    "latest_code_snapshot": "/Users/hai_1/AI-Workspace/code/runtime/rollbacks/bai_website/deploy-aRs857",
+    "flask_reenable_required": true
+  }
+}

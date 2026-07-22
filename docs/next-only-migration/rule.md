@@ -4,11 +4,11 @@
 
 BAI 운영 사이트를 React 19 + Next.js 16의 단일 애플리케이션으로 통합한다. 최종 운영 상태에서는 Flask 프로세스, 포트 5066, Flask API 프록시, Python 백엔드 배포 경로가 존재하지 않는다.
 
-## 오늘의 범위
+## 현재 운영 경계
 
-- 설계와 실행 로드맵만 확정한다.
-- 운영 복구를 위한 현행 혼합 구조 수정은 허용한다.
-- Flask 기능을 Next로 옮기는 구현은 내일 시작한다.
+- 2026-07-23 `caa8fc0`에서 Next-only cutover의 기술 검증을 완료했다.
+- Flask service와 port 5066은 영구 비활성화하되 plist와 Python source는 rollback용으로 보존한다.
+- PI 실계정 수용 기록과 별도 사용자 승인 전에는 Flask/Python source·plist를 archive/delete하지 않는다.
 
 ## 불변 조건
 

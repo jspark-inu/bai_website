@@ -1,20 +1,21 @@
 ---
 title: BAI Next 단일 런타임 전환 handoff
-status: active
-updated_at: 2026-07-23T00:10:53+09:00
+status: observing
+updated_at: 2026-07-23T01:40:02+09:00
 project: bai_website
 workspace: /Users/hai_1/AI-Workspace/code/projects/dev/bai_website
 branch: main
 baseline_head: 3266d80
 implementation_commit: 4728452
-current_head: 4ec81a9
-current_phase: Task 8 완료 / Task 9 운영 승인 대기
+current_head: caa8fc0
+source_state: local docs-only closeout commit ahead of deployed head; not pushed
+current_phase: Task 9 Next-only cutover 기술 완료 / 운영 수용 관찰
 canonical: true
 ---
 
 # BAI Next 단일 런타임 전환 handoff
 
-> 이 문서는 Task 8까지의 구현·검증 결과와 사용자 승인 뒤에만 수행할 Task 9 운영 cutover를 잇는 canonical handoff다. 구현 전 반드시 live repository 상태를 다시 확인하며, 이 문서의 수치와 경로를 현재 상태보다 우선하지 않는다.
+> 이 문서는 Task 9 Next-only 운영 cutover의 기술 검증 결과와 남은 실사용 수용·Flask source archival 경계를 잇는 canonical handoff다. 작업 전 반드시 live repository 상태를 다시 확인하며, 이 문서의 수치와 경로를 현재 상태보다 우선하지 않는다.
 
 ## 1. 최종 목표
 
@@ -35,28 +36,30 @@ Flask/Python과 Next가 함께 요청을 처리하는 현재 구조를 Next.js �
 
 ## 2. 현재 live handoff 기준선
 
-2026-07-23 00:10 KST 기준:
+2026-07-23 01:40 KST 기준:
 
 - Branch: `main`
 - Task 6–7 시작 Baseline HEAD: `3266d80`
 - Task 6–7 implementation commit: `4728452`
-- Task 8 작업 시작 HEAD: `4ec81a9` (`4728452`의 직계 후속 handoff commit)
-- Working tree: Task 8 구현과 이 handoff 갱신이 의도적으로 uncommitted 상태
+- Task 8 implementation commit: `764a118`
+- Task 9 deployed HEAD: `caa8fc09d8fce9edb20e93b2371c7256d5254de5`
+- Local source: Task 9 closeout 문서 commit이 deployed HEAD보다 1개 앞서며, 관찰 후 재배포를 피하려고 push하지 않음
+- Working tree: local closeout commit 후 clean
 - Task 1–8: 완료
-- Task 9: 미완료, 운영 실행 승인 대기
-- Push, deploy, production 변경: 수행하지 않음
+- Task 9: Next-only cutover, 47-check live smoke, 기존 API-key smoke, 30분 61/61 기술 관찰 완료; 실사용 수용 추적 중
+- Live runtime: `com.user.bai-next` + Node backup job, `com.user.baifeed` unloaded·persistently disabled, port 5066 closed
 
 ### Working tree 보호 규칙
 
-Task 6–7 구현은 `4728452`에 커밋되어 있다. Task 8은 사용자 지시에 따라 commit하지 않았으므로 현재 working tree diff 자체가 인계 대상이다. 다음 세션은 `4ec81a9`와 Task 8 diff를 먼저 확인하고, 이 문서에 없는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
+Task 6–7 구현은 `4728452`, Task 8은 `764a118`, Task 9 live release는 `caa8fc0`에 있다. Local `main`에는 push하지 않은 docs-only closeout commit 1개가 추가된다. 다음 세션은 local HEAD와 `origin/main`·deploy-state의 이 의도된 차이를 먼저 확인하고, 이 문서에 없는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
 
 금지:
 
 - `git reset`, `git checkout --`, `git restore`, `git clean`
 - Task 6–7 implementation commit `4728452` 임의 되돌리기
 - 다른 작업을 이유로 working tree 전체를 재포맷하거나 덮어쓰기
-- 사용자 승인 없는 commit, push, deploy
-- production DB, uploads, launch agent, live service 조작
+- 사용자 승인 없는 추가 commit, push, deploy
+- operational acceptance나 별도 사용자 승인 없는 Flask/Python source·plist 삭제
 
 시작 시 실행:
 
@@ -104,13 +107,13 @@ Task 6에서 완료된 범위:
 
 이 수치는 handoff 기준선이다. 새 세션은 변경 전 필요한 focused baseline을 다시 실행해야 한다.
 
-## 4. 남은 작업 개요
+## 4. 단계별 완료 상태
 
 | Task | 목적 | 운영 영향 | 권장 세션 |
 |---|---|---:|---|
-| 7 | Next 인증·세션 전환 | 코드/테스트만, 배포 금지 | 독립 세션 1개 이상 |
-| 8 | Flask proxy·Python runtime 제거 | 완료, uncommitted; live 변경 없음 | 완료 |
-| 9 | 운영 cutover·rollback 검증 | 실제 운영 영향 있음 | 별도 세션, 명시적 사용자 승인 필수 |
+| 7 | Next 인증·세션 전환 | `4728452`에 완료 | 완료 |
+| 8 | Flask proxy·Python runtime 제거 | `764a118`에 완료 | 완료 |
+| 9 | 운영 cutover·rollback 검증 | `caa8fc0` 운영 반영, 기술 acceptance 완료 | 운영 수용 관찰 |
 
 각 task는 fresh specification review와 fresh security/quality review가 모두 통과해야 종료한다. Reviewer의 PASS는 부모 세션이 핵심 artifact와 실행 결과를 재검증한다.
 
@@ -474,6 +477,46 @@ Rollback은 코드뿐 아니라 DB migration compatibility, launch agent, port o
 - 운영 문서와 현재 architecture를 갱신
 - 사용자가 Flask archival/deletion을 승인
 
+## 18.1 Task 9 기술 완료 상태
+
+2026-07-23 Task 9 운영 실행은 PI 승인 아래 수행했다.
+
+- `764a118` Task 8, `53a8e8a` cutover preflight, `afbee0a` stale `.next` cache 제거,
+  `baebb2b` web-only live test 경계 수정, `b7fbca9` backup 권한 강화, `caa8fc0` auth/API-key
+  cache 차단이 `origin/main`에 반영됐다.
+- 표준 autodeploy가 `caa8fc0`를 배포했고 source-build와 live-build 양쪽에서 350/350,
+  typecheck, production build를 통과했다.
+- 첫 두 배포 시도는 각각 stale generated route type과 live root-only file 가정 때문에 migration 전에
+  fail-closed했고 자동 code rollback이 통과했다. 데이터 mutation은 발생하지 않았다.
+- 최종 SQLite backup은
+  `/Users/hai_1/AI-Workspace/code/runtime/backups/bai_website/lab-feed-task9-final-20260723-0055.db`,
+  LaunchAgent와 uploads rollback bundle은
+  `/Users/hai_1/AI-Workspace/code/runtime/rollbacks/bai_website/task9-20260723-0055`다.
+- 운영 ledger에 `004_material_file_cleanup_queue`, `005_auth_sessions`가 추가됐다.
+- `com.user.bai-next`와 `com.user.baifeed-backup`은 mode-600 runtime env를 strict shell로 source한다.
+  Node backup은 exit 0, 신규 artifact mode 600, 무결성 `ok`, foreign-key error 0을 확인했다.
+- `com.user.baifeed`는 unload와 persistent disable 상태이고 port 5066 listener는 없다. Flask plist와 Python sources는 rollback용으로
+  보존했으며 삭제·archive하지 않았다.
+- 기존 pre-cutover API key로 public `/api/post`를 호출해 status 200, `source=skill`, author 일치를 확인하고
+  생성 행을 정리했다. Posts `10 → 10`, residue 0, `quick_check=ok`, foreign-key error 0이다.
+- 로그인·세션·API-key 응답은 `Cache-Control: private, no-store`를 반환한다. 운영 DB·plist·backup은
+  mode 600, uploads·backup directory는 mode 700이다.
+- 공개 URL 47-check smoke는 실제 브라우저 login/hydration/assets, session replay rejection, 전체 read,
+  post/project/admin/API-key/Goodbai/material/talent/inquiry/wall/runtime-health 흐름을 통과했다.
+- 임시 smoke account, 행, 파일을 모두 정리한 뒤 domain row counts와 uploads inventory가 pre-smoke
+  기준선으로 복원됐고 `quick_check=ok`, foreign-key error 0, smoke residue 0을 확인했다.
+- 그 뒤 01:12 KST 관찰 중 기존 활성 회원의 정상 `source=web` 게시물 1건이 들어와 posts는 10에서 11로
+  늘었다. 이는 smoke residue가 아닌 concurrent real-user activity이므로 보존했다.
+- Machine-readable smoke·runtime·observation evidence는
+  `docs/next-only-migration/task9-evidence.json`에 기록한다.
+- 최종 HEAD 기준 2026-07-23 01:07:13–01:40:02 KST 30분 관찰은 local/public/login HTTP,
+  anonymous auth cache header, DB quick/FK, ports 5067/5066, Flask persistent disable, deploy-state를
+  61회 확인해 61/61 PASS, blocking regression 0이었다.
+
+기술 cutover가 끝나도 operational acceptance는 별도다. PI가 실제 계정으로 feed, materials,
+talent-office와 operator 권한을 사용해 확인하기 전에는 운영 수용 원장의 `observing` 상태를 유지한다.
+Flask/Python source·plist archival 또는 삭제는 그 수용 기록과 별도 사용자 승인 뒤에만 수행한다.
+
 ---
 
 # 19. 공통 세션 운영 규칙
@@ -499,4 +542,4 @@ Rollback은 코드뿐 아니라 DB migration compatibility, launch agent, port o
 
 다음 문장을 새 세션에 전달한다.
 
-> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration의 Task 9 preflight만 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 live git status, `4728452`, Task 8 시작 HEAD `4ec81a9`, uncommitted Task 8 diff를 보존·검증하라. 사용자에게 운영 cutover 실행 승인이 명시되지 않았다면 read-only inspection과 rehearsal을 넘지 말고 commit, push, deploy, production DB/uploads/service/launch-agent를 변경하지 마라. 승인된 경우에도 Task 9 preflight와 rollback gate를 모두 통과한 뒤에만 운영 side effect를 수행하라.
+> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration의 운영 수용 관찰을 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 local `main`의 docs-only closeout commit 1개와 `origin/main`·deploy-state `caa8fc0`의 의도된 차이, `com.user.bai-next`, Node backup job, `com.user.baifeed` unloaded·persistently disabled, ports 5067/5066 상태를 read-only로 검증하라. 실제 PI 계정으로 feed·materials·talent-office·operator 흐름이 성공하면 operational acceptance 절차를 수행하되, 별도 사용자 승인 없이는 Flask/Python source·plist를 archive/delete하거나 추가 deploy하지 마라.

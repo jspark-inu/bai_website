@@ -1,8 +1,8 @@
 # BAI Next 단일 런타임 아키텍처
 
-## 1. 현재 구조와 문제
+## 1. 전환 전 구조와 문제
 
-현재 공개 UI는 Next.js/React지만 대부분의 `/api/*` 요청은 `apps/web/src/app/api/[...path]/route.ts`를 통해 Flask로 전달된다. Next와 Flask가 같은 SQLite를 열고 일부 기능은 Next가, 나머지는 Flask가 쓴다.
+전환 전 공개 UI는 Next.js/React였지만 대부분의 `/api/*` 요청은 `apps/web/src/app/api/[...path]/route.ts`를 통해 Flask로 전달됐다. Next와 Flask가 같은 SQLite를 열고 일부 기능은 Next가, 나머지는 Flask가 썼다.
 
 이 구조는 다음 운영 문제를 만든다.
 
@@ -114,7 +114,7 @@ Next 로그인·세션·로그아웃·현재 사용자·rate limit을 활성화�
 
 ### 6단계: Flask 제거
 
-catch-all proxy, `legacy-api-proxy.ts`, `backend/`, Python `frontend/`, 포트 5066 설정, Flask launch agent, Flask health check와 backend rsync를 제거한다.
+catch-all proxy, `legacy-api-proxy.ts`, 포트 5066 운영 설정, Flask health check와 backend rsync를 제거한다. `backend/`와 Python `frontend/` source는 운영 요청·배포 경로에서 제외하되, 실사용 수용과 별도 archival 승인 전까지 oracle·디자인 원본·rollback source로 보존한다.
 
 ## 5. 검증 전략
 
@@ -127,4 +127,17 @@ catch-all proxy, `legacy-api-proxy.ts`, `backend/`, Python `frontend/`, 포트 5
 
 ## 6. 롤백
 
-각 도메인 이전 커밋은 명시적 Next route를 추가하는 방식이므로 문제가 생기면 해당 route를 되돌려 catch-all Flask proxy로 복귀할 수 있다. 인증 전환과 Flask 제거는 마지막 단일 cutover로 묶으며, 직전 코드 스냅샷과 DB 온라인 백업을 보존한다.
+Cutover 전 code snapshot, Flask/Next/backup plist, DB online backup과 uploads inventory를 함께 보존한다. 장애 시 먼저 직전 code snapshot을 복원하고 Next를 rebuild/restart한다. Next-only 요청 처리가 불가능하면 `launchctl enable gui/$(id -u)/com.user.baifeed`로 영구 비활성화를 해제한 뒤 보존한 Flask plist를 bootstrap하고 5066을 복구한다. Migration `004`·`005`는 additive라 이전 Flask가 무시할 수 있으며, DB backup 복원은 integrity 또는 비호환 data mutation이 확인된 경우에만 사용한다.
+
+## 7. 2026-07-23 운영 상태
+
+- `caa8fc0`가 `origin/main`과 deploy-state에 일치한다.
+- `apps/web`이 UI, API, 인증·세션, SQLite migration, uploads를 단독 소유한다.
+- `com.user.bai-next`가 port 5067을 소유하고 `com.user.baifeed`는 unload 상태이며 5066 listener가 없다.
+- `com.user.baifeed-backup`은 Node verified-backup CLI를 실행한다.
+- Next·backup LaunchAgent는 mode-600 runtime env를 strict shell로 source하고, Flask는 `launchctl disable` 상태다.
+- 운영 DB와 백업 파일은 mode 600, 백업·uploads 디렉터리는 mode 700이다.
+- 로그인·세션·API-key 응답은 `Cache-Control: private, no-store`로 공유 캐시 저장을 차단한다.
+- Migration ledger는 `001`~`005`, DB `quick_check=ok`, foreign-key error 0이다.
+- 공개 URL 47-check smoke와 임시 data/upload cleanup이 통과했다.
+- Flask/Python source와 plist는 운영 수용 전 rollback 경계로만 남아 있고 production deploy 대상이 아니다.

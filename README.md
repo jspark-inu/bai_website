@@ -4,8 +4,8 @@ BAI 진행 공유 웹앱입니다.
 
 ## Next 단일 앱
 
-`apps/web`이 화면, API, 인증, 세션, SQLite, migration, uploads를 모두 소유합니다. Task 8
-작업본은 Flask proxy와 Python 배포 경로를 제거했지만 아직 운영에 반영하지 않았습니다.
+`apps/web`이 화면, API, 인증, 세션, SQLite, migration, uploads를 모두 소유합니다. 2026-07-23
+`caa8fc0`를 운영에 반영했고 Flask service를 영구 비활성화해 Next.js 단일 런타임으로 전환했습니다.
 
 로컬 개발은 운영 DB가 아닌 별도 절대경로의 scratch DB와 uploads를 사용합니다.
 
@@ -44,10 +44,9 @@ npm run build
 
 ## Legacy 보존 경계
 
-`backend/`와 `frontend/`는 Flask 계약 oracle, 승인 디자인 원본, Task 9 rollback source가
-완전히 보존되었다는 확인 전까지 삭제하지 않습니다. 두 디렉터리는 운영 요청 처리와 배포
-동기화 대상이 아닙니다. 운영 cutover와 관찰 기간이 끝난 뒤 별도 승인으로만 archive 또는
-삭제합니다.
+`backend/`와 `frontend/`는 Flask 계약 oracle, 승인 디자인 원본, rollback source로 보존합니다.
+두 디렉터리는 운영 요청 처리와 배포 동기화 대상이 아닙니다. Next-only 실사용 수용이 기록된
+뒤에도 별도 사용자 승인이 있어야만 archive 또는 삭제합니다.
 
 ## Work flow
 
@@ -103,21 +102,26 @@ npm run build
 
 ## Task 9 cutover와 rollback
 
-Task 8에서는 아래 명령을 실행하지 않습니다. 사용자가 Task 9 운영 실행을 명시적으로 승인한
-뒤에만 현재 plist 경로를 먼저 확인하고 수행합니다.
+Task 9 cutover는 2026-07-23 PI 승인 아래 수행했습니다.
 
-1. DB online backup, uploads fingerprint, 현재 코드 snapshot을 만든다.
-2. Next-only artifact와 runtime health를 먼저 확인한다.
-3. `launchctl print gui/$(id -u)/com.user.baifeed`로 현재 Flask job을 기록한다.
-4. 확인한 plist를 보존한 뒤 `launchctl bootout gui/$(id -u)/com.user.baifeed`로 Flask만 내린다.
-5. 포트 5066 listener가 없는 상태에서 로그인, API, Goodbai, uploads, runtime health를 검사한다.
+1. DB online backup, uploads fingerprint, 코드·plist snapshot을 보존했다.
+2. `caa8fc0` Next-only artifact, migration `004`·`005`, runtime health를 확인했다.
+3. `com.user.baifeed-backup`을 Node `npm run backup`으로 재배선해 검증 실행 exit 0을 확인했다.
+4. `com.user.baifeed`를 unload하고 `launchctl disable`로 영구 비활성화했으며 port 5066 listener가 없는 상태를 확인했다.
+5. 공개 URL에서 login/session, 주요 CRUD, Goodbai, uploads, runtime health 47-check와 데이터 정리를 검증했다.
+6. 기존 pre-cutover API key로 `/api/post` 호환성을 재검증하고 생성 행을 정리했다.
+7. runtime env, 운영 DB, LaunchAgent plist, 백업 디렉터리와 백업 파일을 소유자 전용 권한으로 제한했다.
 
-Rollback은 보존한 plist의 실제 경로를 사용해
+Rollback plist·uploads bundle은
+`/Users/hai_1/AI-Workspace/code/runtime/rollbacks/bai_website/task9-20260723-0055`,
+최종 DB backup은
+`/Users/hai_1/AI-Workspace/code/runtime/backups/bai_website/lab-feed-task9-final-20260723-0055.db`에 있다.
+Rollback은 보존한 Flask plist의 실제 경로를 사용해
+`launchctl enable gui/$(id -u)/com.user.baifeed`를 먼저 실행한 뒤
 `launchctl bootstrap gui/$(id -u) <plist-path>`와
 `launchctl kickstart -k gui/$(id -u)/com.user.baifeed`를 수행하고, 직전 코드 snapshot을
-복원한 뒤 DB와 uploads fingerprint를 다시 비교합니다. `com.user.baifeed-backup`이 Python
-스크립트를 가리키는 현재 운영 배선도 Task 9에서 Node `npm run backup`으로 교체·검증하기
-전에는 Flask/Python archival을 승인하지 않습니다.
+복원한 뒤 DB와 uploads fingerprint를 다시 비교합니다. Flask/Python source와 plist는 PI의
+실사용 수용 기록과 별도 archival 승인이 생길 때까지 삭제하지 않습니다.
 
 ## 등록 학생·운영진 PR → 자동 반영
 

@@ -1,4 +1,3 @@
-import type { Material } from './types';
 import { getDb, openWriteDb } from './db/client';
 
 export { getDb, resolveDbPath } from './db/client';
@@ -24,101 +23,7 @@ export function addWallMessage(authorId: number, body: string) {
   }
 }
 
-export function listMaterials(filters: { category?: string; guild?: string } = {}): Material[] {
-  const clauses: string[] = [];
-  const params: string[] = [];
-  if (filters.category) {
-    clauses.push('mt.category=?');
-    params.push(filters.category);
-  }
-  if (filters.guild) {
-    clauses.push('mt.guild=?');
-    params.push(filters.guild);
-  }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  return getDb()
-    .prepare(`SELECT mt.*, m.name AS author_name, m.role AS author_role FROM materials mt JOIN members m ON m.id=mt.author_id ${where} ORDER BY mt.id DESC`)
-    .all(...params) as Material[];
-}
-
-export function getMaterial(id: number): Material | null {
-  const row = getDb()
-    .prepare('SELECT mt.*, m.name AS author_name, m.role AS author_role FROM materials mt JOIN members m ON m.id=mt.author_id WHERE mt.id=?')
-    .get(id) as Material | undefined;
-  return row ?? null;
-}
-
-export function addMaterial(input: {
-  authorId: number;
-  title: string;
-  body?: string;
-  url?: string;
-  category?: string;
-  guild?: string;
-  fileUrl?: string;
-  fileName?: string;
-}) {
-  const conn = openWriteDb();
-  try {
-    const result = conn
-      .prepare(`INSERT INTO materials
-        (author_id, title, body, url, category, guild, file_url, file_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(
-        input.authorId,
-        input.title,
-        input.body ?? '',
-        input.url ?? '',
-        input.category || '자료',
-        input.guild ?? '',
-        input.fileUrl ?? '',
-        input.fileName ?? '',
-      );
-    return Number(result.lastInsertRowid);
-  } finally {
-    conn.close();
-  }
-}
-
-export function updateMaterial(id: number, input: {
-  title: string;
-  body?: string;
-  url?: string;
-  category?: string;
-  guild?: string;
-  fileUrl?: string;
-  fileName?: string;
-}) {
-  const conn = openWriteDb();
-  try {
-    conn
-      .prepare(`UPDATE materials SET
-        title=?, body=?, url=?, category=?, guild=?, file_url=?, file_name=?,
-        updated_at=datetime('now')
-        WHERE id=?`)
-      .run(
-        input.title,
-        input.body ?? '',
-        input.url ?? '',
-        input.category || '자료',
-        input.guild ?? '',
-        input.fileUrl ?? '',
-        input.fileName ?? '',
-        id,
-      );
-  } finally {
-    conn.close();
-  }
-}
-
-export function deleteMaterial(id: number) {
-  const conn = openWriteDb();
-  try {
-    conn.prepare('DELETE FROM materials WHERE id=?').run(id);
-  } finally {
-    conn.close();
-  }
-}
+export { listMaterials } from './db/repositories/materials';
 
 export function listPosts(limit = 50) {
   return getDb()

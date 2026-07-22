@@ -1,9 +1,4 @@
-import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
+import { talentOfficeDecisionPOST } from '@/lib/talent-office-api';
 
 export const runtime = 'nodejs';
-type Ctx = { params: Promise<{ rid: string }> };
-
-export async function POST(req: Request, ctx: Ctx) {
-  const { rid } = await ctx.params;
-  return proxyLegacyApi(req, ['talent-office', rid, 'decision']);
-}
+export const POST = talentOfficeDecisionPOST;

@@ -9,12 +9,16 @@ const MIGRATION_IDS = [
   '001_core_schema',
   '002_legacy_compatibility',
   '003_timestamp_compatibility',
+  '004_material_file_cleanup_queue',
+  '005_auth_sessions',
 ];
 const CANONICAL_TABLES = [
   'audit_log',
+  'auth_sessions',
   'comments',
   'contribution_points',
   'inquiries',
+  'material_file_cleanup_queue',
   'materials',
   'member_profiles',
   'members',
@@ -158,6 +162,42 @@ describe('canonical pre-deploy migrations', () => {
     db.prepare('DELETE FROM talent_requests WHERE id=1').run();
     expect(db.prepare('SELECT COUNT(*) AS count FROM talent_request_assignees').get()).toEqual({ count: 0 });
     expect(db.prepare('SELECT COUNT(*) AS count FROM contribution_points').get()).toEqual({ count: 0 });
+  });
+
+  it('installs a durable deduplicated material file cleanup queue', () => {
+    const db = memoryDb();
+    runMigrations(db);
+
+    db.prepare(`INSERT INTO material_file_cleanup_queue
+      (file_url, reason, attempts, last_error) VALUES (?, ?, ?, ?)`)
+      .run('/uploads/materials/orphan.pdf', 'material_deleted', 2, 'EACCES');
+    expect(db.prepare(`SELECT file_url,reason,attempts,last_error,next_attempt_at,lease_until,completed_at
+      FROM material_file_cleanup_queue`).get()).toEqual({
+      file_url: '/uploads/materials/orphan.pdf',
+      reason: 'material_deleted',
+      attempts: 2,
+      last_error: 'EACCES',
+      next_attempt_at: expect.any(String),
+      lease_until: null,
+      completed_at: null,
+    });
+    expect(() => db.prepare(`INSERT INTO material_file_cleanup_queue
+      (file_url, reason) VALUES (?, ?)`).run('/uploads/materials/orphan.pdf', 'replacement'))
+      .toThrow(/unique constraint/i);
+  });
+
+  it('installs revocable expiring Next sessions without changing existing members', () => {
+    const db = memoryDb();
+    runMigrations(db);
+    db.prepare("INSERT INTO members (id,name,password_hash,api_key) VALUES (1,'member','hash','key')").run();
+    db.prepare(`INSERT INTO auth_sessions (session_id,member_id,expires_at)
+      VALUES ('session-id',1,1800000000000)`).run();
+
+    expect(db.prepare('SELECT session_id,member_id,expires_at FROM auth_sessions').get()).toEqual({
+      session_id: 'session-id', member_id: 1, expires_at: 1800000000000,
+    });
+    expect(() => db.prepare(`INSERT INTO auth_sessions (session_id,member_id,expires_at)
+      VALUES ('other',999,1800000000000)`).run()).toThrow(/foreign key/i);
   });
 
   it('preserves legacy rows and IDs while adding the complete compatibility-column union', () => {
@@ -339,8 +379,13 @@ describe('canonical pre-deploy migrations', () => {
 
   it('keeps schema DDL out of request-path modules', () => {
     const dbSource = readFileSync(new URL('../../src/lib/db.ts', import.meta.url), 'utf8');
-    const talentSource = readFileSync(new URL('../../src/lib/talent-office.ts', import.meta.url), 'utf8');
-    for (const source of [dbSource, talentSource]) {
+    const talentRepositorySource = readFileSync(
+      new URL('../../src/lib/db/repositories/talent-office.ts', import.meta.url), 'utf8',
+    );
+    const talentServiceSource = readFileSync(
+      new URL('../../src/lib/services/talent-office.ts', import.meta.url), 'utf8',
+    );
+    for (const source of [dbSource, talentRepositorySource, talentServiceSource]) {
       expect(source).not.toMatch(/\b(?:CREATE|ALTER)\s+TABLE\b/i);
       expect(source).not.toMatch(/ensure(?:Column|WallSchema|TalentOfficeSchema)/);
     }

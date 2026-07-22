@@ -2,84 +2,80 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
-  headers: vi.fn(),
   getMemberById: vi.fn(),
+  authSessionExists: vi.fn(),
+  unstableRethrow: vi.fn(),
 }));
 
-vi.mock('next/headers', () => ({
-  cookies: mocks.cookies,
-  headers: mocks.headers,
+vi.mock('next/headers', () => ({ cookies: mocks.cookies }));
+vi.mock('@/lib/db/repositories/members', () => ({ getMemberById: mocks.getMemberById }));
+vi.mock('@/lib/db/repositories/auth-sessions', () => ({
+  authSessionExists: mocks.authSessionExists,
+  deleteAuthSession: vi.fn(),
+  deleteExpiredAuthSessions: vi.fn(),
+  insertAuthSession: vi.fn(),
 }));
-vi.mock('@/lib/db', () => ({ getMemberById: mocks.getMemberById }));
+vi.mock('next/navigation', () => ({ unstable_rethrow: mocks.unstableRethrow }));
 
 import { getCurrentMember, requireApiMember } from '@/lib/auth';
+import { signSessionToken } from '@/lib/auth/session';
 
-describe('Flask-backed current-member authentication', () => {
+const SECRET = 'task-7-auth-unit-secret-at-least-32-characters';
+
+describe('Next-native current-member authentication', () => {
   beforeEach(() => {
-    process.env.BAI_API_ORIGIN = 'http://legacy.test:5066';
+    process.env.LAB_FEED_SECRET = SECRET;
     delete process.env.BAI_DEV_MEMBER_ID;
-    mocks.cookies.mockReset();
-    mocks.headers.mockReset().mockResolvedValue(new Headers({ cookie: 'session=valid' }));
+    mocks.cookies.mockReset().mockResolvedValue({ get: vi.fn().mockReturnValue(undefined) });
     mocks.getMemberById.mockReset();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    delete process.env.BAI_API_ORIGIN;
-  });
-
-  it('returns null only when Flask explicitly reports an anonymous session', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(Response.json(
-      { error: 'not logged in' },
-      { status: 401 },
-    ));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await expect(getCurrentMember()).resolves.toBeNull();
-    expect(mocks.getMemberById).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledWith(
-      new URL('http://legacy.test:5066/api/me'),
-      { headers: { cookie: 'session=valid' }, cache: 'no-store' },
-    );
-  });
-
-  it('returns the member only after Flask and the shared database agree', async () => {
-    const member = { id: 7, name: '테스트 멤버', role: 'student' };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(member)));
-    mocks.getMemberById.mockReturnValue(member);
-
-    await expect(getCurrentMember()).resolves.toEqual(member);
-    expect(mocks.getMemberById).toHaveBeenCalledWith(7);
-  });
-
-  it('does not convert an upstream 5xx into a logged-out session', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(
-      { error: 'database unavailable' },
-      { status: 500 },
-    )));
-
-    await expect(getCurrentMember()).rejects.toMatchObject({
-      name: 'AuthServiceError',
-      status: 503,
+    mocks.authSessionExists.mockReset();
+    mocks.unstableRethrow.mockReset().mockImplementation((error: unknown) => {
+      if (error && typeof error === 'object' && 'digest' in error) throw error;
     });
   });
 
-  it('reports a shared-database mismatch instead of logging the user out', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
-      id: 9,
-      name: 'Flask에는 존재',
-      role: 'student',
-    })));
-    mocks.getMemberById.mockReturnValue(null);
-
-    const result = await requireApiMember();
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('expected an authentication error');
-    expect(result.error.status).toBe(503);
+  afterEach(() => {
+    delete process.env.LAB_FEED_SECRET;
   });
 
-  it('maps network failures to a non-cacheable 503 API response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connection refused')));
+  it('returns null for an anonymous request without consulting the database', async () => {
+    await expect(getCurrentMember()).resolves.toBeNull();
+    expect(mocks.authSessionExists).not.toHaveBeenCalled();
+    expect(mocks.getMemberById).not.toHaveBeenCalled();
+  });
+
+  it('returns a member only when the signature, server-side session, and active database row agree', async () => {
+    const token = signSessionToken(7, { secret: SECRET });
+    mocks.cookies.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: token }) });
+    mocks.authSessionExists.mockReturnValue(true);
+    mocks.getMemberById.mockReturnValue({ id: 7, name: '테스트 멤버', role: 'student' });
+
+    await expect(getCurrentMember()).resolves.toEqual({ id: 7, name: '테스트 멤버', role: 'student' });
+    expect(mocks.getMemberById).toHaveBeenCalledWith(7);
+  });
+
+  it('rejects a valid signed token after the server-side session is gone', async () => {
+    const token = signSessionToken(7, { secret: SECRET });
+    mocks.cookies.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: token }) });
+    mocks.authSessionExists.mockReturnValue(false);
+
+    await expect(getCurrentMember()).resolves.toBeNull();
+    expect(mocks.getMemberById).not.toHaveBeenCalled();
+  });
+
+  it('rechecks member status and does not accept a removed or disabled row', async () => {
+    const token = signSessionToken(7, { secret: SECRET });
+    mocks.cookies.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: token }) });
+    mocks.authSessionExists.mockReturnValue(true);
+    mocks.getMemberById.mockReturnValue(null);
+
+    await expect(getCurrentMember()).resolves.toBeNull();
+  });
+
+  it('maps session storage failure to a non-cacheable 503 response', async () => {
+    const token = signSessionToken(7, { secret: SECRET });
+    mocks.cookies.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: token }) });
+    mocks.authSessionExists.mockImplementation(() => { throw new Error('database unavailable'); });
 
     const result = await requireApiMember();
     expect(result.ok).toBe(false);
@@ -89,12 +85,11 @@ describe('Flask-backed current-member authentication', () => {
     await expect(result.error.json()).resolves.toEqual({ error: 'authentication service unavailable' });
   });
 
-  it('treats a malformed successful response as a bad gateway, not anonymous', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ name: 'id 없음' })));
+  it('lets Next handle request-time rendering control-flow errors', async () => {
+    const frameworkError = Object.assign(new Error('dynamic server usage'), { digest: 'DYNAMIC_SERVER_USAGE' });
+    mocks.cookies.mockRejectedValue(frameworkError);
 
-    const result = await requireApiMember();
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error('expected an authentication error');
-    expect(result.error.status).toBe(502);
+    await expect(getCurrentMember()).rejects.toBe(frameworkError);
+    expect(mocks.unstableRethrow).toHaveBeenCalledWith(frameworkError);
   });
 });

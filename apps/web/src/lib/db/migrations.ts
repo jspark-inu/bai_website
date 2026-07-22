@@ -364,6 +364,42 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    id: '004_material_file_cleanup_queue',
+    up(conn) {
+      conn.exec(`
+        CREATE TABLE material_file_cleanup_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          file_url TEXT NOT NULL UNIQUE
+            CHECK (file_url LIKE '/uploads/materials/%'),
+          reason TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+          last_error TEXT NOT NULL DEFAULT '',
+          next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+          lease_until TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          completed_at TEXT
+        );
+        CREATE INDEX material_file_cleanup_pending_idx
+          ON material_file_cleanup_queue (completed_at, next_attempt_at, lease_until, id);
+      `);
+    },
+  },
+  {
+    id: '005_auth_sessions',
+    up(conn) {
+      conn.exec(`
+        CREATE TABLE auth_sessions (
+          session_id TEXT PRIMARY KEY,
+          member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          expires_at INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX auth_sessions_expiry_idx ON auth_sessions (expires_at);
+        CREATE INDEX auth_sessions_member_idx ON auth_sessions (member_id);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(supplied?: Database.Database) {

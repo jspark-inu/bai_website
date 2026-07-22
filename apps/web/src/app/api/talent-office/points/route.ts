@@ -1,8 +1,6 @@
-import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
+import { talentOfficePointsGET } from '@/lib/talent-office-api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
-  return proxyLegacyApi(req, ['talent-office', 'points']);
-}
+export const GET = talentOfficePointsGET;

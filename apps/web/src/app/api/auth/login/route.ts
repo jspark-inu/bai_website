@@ -1,11 +1,6 @@
-import { NextRequest } from 'next/server';
-import { clearSessionCookie } from '@/lib/auth';
-import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
+import { loginPOST } from '@/lib/auth/handlers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
-  await clearSessionCookie();
-  return proxyLegacyApi(req, 'login');
-}
+export const POST = loginPOST;

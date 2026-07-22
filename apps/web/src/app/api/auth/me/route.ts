@@ -1,8 +1,6 @@
-import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
+import { meGET } from '@/lib/auth/handlers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
-  return proxyLegacyApi(req, 'me');
-}
+export const GET = meGET;

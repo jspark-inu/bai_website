@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "routeMethods": [
+    "GET /api/materials",
+    "POST /api/materials",
+    "POST /api/materials/:mid",
+    "DELETE /api/materials/:mid"
+  ],
+  "seed": {
+    "members": [
+      { "id": 1, "name": "Owner", "password_hash": "hash", "api_key": "owner-key", "role": "student", "status": "active", "created_at": "2026-07-01 00:00:00" },
+      { "id": 2, "name": "Other", "password_hash": "hash", "api_key": "other-key", "role": "developer", "status": "active", "created_at": "2026-07-02 00:00:00" },
+      { "id": 3, "name": "PI", "password_hash": "hash", "api_key": "pi-key", "role": "pi", "status": "active", "created_at": "2026-07-03 00:00:00" }
+    ],
+    "materials": [
+      { "id": 10, "author_id": 1, "title": "First", "body": "body one", "url": "", "category": "온보딩", "guild": "공통", "file_url": "/uploads/materials/keep.pdf", "file_name": "keep.pdf", "created_at": "2026-07-04 00:00:00", "updated_at": "2026-07-04 00:00:00" },
+      { "id": 11, "author_id": 2, "title": "Second", "body": "", "url": "https://two.invalid", "category": "자료", "guild": "웹", "file_url": "", "file_name": "", "created_at": "2026-07-05 00:00:00", "updated_at": "2026-07-05 00:00:00" }
+    ]
+  },
+  "seedVariants": {
+    "unsafe-material": {
+      "materials": [
+        { "id": { "$integer": "9007199254740993" }, "author_id": 1, "title": "Huge", "body": "body", "url": "", "category": "자료", "guild": "", "file_url": "", "file_name": "", "created_at": "2026-07-06 00:00:00", "updated_at": "2026-07-06 00:00:00" }
+      ]
+    },
+    "create-sql-failure": { "failMaterialInsert": true },
+    "update-sql-failure": { "failMaterialUpdate": true },
+    "delete-sql-failure": { "failMaterialDelete": true }
+  },
+  "legacyCases": [
+    {
+      "name": "materials GET authenticates before filters and returns exact JSON content type",
+      "auth": null, "method": "GET", "path": "/api/materials?category=%20%EC%98%A8%EB%B3%B4%EB%94%A9%20", "rawBody": null,
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "materials GET orders descending and exposes exact legacy columns",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "GET", "path": "/api/materials", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "materials": [
+        { "id": 11, "author_id": 2, "title": "Second", "body": "", "url": "https://two.invalid", "category": "자료", "guild": "웹", "file_url": "", "file_name": "", "created_at": "2026-07-05 00:00:00", "updated_at": "2026-07-05 00:00:00", "author_name": "Other", "author_role": "developer" },
+        { "id": 10, "author_id": 1, "title": "First", "body": "body one", "url": "", "category": "온보딩", "guild": "공통", "file_url": "/uploads/materials/keep.pdf", "file_name": "keep.pdf", "created_at": "2026-07-04 00:00:00", "updated_at": "2026-07-04 00:00:00", "author_name": "Owner", "author_role": "student" }
+      ] }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT id FROM materials ORDER BY id DESC", "rows": [{ "id": 11 }, { "id": 10 }] }]
+    },
+    {
+      "name": "materials GET trims Python whitespace from both filters",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "GET", "path": "/api/materials?category=%1C%EC%98%A8%EB%B3%B4%EB%94%A9%1C&guild=%20%EA%B3%B5%ED%86%B5%20", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "materials": [
+        { "id": 10, "author_id": 1, "title": "First", "body": "body one", "url": "", "category": "온보딩", "guild": "공통", "file_url": "/uploads/materials/keep.pdf", "file_name": "keep.pdf", "created_at": "2026-07-04 00:00:00", "updated_at": "2026-07-04 00:00:00", "author_name": "Owner", "author_role": "student" }
+      ] }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material create authenticates before malformed JSON",
+      "auth": null, "method": "POST", "path": "/api/materials", "rawBody": "{broken",
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material create ignores JSON text with text plain Content-Type",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials", "rawBody": "{\"title\":\"Ignored\",\"body\":\"Ignored\"}", "requestContentType": "text/plain",
+      "status": 400, "contentType": "application/json", "json": { "error": "title and body or url required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material create applies Python whitespace and falsey payload defaults",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials", "jsonBody": { "title": "\u001c New \u001c", "body": false, "url": " https://new.invalid ", "category": 0, "guild": null },
+      "status": 200, "contentType": "application/json", "json": { "id": 12 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,author_id,title,body,url,category,guild,file_url,file_name FROM materials WHERE id=12", "rows": [{ "id": 12, "author_id": 1, "title": "New", "body": "", "url": "https://new.invalid", "category": "자료", "guild": "", "file_url": "", "file_name": "" }] }]
+    },
+    {
+      "name": "material create ignores client supplied file metadata in legacy JSON",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials", "jsonBody": { "title": "Metadata", "body": "body", "file_url": "/uploads/materials/evil.pdf", "file_name": "evil.pdf" },
+      "status": 200, "contentType": "application/json", "json": { "id": 12 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT file_url,file_name FROM materials WHERE id=12", "rows": [{ "file_url": "", "file_name": "" }] }]
+    },
+    {
+      "name": "material create preserves truthy non-string payload failure",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials", "jsonBody": { "title": ["not", "text"], "body": "body" }, "expectUnhandled": true,
+      "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material update authenticates before existence ownership and malformed JSON",
+      "auth": null, "method": "POST", "path": "/api/materials/999", "rawBody": "{broken",
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title FROM materials WHERE id=10", "rows": [{ "title": "First" }] }]
+    },
+    {
+      "name": "material update returns not found before body validation",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials/999", "jsonBody": {},
+      "status": 404, "contentType": "application/json", "json": { "error": "not found" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material update rejects non-owner before malformed JSON",
+      "auth": { "id": 2, "name": "Other", "role": "developer" }, "method": "POST", "path": "/api/materials/10", "rawBody": "{broken",
+      "status": 403, "contentType": "application/json", "json": { "error": "forbidden" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title FROM materials WHERE id=10", "rows": [{ "title": "First" }] }]
+    },
+    {
+      "name": "material owner update preserves managed file metadata",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials/10", "jsonBody": { "title": " Updated ", "body": " changed ", "url": "", "category": " docs ", "guild": " lab ", "file_url": "/uploads/materials/evil.pdf", "file_name": "evil.pdf" },
+      "status": 200, "contentType": "application/json", "json": { "id": 10 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,author_id,title,body,url,category,guild,file_url,file_name FROM materials WHERE id=10", "rows": [{ "id": 10, "author_id": 1, "title": "Updated", "body": "changed", "url": "", "category": "docs", "guild": "lab", "file_url": "/uploads/materials/keep.pdf", "file_name": "keep.pdf" }] }]
+    },
+    {
+      "name": "material PI may update another owner while preserving managed file metadata",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/materials/11", "jsonBody": { "title": "PI edit", "body": "PI body", "file_url": "/uploads/materials/evil.pdf" },
+      "status": 200, "contentType": "application/json", "json": { "id": 11 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT author_id,title,body,file_url,file_name FROM materials WHERE id=11", "rows": [{ "author_id": 2, "title": "PI edit", "body": "PI body", "file_url": "", "file_name": "" }] }]
+    },
+    {
+      "name": "material delete authenticates before existence",
+      "auth": null, "method": "DELETE", "path": "/api/materials/999", "rawBody": null,
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material delete rejects non-owner",
+      "auth": { "id": 2, "name": "Other", "role": "developer" }, "method": "DELETE", "path": "/api/materials/10", "rawBody": null,
+      "status": 403, "contentType": "application/json", "json": { "error": "forbidden" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title FROM materials WHERE id=10", "rows": [{ "title": "First" }] }]
+    },
+    {
+      "name": "material PI may delete another owner material",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "DELETE", "path": "/api/materials/11", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "ok": true }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id FROM materials ORDER BY id", "rows": [{ "id": 10 }] }]
+    },
+    {
+      "name": "malformed material POST path negotiates 405 before auth",
+      "auth": null, "method": "POST", "path": "/api/materials/10.0", "jsonBody": { "title": "x", "body": "x" },
+      "status": 405, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>405 Method Not Allowed</title>\n<h1>Method Not Allowed</h1>\n<p>The method is not allowed for the requested URL.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "material unsafe ID owner update remains lossless",
+      "seedVariant": "unsafe-material", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials/9007199254740993", "jsonBody": { "title": "Huge updated", "body": "body" },
+      "status": 200, "contentType": "application/json", "json": { "id": { "$integer": "9007199254740993" } }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,title FROM materials WHERE id=9007199254740993", "safeIntegers": true, "rows": [{ "id": { "$integer": "9007199254740993" }, "title": "Huge updated" }] }]
+    }
+  ],
+  "uploadCases": [
+    {
+      "name": "multipart create stages then publishes one final upload with no temporary file",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials",
+      "form": { "title": "Uploaded", "body": "", "url": "", "category": "자료", "guild": "웹" }, "file": { "name": "evidence.txt", "type": "text/plain", "text": "upload evidence" },
+      "status": 200, "contentType": "application/json", "json": { "id": 12 }, "expectedFiles": [{ "originalName": "evidence.txt", "text": "upload evidence" }], "cleanupJournal": [], "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,author_id,title,file_name FROM materials WHERE id=12", "rows": [{ "id": 12, "author_id": 1, "title": "Uploaded", "file_name": "evidence.txt" }] }]
+    },
+    {
+      "name": "multipart create SQL failure compensates published upload and journals no cleanup debt",
+      "seedVariant": "create-sql-failure", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials", "expectUnhandled": true,
+      "form": { "title": "Fail", "body": "", "url": "" }, "file": { "name": "failed.txt", "type": "text/plain", "text": "must disappear" },
+      "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "expectedFiles": [], "cleanupJournal": [], "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "multipart replacement publishes new file commits SQL then cleans old file",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials/10",
+      "preexistingFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "form": { "title": "Replaced", "body": "body" }, "file": { "name": "new.pdf", "type": "application/pdf", "text": "new bytes" },
+      "status": 200, "contentType": "application/json", "json": { "id": 10 }, "expectedFiles": [{ "originalName": "new.pdf", "text": "new bytes" }], "cleanupJournal": [], "noMutation": false,
+      "expectedDb": [{ "query": "SELECT title,file_name FROM materials WHERE id=10", "rows": [{ "title": "Replaced", "file_name": "new.pdf" }] }]
+    },
+    {
+      "name": "multipart replacement SQL failure removes new file and preserves old upload",
+      "seedVariant": "update-sql-failure", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials/10", "expectUnhandled": true,
+      "preexistingFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "form": { "title": "Must fail", "body": "body" }, "file": { "name": "new.pdf", "type": "application/pdf", "text": "new bytes" },
+      "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "expectedFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "cleanupJournal": [], "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title,file_url,file_name FROM materials WHERE id=10", "rows": [{ "title": "First", "file_url": "/uploads/materials/keep.pdf", "file_name": "keep.pdf" }] }]
+    },
+    {
+      "name": "delete commits row removal then cleans owned upload",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "DELETE", "path": "/api/materials/10",
+      "preexistingFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "status": 200, "contentType": "application/json", "json": { "ok": true }, "expectedFiles": [], "cleanupJournal": [], "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id FROM materials ORDER BY id", "rows": [{ "id": 11 }] }]
+    },
+    {
+      "name": "delete SQL failure preserves row and upload with no cleanup journal debt",
+      "seedVariant": "delete-sql-failure", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "DELETE", "path": "/api/materials/10", "expectUnhandled": true,
+      "preexistingFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "expectedFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "cleanupJournal": [], "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title,file_url FROM materials WHERE id=10", "rows": [{ "title": "First", "file_url": "/uploads/materials/keep.pdf" }] }]
+    },
+    {
+      "name": "unsafe external file metadata is never deleted and creates no cleanup journal entry",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "DELETE", "path": "/api/materials/10", "materialPatch": { "file_url": "/uploads/materials/../outside.txt", "file_name": "outside.txt" },
+      "outsideFiles": [{ "name": "outside.txt", "text": "must survive" }], "status": 200, "contentType": "application/json", "json": { "ok": true }, "expectedFiles": [], "expectedOutsideFiles": [{ "name": "outside.txt", "text": "must survive" }], "cleanupJournal": [], "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id FROM materials ORDER BY id", "rows": [{ "id": 11 }] }]
+    },
+    {
+      "name": "replacement old-file cleanup failure commits replacement and enqueues durable deduplicated debt",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials/10",
+      "preexistingFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "form": { "title": "Replaced despite cleanup", "body": "body" }, "file": { "name": "new.pdf", "type": "application/pdf", "text": "new bytes" },
+      "cleanupQueue": [{ "id": 1, "file_url": "/uploads/materials/keep.pdf", "reason": "previous", "attempts": 4, "last_error": "old", "created_at": "2026-07-01 00:00:00", "completed_at": "2026-07-02 00:00:00" }],
+      "cleanupFault": { "code": "EACCES", "message": "injected material unlink failure" },
+      "status": 200, "contentType": "application/json", "json": { "id": 10 }, "expectedFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }, { "originalName": "new.pdf", "text": "new bytes" }],
+      "cleanupJournal": [{ "id": 1, "file_url": "/uploads/materials/keep.pdf", "reason": "replacement", "attempts": 5, "last_error": "EACCES: injected material unlink failure", "completed_at": null }], "noMutation": false,
+      "expectedDb": [{ "query": "SELECT title,file_name FROM materials WHERE id=10", "rows": [{ "title": "Replaced despite cleanup", "file_name": "new.pdf" }] }]
+    },
+    {
+      "name": "committed delete cleanup failure preserves success and enqueues retry debt",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "DELETE", "path": "/api/materials/10",
+      "preexistingFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }], "cleanupFault": { "code": "EBUSY", "message": "injected committed delete cleanup failure" },
+      "status": 200, "contentType": "application/json", "json": { "ok": true }, "expectedFiles": [{ "storedName": "keep.pdf", "text": "old bytes" }],
+      "cleanupJournal": [{ "id": 1, "file_url": "/uploads/materials/keep.pdf", "reason": "material_deleted", "attempts": 1, "last_error": "EBUSY: injected committed delete cleanup failure", "completed_at": null }], "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id FROM materials ORDER BY id", "rows": [{ "id": 11 }] }]
+    },
+    {
+      "name": "rollback compensation cleanup failure enqueues published orphan for retry",
+      "seedVariant": "create-sql-failure", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/materials", "expectUnhandled": true,
+      "form": { "title": "Fail with orphan", "body": "", "url": "" }, "file": { "name": "orphan.txt", "type": "text/plain", "text": "orphan bytes" },
+      "cleanupFault": { "code": "EPERM", "message": "injected rollback compensation cleanup failure" },
+      "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "expectedFiles": [{ "originalName": "orphan.txt", "text": "orphan bytes" }],
+      "cleanupJournal": [{ "id": 1, "originalName": "orphan.txt", "reason": "rollback_compensation", "attempts": 1, "last_error": "EPERM: injected rollback compensation cleanup failure", "completed_at": null }], "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM materials", "rows": [{ "count": 2 }] }]
+    }
+  ]
+}

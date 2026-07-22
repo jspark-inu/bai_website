@@ -54,6 +54,28 @@ export function getMemberById(id: FlaskInt): ReadMemberPublic | null {
   return row ?? null;
 }
 
+export function getActiveMemberPassword(id: FlaskInt): string | null {
+  const row = getDb().prepare(
+    "SELECT password_hash FROM members WHERE id=? AND status='active'",
+  ).get(id) as { password_hash: string } | undefined;
+  return row?.password_hash ?? null;
+}
+
+export function replaceActiveMemberPassword(
+  conn: Database.Database,
+  id: FlaskInt,
+  expectedHash: string,
+  passwordHash: string,
+): 'updated' | 'inactive' | 'changed' {
+  const row = conn.prepare('SELECT status,password_hash FROM members WHERE id=?').get(id) as
+    | { status: string; password_hash: string }
+    | undefined;
+  if (!row || row.status !== 'active') return 'inactive';
+  if (row.password_hash !== expectedHash) return 'changed';
+  conn.prepare('UPDATE members SET password_hash=? WHERE id=?').run(passwordHash, id);
+  return 'updated';
+}
+
 export type DbConnection = Database.Database;
 
 export type MemberAccountRow = {

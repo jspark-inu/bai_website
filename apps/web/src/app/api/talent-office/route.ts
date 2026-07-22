@@ -1,12 +1,7 @@
-import { proxyLegacyApi } from '@/lib/legacy-api-proxy';
+import { talentOfficeGET, talentOfficePOST } from '@/lib/talent-office-api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
-  return proxyLegacyApi(req, 'talent-office');
-}
-
-export async function POST(req: Request) {
-  return proxyLegacyApi(req, 'talent-office');
-}
+export const GET = talentOfficeGET;
+export const POST = talentOfficePOST;

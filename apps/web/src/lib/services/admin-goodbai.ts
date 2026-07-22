@@ -28,14 +28,14 @@ function makeApiKey() {
   return randomBytes(24).toString('base64url');
 }
 
-export function regenerateOwnApiKey(identity: MemberPublic) {
+export function regenerateOwnApiKey(identity: MemberPublic, auditAction = 'regenerate_own_api_key') {
   const member = getMemberAccountById(identity.id);
   if (!member) return null;
   const apiKey = makeApiKey();
   return withWriteTransaction((conn) => {
     if (!memberExists(conn, member.id)) return null;
     updateMemberApiKey(conn, member.id, apiKey);
-    insertAuditLog(conn, identity.id, 'regenerate_own_api_key', member.id);
+    insertAuditLog(conn, identity.id, auditAction, member.id);
     return apiKey;
   });
 }

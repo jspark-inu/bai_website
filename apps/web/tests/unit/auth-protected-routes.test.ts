@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   updateMaterial: vi.fn(),
   deleteMaterialUpload: vi.fn(),
   saveMaterialUpload: vi.fn(),
-  setTalentOperator: vi.fn(),
 }));
 
 vi.mock('@/lib/auth', () => ({ requireApiMember: mocks.requireApiMember }));
@@ -26,12 +25,9 @@ vi.mock('@/lib/uploads', () => ({
   materialUploadDir: vi.fn(() => '/tmp/bai-auth-route-test'),
   saveMaterialUpload: mocks.saveMaterialUpload,
 }));
-vi.mock('@/lib/talent-office', () => ({ setTalentOperator: mocks.setTalentOperator }));
-vi.mock('@/lib/talent-office-api', () => ({ talentErrorResponse: vi.fn() }));
 
 import { GET as materialsGet } from '@/app/api/materials/route';
 import { POST as materialUpdate } from '@/app/api/materials/[mid]/route';
-import { POST as operatorUpdate } from '@/app/api/talent-office/operators/[mid]/route';
 import { GET as materialDownload } from '@/app/uploads/materials/[...file]/route';
 
 function unavailable() {
@@ -64,18 +60,12 @@ describe('direct Next APIs preserve authentication dependency failures', () => {
     expect(mocks.updateMaterial).not.toHaveBeenCalled();
   });
 
-  it('returns 503 from protected download and operator routes', async () => {
+  it('returns 503 from protected downloads', async () => {
     const downloadResponse = await materialDownload(
       new Request('http://next.test/uploads/materials/file.pdf'),
       { params: Promise.resolve({ file: ['file.pdf'] }) },
     );
-    const operatorResponse = await operatorUpdate(
-      new Request('http://next.test/api/talent-office/operators/3', { method: 'POST' }),
-      { params: Promise.resolve({ mid: '3' }) },
-    );
 
     expect(downloadResponse.status).toBe(503);
-    expect(operatorResponse.status).toBe(503);
-    expect(mocks.setTalentOperator).not.toHaveBeenCalled();
   });
 });

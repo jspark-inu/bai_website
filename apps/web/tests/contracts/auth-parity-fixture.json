@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "generatedApiKey": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH",
+  "nextGeneratedHash": "pbkdf2:sha256:1000000$fixedtestsalts1x$f9c30dc7c45ba79a796dc937c6c0c5b5149ce8cf805abc47b42d2df0ab64c557",
+  "passwords": {
+    "original": "correct horse battery staple",
+    "replacement": "replacement password"
+  },
+  "members": [
+    {
+      "id": 1,
+      "name": "PBKDF2 member",
+      "password_hash": "pbkdf2:sha256:1000000$FSVw4UciNL5tg1Sm$e087bd1acf2b14ed4ff54025901da3f9446b0415868ff7586713eca50c21141d",
+      "api_key": "pbkdf2-key",
+      "role": "student",
+      "status": "active"
+    },
+    {
+      "id": 2,
+      "name": "Scrypt member",
+      "password_hash": "scrypt:32768:8:1$JXwljJAL77bFOjHS$d68d46b69570eddcc09dd0090fd722a4436cdc1b5feace65d5e9ee91aef691f32c2e2b6d2b5c66976783e8743b482cecd7de3f24f892e3e68912cf6a391b65c5",
+      "api_key": "scrypt-key",
+      "role": "developer",
+      "status": "active"
+    },
+    {
+      "id": 3,
+      "name": "Disabled member",
+      "password_hash": "pbkdf2:sha256:1000000$FSVw4UciNL5tg1Sm$e087bd1acf2b14ed4ff54025901da3f9446b0415868ff7586713eca50c21141d",
+      "api_key": "disabled-key",
+      "role": "student",
+      "status": "disabled"
+    }
+  ],
+  "steps": [
+    { "name": "anonymous me", "method": "GET", "path": "/api/me", "status": 401, "json": { "error": "not logged in" } },
+    { "name": "wrong password", "method": "POST", "path": "/api/login", "jsonBody": { "name": "PBKDF2 member", "password": "wrong" }, "status": 401, "json": { "error": "invalid credentials" } },
+    { "name": "disabled member", "method": "POST", "path": "/api/login", "jsonBody": { "name": "Disabled member", "password": "correct horse battery staple" }, "status": 401, "json": { "error": "invalid credentials" } },
+    { "name": "falsey JSON", "method": "POST", "path": "/api/login", "jsonBody": false, "status": 401, "json": { "error": "invalid credentials" } },
+    { "name": "truthy non-object JSON", "method": "POST", "path": "/api/login", "jsonBody": [1], "status": 500, "unhandled": true },
+    { "name": "non-JSON body", "method": "POST", "path": "/api/login", "rawBody": "not json", "contentType": "text/plain", "status": 401, "json": { "error": "invalid credentials" } },
+    { "name": "PBKDF2 login", "method": "POST", "path": "/api/login", "jsonBody": { "name": "PBKDF2 member", "password": "correct horse battery staple" }, "status": 200, "json": { "id": 1, "name": "PBKDF2 member", "role": "student" } },
+    { "name": "current member", "method": "GET", "path": "/api/me", "status": 200, "json": { "id": 1, "name": "PBKDF2 member", "role": "student" } },
+    { "name": "current API key", "method": "GET", "path": "/api/me?api_key=1", "status": 200, "json": { "id": 1, "name": "PBKDF2 member", "role": "student", "api_key": "pbkdf2-key", "member_id": 1, "usage": { "endpoint": "/api/post", "method": "POST", "header": "X-API-Key" } } },
+    { "name": "unknown me action", "method": "POST", "path": "/api/me", "jsonBody": { "action": "unknown" }, "status": 400, "json": { "error": "unknown action" } },
+    { "name": "regenerate API key", "method": "POST", "path": "/api/me", "jsonBody": { "action": "regenerate_api_key" }, "status": 200, "json": { "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH", "member_id": 1, "name": "PBKDF2 member", "role": "student" }, "db": { "memberId": 1, "apiKey": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH", "auditActions": ["self_regenerate_api_key"] } },
+    { "name": "logout PBKDF2 member", "method": "POST", "path": "/api/logout", "status": 200, "json": { "ok": true } },
+    { "name": "logout invalidation", "method": "GET", "path": "/api/me", "status": 401, "json": { "error": "not logged in" } },
+    { "name": "scrypt login", "method": "POST", "path": "/api/login", "jsonBody": { "name": "Scrypt member", "password": "correct horse battery staple" }, "status": 200, "json": { "id": 2, "name": "Scrypt member", "role": "developer" } },
+    { "name": "wrong current password", "method": "POST", "path": "/api/change-password", "jsonBody": { "current_password": "wrong", "new_password": "replacement password" }, "status": 400, "json": { "error": "current password is incorrect" }, "db": { "memberId": 2, "passwordAccepts": "original", "passwordRejects": "replacement" } },
+    { "name": "short new password", "method": "POST", "path": "/api/change-password", "jsonBody": { "current_password": "correct horse battery staple", "new_password": "123" }, "status": 400, "json": { "error": "new password must be at least 4 characters" }, "db": { "memberId": 2, "passwordAccepts": "original", "passwordRejects": "replacement" } },
+    { "name": "successful password change", "method": "POST", "path": "/api/change-password", "jsonBody": { "current_password": "correct horse battery staple", "new_password": "replacement password" }, "status": 200, "json": { "ok": true }, "db": { "memberId": 2, "passwordAccepts": "replacement", "passwordRejects": "original" } },
+    { "name": "logout changed member", "method": "POST", "path": "/api/logout", "status": 200, "json": { "ok": true } },
+    { "name": "old password rejected", "method": "POST", "path": "/api/login", "jsonBody": { "name": "Scrypt member", "password": "correct horse battery staple" }, "status": 401, "json": { "error": "invalid credentials" } },
+    { "name": "replacement password login", "method": "POST", "path": "/api/login", "jsonBody": { "name": "Scrypt member", "password": "replacement password" }, "status": 200, "json": { "id": 2, "name": "Scrypt member", "role": "developer" } },
+    { "name": "final logout", "method": "POST", "path": "/api/logout", "status": 200, "json": { "ok": true } }
+  ]
+}

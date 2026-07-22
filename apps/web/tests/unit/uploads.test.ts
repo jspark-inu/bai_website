@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -40,5 +40,17 @@ describe('material upload persistence', () => {
     process.env.BAI_MAX_UPLOAD_BYTES = '4';
     await expect(saveMaterialUpload(new File(['12345'], 'large.txt'))).rejects.toBeInstanceOf(MaterialUploadError);
     expect(() => readdirSync(path.join(root, 'materials'))).toThrow();
+  });
+
+  it('persists the cleanup reservation before creating or publishing upload bytes', async () => {
+    let reservedUrl = '';
+    await expect(saveMaterialUpload(new File(['payload'], 'reserved.txt'), (fileUrl) => {
+      reservedUrl = fileUrl;
+      expect(existsSync(path.join(root, 'materials'))).toBe(false);
+      throw new Error('reservation failed');
+    })).rejects.toThrow('reservation failed');
+
+    expect(reservedUrl).toMatch(/^\/uploads\/materials\/.+-reserved\.txt$/);
+    expect(existsSync(path.join(root, 'materials'))).toBe(false);
   });
 });

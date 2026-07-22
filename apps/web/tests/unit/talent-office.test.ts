@@ -1,117 +1,126 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { Worker } from 'node:worker_threads';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  TalentOfficeError,
-  assignTalentRequest,
-  changeTalentRequestState,
-  completeTalentRequest,
-  createTalentRequest,
-  getTalentRequest,
-  submitTalentSolution,
-} from '@/lib/talent-office';
 import { runMigrations } from '@/lib/db/migrations';
+import { decideTalentRequestInTransaction } from '@/lib/services/talent-office';
 
+const roots: string[] = [];
 const connections: Database.Database[] = [];
-const originalReadonly = process.env.LAB_FEED_DB_READONLY;
 
-function setup() {
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  db.exec(`CREATE TABLE members (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'student',
-    status TEXT NOT NULL DEFAULT 'active'
-  );
-  CREATE TABLE projects (id INTEGER PRIMARY KEY);
-  CREATE TABLE materials (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL, title TEXT NOT NULL)`);
-  db.exec("INSERT INTO members (id, name, role, status) VALUES (1, '요청자', 'student', 'active'), (2, '개발자A', 'operator', 'active'), (3, '개발자B', 'operator', 'active')");
-  runMigrations(db);
-  connections.push(db);
-  return db;
-}
-
-function requestReadyForReview(db: Database.Database) {
-  const id = createTalentRequest({ title: '출결 흐름 개선', problem: '수기 확인이 반복됩니다.', systemScopeReason: '매 학기 모든 수강생이 겪습니다.', requesterId: 1 }, db);
-  changeTalentRequestState(id, 'accepted', db);
-  assignTalentRequest(id, [{ memberId: 2, ratio: 0.6 }, { memberId: 3, ratio: 0.4 }], db);
-  submitTalentSolution(id, { summary: 'QR 출결 도구를 만들었습니다.' }, db);
-  return id;
+function setupFileDatabase() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bai-talent-office-unit-'));
+  roots.push(root);
+  const dbPath = path.join(root, 'talent.sqlite3');
+  process.env.LAB_FEED_DB = dbPath;
+  process.env.LAB_FEED_DB_READONLY = '0';
+  const first = new Database(dbPath);
+  first.pragma('foreign_keys = ON');
+  first.exec(`
+    CREATE TABLE members (
+      id INTEGER PRIMARY KEY, name TEXT NOT NULL, password_hash TEXT NOT NULL DEFAULT '',
+      api_key TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'student',
+      status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE projects (id INTEGER PRIMARY KEY);
+    CREATE TABLE materials (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL, title TEXT NOT NULL);
+  `);
+  runMigrations(first);
+  first.exec(`
+    INSERT INTO members (id,name,role,status) VALUES
+      (1,'Requester','student','active'),(2,'Builder A','student','active'),(3,'Builder B','student','active');
+    INSERT INTO talent_requests (
+      id,requester_member_id,title,problem,expected_outcome,system_scope_reason,status,
+      solution_summary,solution_url,submitted_at,created_at,updated_at
+    ) VALUES (
+      1,1,'Concurrent completion','Problem','Outcome','Scope','ready_for_review',
+      'Evidence','',datetime('now'),datetime('now'),datetime('now')
+    );
+    INSERT INTO talent_request_assignees (request_id,member_id,role,allocation_ratio,assigned_at)
+      VALUES (1,2,'builder',0.6,datetime('now')),(1,3,'builder',0.4,datetime('now'));
+  `);
+  const second = new Database(dbPath);
+  second.pragma('foreign_keys = ON');
+  connections.push(first, second);
+  return { dbPath, first, second };
 }
 
 afterEach(() => {
-  connections.splice(0).forEach((db) => db.close());
-  if (originalReadonly === undefined) delete process.env.LAB_FEED_DB_READONLY;
-  else process.env.LAB_FEED_DB_READONLY = originalReadonly;
+  connections.splice(0).forEach((connection) => connection.close());
+  roots.splice(0).forEach((root) => fs.rmSync(root, { recursive: true, force: true }));
+  delete process.env.LAB_FEED_DB;
+  delete process.env.LAB_FEED_DB_READONLY;
 });
 
-describe('talent office domain invariants', () => {
-  it('preserves the 503 domain contract when database writes are disabled', () => {
-    process.env.LAB_FEED_DB_READONLY = '1';
+describe('talent-office transactional domain', () => {
+  it('revalidates the active actor inside the write transaction', () => {
+    const { first } = setupFileDatabase();
+    first.prepare("UPDATE members SET status='disabled' WHERE id=1").run();
 
-    try {
-      createTalentRequest({
-        title: '요청',
-        problem: '시스템 문제',
-        systemScopeReason: '여러 구성원이 반복해서 겪습니다.',
-        requesterId: 1,
+    const result = first.transaction(() => decideTalentRequestInTransaction(
+      first,
+      { id: 1, name: 'Requester', role: 'student' },
+      1,
+      'completed',
+    )).immediate();
+
+    expect(result).toEqual({ ok: false, status: 401, error: 'login required' });
+    expect(first.prepare('SELECT status FROM talent_requests WHERE id=1').get()).toEqual({ status: 'ready_for_review' });
+    expect(first.prepare('SELECT COUNT(*) AS count FROM contribution_points').get()).toEqual({ count: 0 });
+  });
+
+  it('serializes simultaneous completion workers with one award set and one empty result', async () => {
+    const { first, second } = setupFileDatabase();
+    const serviceUrl = pathToFileURL(path.resolve('src/lib/services/talent-office.ts')).href;
+    const source = `
+      import { parentPort } from 'node:worker_threads';
+      import { decideTalentRequest } from ${JSON.stringify(serviceUrl)};
+      parentPort.postMessage({ ready: true });
+      parentPort.once('message', () => {
+        try {
+          parentPort.postMessage({ result: decideTalentRequest(
+            { id: 1, name: 'Requester', role: 'student' }, 1, { decision: 'completed' }
+          ) });
+        } catch (error) {
+          parentPort.postMessage({ error: error instanceof Error ? error.stack : String(error) });
+        }
       });
-      throw new Error('expected createTalentRequest to fail');
-    } catch (error) {
-      expect(error).toBeInstanceOf(TalentOfficeError);
-      expect(error).toMatchObject({ status: 503 });
-    }
-  });
+    `;
+    const workerUrl = new URL(`data:text/javascript,${encodeURIComponent(source)}`);
+    const workers = [new Worker(workerUrl), new Worker(workerUrl)];
+    const ready = (worker: Worker) => new Promise<void>((resolve, reject) => {
+      worker.once('error', reject);
+      worker.once('message', () => resolve());
+    });
+    await Promise.all(workers.map(ready));
 
-  it('upgrades the Flask-first schema without changing existing request identities', () => {
-    const db = new Database(':memory:');
-    db.pragma('foreign_keys = ON');
-    db.exec(`
-      CREATE TABLE members (id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'student', status TEXT NOT NULL DEFAULT 'active');
-      CREATE TABLE projects (id INTEGER PRIMARY KEY);
-      CREATE TABLE materials (id INTEGER PRIMARY KEY, author_id INTEGER NOT NULL, title TEXT NOT NULL);
-      CREATE TABLE talent_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, requester_member_id INTEGER NOT NULL REFERENCES members(id),
-        title TEXT NOT NULL, problem TEXT NOT NULL, expected_outcome TEXT NOT NULL, system_scope_reason TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'submitted', review_note TEXT NOT NULL DEFAULT '', requires_approval INTEGER NOT NULL DEFAULT 0,
-        approval_reason TEXT NOT NULL DEFAULT '', linked_project_id INTEGER REFERENCES projects(id), solution_summary TEXT NOT NULL DEFAULT '',
-        solution_url TEXT NOT NULL DEFAULT '', submitted_at TEXT NOT NULL DEFAULT '2026-07-01 00:00:00', updated_at TEXT NOT NULL DEFAULT '2026-07-01 00:00:00', completed_at TEXT
-      );
-      CREATE TABLE talent_request_assignees (request_id INTEGER NOT NULL, member_id INTEGER NOT NULL, role TEXT NOT NULL DEFAULT '', allocation_ratio REAL NOT NULL DEFAULT 1.0, PRIMARY KEY (request_id, member_id));
-      CREATE TABLE contribution_points (id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL, request_id INTEGER NOT NULL, points REAL NOT NULL, reason TEXT NOT NULL, awarded_at TEXT NOT NULL DEFAULT '');
-      INSERT INTO members (id, name) VALUES (1, '기존 요청자');
-      INSERT INTO talent_requests (id, requester_member_id, title, problem, expected_outcome, system_scope_reason) VALUES (41, 1, '기존 요청', '기존 문제', '기존 결과', '기존 근거');
-    `);
-    runMigrations(db);
-    connections.push(db);
+    first.exec('BEGIN IMMEDIATE');
+    const resultPromises = workers.map((worker) => new Promise<unknown>((resolve, reject) => {
+      worker.once('error', reject);
+      worker.once('message', (message: { result?: unknown; error?: string }) => {
+        if (message.error) reject(new Error(message.error));
+        else resolve(message.result);
+      });
+      worker.postMessage('go');
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    first.exec('COMMIT');
+    const results = await Promise.all(resultPromises);
+    await Promise.all(workers.map((worker) => worker.terminate()));
 
-    const row = db.prepare('SELECT id, title, submitted_at, created_at, completion_note FROM talent_requests WHERE id=41').get();
-    expect(row).toEqual({ id: 41, title: '기존 요청', submitted_at: '2026-07-01 00:00:00', created_at: '2026-07-01 00:00:00', completion_note: '' });
-    expect(db.pragma('foreign_key_check')).toEqual([]);
-  });
-
-  it('enforces the permitted state machine', () => {
-    const db = setup();
-    const id = createTalentRequest({ title: '요청', problem: '시스템 문제', systemScopeReason: '여러 구성원이 반복해서 겪습니다.', requesterId: 1 }, db);
-    expect(() => changeTalentRequestState(id, 'completed', db)).toThrow(/invalid transition/);
-    changeTalentRequestState(id, 'accepted', db);
-    expect(() => changeTalentRequestState(id, 'ready_for_review', db)).toThrow(/invalid transition/);
-  });
-
-  it('requires agreed assignee ratios to total exactly one', () => {
-    const db = setup();
-    const id = createTalentRequest({ title: '요청', problem: '시스템 문제', systemScopeReason: '여러 구성원이 반복해서 겪습니다.', requesterId: 1 }, db);
-    changeTalentRequestState(id, 'accepted', db);
-    expect(() => assignTalentRequest(id, [{ memberId: 2, ratio: 0.7 }, { memberId: 3, ratio: 0.2 }], db))
-      .toThrow(/total exactly 1/);
-  });
-
-  it('awards exactly ten points once after requester-review state', () => {
-    const db = setup();
-    const id = requestReadyForReview(db);
-    const completed = completeTalentRequest(id, '요청자가 실제 사용을 확인했습니다.', db) as unknown as { status: string; points: Array<{ points: number }> };
-    expect(completed.status).toBe('completed');
-    expect(completed.points.reduce((sum, point) => sum + point.points, 0)).toBe(10);
-    expect(completed.points.map((point) => point.points)).toEqual([6, 4]);
-    expect(() => completeTalentRequest(id, '다시 인정', db)).toThrow(TalentOfficeError);
-    expect(db.prepare('SELECT COUNT(*) AS count FROM contribution_points WHERE request_id=?').get(id)).toEqual({ count: 2 });
+    expect(results).toContainEqual({
+      ok: true,
+      value: { ok: true, awards: [{ member_id: 2, points: 6 }, { member_id: 3, points: 4 }] },
+    });
+    expect(results).toContainEqual({ ok: true, value: { ok: true, awards: [] } });
+    expect(second.prepare('SELECT SUM(points) AS total FROM contribution_points WHERE request_id=1').get())
+      .toEqual({ total: 10 });
+    expect(second.prepare('SELECT COUNT(*) AS count FROM contribution_points WHERE request_id=1').get())
+      .toEqual({ count: 2 });
+    expect(second.prepare("SELECT COUNT(*) AS count FROM audit_log WHERE action='talent_request_complete'").get())
+      .toEqual({ count: 2 });
   });
 });

@@ -14,6 +14,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 BACKUP_SCRIPT = ROOT / "scripts" / "backup_db.py"
 DEPLOY_SCRIPT = ROOT / "scripts" / "deploy-react-to-live.sh"
+AUTODEPLOY_SCRIPT = ROOT / "scripts" / "autodeploy-main.sh"
+PR_REVIEW_SCRIPT = ROOT / "scripts" / "run-pr-ai-review.sh"
 
 sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("bai_backup_db", BACKUP_SCRIPT)
@@ -431,6 +433,12 @@ exit 0
         )
         self.assertLess(backend_restart, backend_ready)
         self.assertLess(backend_ready, next_restart)
+
+    def test_automation_uses_the_same_node_runtime_as_production(self):
+        expected_path_prefix = 'export PATH="/Users/hai_1/.local/bin:'
+        for script in (AUTODEPLOY_SCRIPT, PR_REVIEW_SCRIPT):
+            with self.subTest(script=script.name):
+                self.assertIn(expected_path_prefix, script.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

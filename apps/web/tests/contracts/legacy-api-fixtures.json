@@ -1,0 +1,70 @@
+[
+  {
+    "name": "health-success",
+    "request": {
+      "method": "GET",
+      "path": "/api/healthz"
+    },
+    "response": {
+      "status": 200,
+      "json": {
+        "ok": true,
+        "service": "bai-site",
+        "database": "ok"
+      }
+    }
+  },
+  {
+    "name": "goodbai-invalid-api-key",
+    "request": {
+      "method": "POST",
+      "path": "/api/post",
+      "headers": {
+        "X-API-Key": "fixture-invalid-key"
+      },
+      "json": {
+        "did": "fixture post",
+        "learned": "",
+        "blocked": "",
+        "tags": ""
+      }
+    },
+    "response": {
+      "status": 401,
+      "json": {
+        "error": "invalid api key"
+      }
+    }
+  },
+  {
+    "name": "pi-only-forbidden",
+    "request": {
+      "method": "POST",
+      "path": "/api/inquiries/17/answer",
+      "sessionRole": "student",
+      "json": {
+        "answer": "fixture answer"
+      }
+    },
+    "response": {
+      "status": 403,
+      "json": {
+        "error": "pi only"
+      }
+    }
+  },
+  {
+    "name": "post-not-found",
+    "request": {
+      "method": "GET",
+      "path": "/api/post/999999",
+      "sessionRole": "student"
+    },
+    "response": {
+      "status": 404,
+      "json": {
+        "error": "not found"
+      }
+    }
+  }
+]

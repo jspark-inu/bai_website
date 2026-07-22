@@ -1,11 +1,12 @@
 ---
 title: BAI Next 단일 런타임 전환 handoff
 status: active
-updated_at: 2026-07-22T23:26:04+09:00
+updated_at: 2026-07-22T23:34:14+09:00
 project: bai_website
 workspace: /Users/hai_1/AI-Workspace/code/projects/dev/bai_website
 branch: main
 baseline_head: 3266d80
+implementation_commit: 4728452
 current_phase: Task 7 완료 / Task 8 준비
 canonical: true
 ---
@@ -33,23 +34,24 @@ Flask/Python과 Next가 함께 요청을 처리하는 현재 구조를 Next.js �
 
 ## 2. 현재 live handoff 기준선
 
-2026-07-22 23:26 KST 기준:
+2026-07-22 23:34 KST 기준:
 
 - Branch: `main`
-- Baseline HEAD: `3266d80`
-- Working tree: 57개 변경 항목(이 handoff 문서 포함)
+- Task 6–7 시작 Baseline HEAD: `3266d80`
+- Task 6–7 implementation commit: `4728452`
+- Working tree: clean
 - Task 1–7: 완료
 - Task 8–9: 미완료
-- Commit, push, deploy: 수행하지 않음
+- Push, deploy, production 변경: 수행하지 않음
 
 ### Working tree 보호 규칙
 
-Task 6–7 구현 전체가 아직 unstaged/uncommitted working tree에 있다. 다음 세션은 이것을 의도된 선행 작업으로 취급한다.
+Task 6–7 구현은 `4728452`에 커밋되어 있다. 다음 세션은 시작 시 이 커밋과 clean working tree를 확인하고, 이후 발견되는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
 
 금지:
 
 - `git reset`, `git checkout --`, `git restore`, `git clean`
-- 기존 Task 6–7 변경 되돌리기
+- Task 6–7 implementation commit `4728452` 임의 되돌리기
 - 다른 작업을 이유로 working tree 전체를 재포맷하거나 덮어쓰기
 - 사용자 승인 없는 commit, push, deploy
 - production DB, uploads, launch agent, live service 조작
@@ -227,7 +229,7 @@ Broad catch나 fixture 응답 합성으로 RED/GREEN을 위조하지 않는다.
 - migration rollback/data preservation
 - test harness false positives
 
-Task 7 종료 후 이 문서의 `current_phase`, 검증 수치, open risks를 갱신한다. Commit/push/deploy는 여전히 사용자 승인 전까지 금지한다.
+Task 7 종료 후 이 문서의 `current_phase`, 검증 수치, open risks를 갱신한다. 이후 commit/push/deploy는 사용자 승인 전까지 금지한다.
 
 ## 7.6 Task 7 완료 상태
 
@@ -267,7 +269,7 @@ Open risks와 다음 단계 경계:
 - 전체 저장소의 catch-all proxy, `legacy-api-proxy.ts`, Flask/Python runtime과 port 5066 운영 의존성 제거는 Task 8 범위다. Task 7 완료를 Next-only 운영 전환 완료로 해석하지 않는다.
 - `BAI_TRUST_PROXY_HEADERS=1`은 ingress가 client-IP header를 덮어쓰는 배치에서만 켠다. 기본값은 비활성이며, 그 상태에서도 account limit과 전역 crypto-work 상한이 동작한다. Task 8–9에서 실제 ingress 계약을 확인한다.
 - `005_auth_sessions`는 아직 production DB에 적용하지 않았다. 실제 migration, 기존 Flask session 폐기와 1회 재로그인, 배포·cutover는 사용자 승인 뒤 Task 9에서 수행한다.
-- Commit, push, deploy, production DB/uploads/service/launch-agent 변경은 수행하지 않았다.
+- Task 6–7 implementation은 `4728452`로 커밋했다. Push, deploy, production DB/uploads/service/launch-agent 변경은 수행하지 않았다.
 
 ---
 
@@ -454,4 +456,4 @@ Rollback은 코드뿐 아니라 DB migration compatibility, launch agent, port o
 
 다음 문장을 새 세션에 전달한다.
 
-> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration을 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 live git status와 Task 6–7 working tree를 검증하라. 기존 unstaged Task 6–7 변경은 의도된 선행 작업이므로 revert/reset/clean하지 마라. 현재 phase인 Task 8만 구현·검증하되, 문서의 Task 8 acceptance와 review loop를 모두 통과할 때까지 계속하라. 사용자 승인 없이 commit, push, deploy, production DB/uploads/service/launch-agent 변경을 하지 마라. Task 8 완료 후 이 handoff를 갱신하고 멈춰라.
+> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration을 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 live git status, Task 6–7 implementation commit `4728452`, clean working tree를 검증하라. 예상치 못한 변경이 있으면 사용자 작업으로 간주해 보존하라. 현재 phase인 Task 8만 구현·검증하되, 문서의 Task 8 acceptance와 review loop를 모두 통과할 때까지 계속하라. 사용자 승인 없이 commit, push, deploy, production DB/uploads/service/launch-agent 변경을 하지 마라. Task 8 완료 후 이 handoff를 갱신하고 멈춰라.

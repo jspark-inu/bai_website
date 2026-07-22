@@ -167,16 +167,18 @@ describe('Flask ↔ explicit Next read API parity', () => {
     }
   });
 
-  it('preserves out-of-scope project writes through the legacy proxy', async () => {
+  it('owns project writes explicitly without the legacy proxy', async () => {
     proxyLegacyApi.mockClear();
-    await createProject(new NextRequest('http://fixture.invalid/api/projects', { method: 'POST' }));
-    await updateProject(
+    const createResponse = await createProject(
+      new NextRequest('http://fixture.invalid/api/projects', { method: 'POST' }),
+    );
+    const updateResponse = await updateProject(
       new NextRequest('http://fixture.invalid/api/projects/10', { method: 'POST' }),
       { params: Promise.resolve({ pid: '10' }) },
     );
-    expect(proxyLegacyApi.mock.calls.map(([, target]) => target)).toEqual([
-      'projects', ['projects', '10'],
-    ]);
+    expect(createResponse.status).toBe(400);
+    expect(updateResponse.status).toBe(400);
+    expect(proxyLegacyApi).not.toHaveBeenCalled();
   });
 
   it.each([

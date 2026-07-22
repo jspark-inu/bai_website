@@ -1,0 +1,281 @@
+{
+  "version": 1,
+  "routeMethods": [
+    "POST /api/projects",
+    "POST /api/projects/:pid",
+    "GET /api/members/api-key",
+    "POST /api/members/api-key/regenerate",
+    "GET /api/account/api-key",
+    "POST /api/account/api-key/regenerate",
+    "GET /api/developer/key",
+    "POST /api/developer/key/regenerate",
+    "GET /api/admin/members",
+    "POST /api/admin/members/:mid/api-key/regenerate",
+    "POST /api/admin/members/:mid",
+    "POST /api/post"
+  ],
+  "generatedApiKey": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH",
+  "seed": {
+    "members": [
+      { "id": 1, "name": "Owner", "password_hash": "hash", "api_key": "active-owner-key", "role": "student", "status": "active", "created_at": "2026-07-01 00:00:00" },
+      { "id": 2, "name": "Member", "password_hash": "hash", "api_key": "active-member-key", "role": "developer", "status": "active", "created_at": "2026-07-02 00:00:00" },
+      { "id": 3, "name": "PI", "password_hash": "hash", "api_key": "active-pi-key", "role": "pi", "status": "active", "created_at": "2026-07-03 00:00:00" },
+      { "id": 4, "name": "Disabled", "password_hash": "hash", "api_key": "disabled-key", "role": "student", "status": "disabled", "created_at": "2026-07-04 00:00:00" }
+    ],
+    "projects": [
+      { "id": 10, "title": "Existing", "type": "lab", "status": "active", "goal": "old summary", "summary": "old summary", "slug": "existing", "repo_url": "", "site_url": "https://old.invalid", "owner_member_id": 1, "current_stage": "build", "deadline": "2026-12-31", "next_milestone": "ship", "risk_level": "high", "pi_decision": "watch", "created_at": "2026-07-05 00:00:00", "updated_at": "2026-07-05 00:00:00" }
+    ],
+    "project_members": [
+      { "project_id": 10, "member_id": 1, "role": "lead" },
+      { "project_id": 10, "member_id": 2, "role": "builder" }
+    ],
+    "posts": [
+      { "id": 20, "author_id": 1, "did": "seed", "learned": "", "blocked": "", "tags": "", "links": "", "source": "web", "project_id": 10, "created_at": "2026-07-06 00:00:00", "updated_at": "2026-07-06 00:00:00" }
+    ]
+  },
+  "seedVariants": {
+    "unsafe-member": {
+      "members": [{ "id": { "$integer": "9007199254740993" }, "name": "Huge", "password_hash": "hash", "api_key": "huge-key", "role": "student", "status": "active", "created_at": "2026-07-07 00:00:00" }]
+    },
+    "unsafe-project-and-post": {
+      "projects": [{ "id": { "$integer": "9007199254740993" }, "title": "Huge Project", "status": "active", "owner_member_id": 1 }],
+      "sqliteSequences": [{ "table": "posts", "seq": { "$integer": "9007199254740992" } }]
+    },
+    "project-member-failure": { "failProjectMemberInsert": true },
+    "generated-key-conflict": {
+      "members": [{ "id": 5, "name": "Conflict", "password_hash": "hash", "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH", "role": "student", "status": "active", "created_at": "2026-07-08 00:00:00" }]
+    }
+  },
+  "cases": [
+    {
+      "name": "project create authenticates before malformed JSON",
+      "auth": null, "method": "POST", "path": "/api/projects", "rawBody": "{broken",
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "project create ignores JSON text with text plain content type",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "rawBody": "{\"title\":\"Ignored\",\"summary\":\"Ignored\"}", "requestContentType": "text/plain",
+      "status": 400, "contentType": "application/json", "json": { "error": "title and summary or link required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "project create rejects invalid member without partial project",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "jsonBody": { "title": "New", "summary": "Summary", "members": [{ "member_id": 999, "role": "x" }] },
+      "status": 400, "contentType": "application/json", "json": { "error": "invalid member_id" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }, { "query": "SELECT COUNT(*) AS count FROM project_members", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "project create rejects truthy object members as invalid payload",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "jsonBody": { "title": "New", "summary": "Summary", "members": { "2": "builder" } },
+      "status": 400, "contentType": "application/json", "json": { "error": "invalid members payload" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }, { "query": "SELECT COUNT(*) AS count FROM project_members", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "project create preserves non iterable numeric members failure",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "jsonBody": { "title": "New", "summary": "Summary", "members": 1 },
+      "expectUnhandled": true, "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }, { "query": "SELECT COUNT(*) AS count FROM project_members", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "project create applies aliases duplicate members and owner membership",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "jsonBody": { "title": " Alpha Project ", "guild": " research ", "summary": " Summary ", "slug": "", "repo_url": " https://repo.invalid ", "members": [{ "member_id": 2, "role": "first" }, { "member_id": "2", "role": " builder " }] },
+      "status": 200, "contentType": "application/json", "json": { "id": 11 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,title,type,status,goal,summary,slug,repo_url,site_url,owner_member_id FROM projects WHERE id=11", "rows": [{ "id": 11, "title": "Alpha Project", "type": "research", "status": "active", "goal": "Summary", "summary": "Summary", "slug": "alpha-project", "repo_url": "https://repo.invalid", "site_url": "", "owner_member_id": 1 }] }, { "query": "SELECT project_id,member_id,role FROM project_members WHERE project_id=11 ORDER BY member_id", "rows": [{ "project_id": 11, "member_id": 1, "role": "리드" }, { "project_id": 11, "member_id": 2, "role": "builder" }] }]
+    },
+    {
+      "name": "project create preserves unsafe numeric member id coercion",
+      "seedVariant": "unsafe-member", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "rawBody": "{\"title\":\"Huge member project\",\"summary\":\"ok\",\"members\":[{\"member_id\":9007199254740993,\"role\":\"huge\"}]}",
+      "status": 200, "contentType": "application/json", "json": { "id": 11 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT project_id,member_id,role FROM project_members WHERE project_id=11 ORDER BY member_id", "safeIntegers": true, "rows": [{ "project_id": { "$integer": "11" }, "member_id": { "$integer": "1" }, "role": "리드" }, { "project_id": { "$integer": "11" }, "member_id": { "$integer": "9007199254740993" }, "role": "huge" }] }]
+    },
+    {
+      "name": "project create rolls back metadata when member insert fails",
+      "seedVariant": "project-member-failure", "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects", "jsonBody": { "title": "Must Roll Back", "summary": "ok", "members": [{ "member_id": 2, "role": "builder" }] },
+      "expectUnhandled": true, "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }, { "query": "SELECT COUNT(*) AS count FROM project_members", "rows": [{ "count": 2 }] }]
+    },
+    {
+      "name": "project update authenticates before malformed path ownership and body",
+      "auth": null, "method": "POST", "path": "/api/projects/10", "rawBody": "{broken",
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title FROM projects WHERE id=10", "rows": [{ "title": "Existing" }] }]
+    },
+    {
+      "name": "project update returns not found before body validation",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects/999", "jsonBody": {},
+      "status": 404, "contentType": "application/json", "json": { "error": "not found" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM projects", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "project update rejects non-owner before malformed JSON",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "POST", "path": "/api/projects/10", "rawBody": "{broken",
+      "status": 403, "contentType": "application/json", "json": { "error": "forbidden" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title FROM projects WHERE id=10", "rows": [{ "title": "Existing" }] }]
+    },
+    {
+      "name": "project owner update preserves managed metadata and replaces members",
+      "auth": { "id": 1, "name": "Owner", "role": "student" }, "method": "POST", "path": "/api/projects/10", "jsonBody": { "title": " Updated ", "type": " delivery ", "summary": " New summary ", "repo_url": "", "site_url": " https://new.invalid ", "members": [{ "member_id": 2, "role": "reviewer" }] },
+      "status": 200, "contentType": "application/json", "json": { "id": 10 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,title,type,status,goal,summary,slug,site_url,owner_member_id,current_stage,deadline,next_milestone,risk_level,pi_decision FROM projects WHERE id=10", "rows": [{ "id": 10, "title": "Updated", "type": "delivery", "status": "active", "goal": "New summary", "summary": "New summary", "slug": "existing", "site_url": "https://new.invalid", "owner_member_id": 1, "current_stage": "build", "deadline": "2026-12-31", "next_milestone": "ship", "risk_level": "high", "pi_decision": "watch" }] }, { "query": "SELECT project_id,member_id,role FROM project_members WHERE project_id=10 ORDER BY member_id", "rows": [{ "project_id": 10, "member_id": 1, "role": "리드" }, { "project_id": 10, "member_id": 2, "role": "reviewer" }] }]
+    },
+    {
+      "name": "project PI may update a project owned by another member",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/projects/10", "jsonBody": { "title": "PI Updated", "summary": "PI summary", "members": [] },
+      "status": 200, "contentType": "application/json", "json": { "id": 10 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT title,owner_member_id FROM projects WHERE id=10", "rows": [{ "title": "PI Updated", "owner_member_id": 1 }] }, { "query": "SELECT project_id,member_id,role FROM project_members WHERE project_id=10", "rows": [{ "project_id": 10, "member_id": 1, "role": "리드" }] }]
+    },
+    {
+      "name": "malformed project POST path negotiates method before auth",
+      "auth": null, "method": "POST", "path": "/api/projects/10.0", "jsonBody": { "title": "x", "summary": "x" },
+      "status": 405, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>405 Method Not Allowed</title>\n<h1>Method Not Allowed</h1>\n<p>The method is not allowed for the requested URL.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT title FROM projects WHERE id=10", "rows": [{ "title": "Existing" }] }]
+    },
+
+    {
+      "name": "members api key alias GET returns exact developer contract",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "GET", "path": "/api/members/api-key", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "api_key": "active-member-key", "member_id": 2, "name": "Member", "role": "developer", "usage": { "endpoint": "/api/post", "header": "X-API-Key", "method": "POST" } }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "active-member-key" }] }]
+    },
+    {
+      "name": "account api key alias GET returns exact developer contract",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "GET", "path": "/api/account/api-key", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "api_key": "active-member-key", "member_id": 2, "name": "Member", "role": "developer", "usage": { "endpoint": "/api/post", "header": "X-API-Key", "method": "POST" } }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "active-member-key" }] }]
+    },
+    {
+      "name": "developer key alias GET returns exact developer contract",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "GET", "path": "/api/developer/key", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "api_key": "active-member-key", "member_id": 2, "name": "Member", "role": "developer", "usage": { "endpoint": "/api/post", "header": "X-API-Key", "method": "POST" } }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "active-member-key" }] }]
+    },
+    {
+      "name": "developer key GET rejects disabled session identity",
+      "auth": { "id": 4, "name": "Disabled", "role": "student" }, "method": "GET", "path": "/api/developer/key", "rawBody": null,
+      "status": 401, "contentType": "application/json", "json": { "error": "login required" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=4", "rows": [{ "api_key": "disabled-key" }] }]
+    },
+    {
+      "name": "members api key regenerate alias updates key and audit",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "POST", "path": "/api/members/api-key/regenerate", "jsonBody": {},
+      "status": 200, "contentType": "application/json", "json": { "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH" }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH" }] }, { "query": "SELECT actor_id,target_member_id,action,detail FROM audit_log", "rows": [{ "actor_id": 2, "target_member_id": 2, "action": "regenerate_own_api_key", "detail": "" }] }]
+    },
+    {
+      "name": "account api key regenerate alias updates key and audit",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "POST", "path": "/api/account/api-key/regenerate", "rawBody": "{broken",
+      "status": 200, "contentType": "application/json", "json": { "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH" }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH" }] }, { "query": "SELECT action FROM audit_log", "rows": [{ "action": "regenerate_own_api_key" }] }]
+    },
+    {
+      "name": "developer key regenerate alias updates key and audit",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "POST", "path": "/api/developer/key/regenerate", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH" }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH" }] }, { "query": "SELECT action FROM audit_log", "rows": [{ "action": "regenerate_own_api_key" }] }]
+    },
+    {
+      "name": "own key regenerate uniqueness failure does not write key or audit",
+      "seedVariant": "generated-key-conflict", "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "POST", "path": "/api/developer/key/regenerate", "jsonBody": {},
+      "expectUnhandled": true, "status": 500, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>500 Internal Server Error</title>\n<h1>Internal Server Error</h1>\n<p>The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT api_key FROM members WHERE id=2", "rows": [{ "api_key": "active-member-key" }] }, { "query": "SELECT COUNT(*) AS count FROM audit_log", "rows": [{ "count": 0 }] }]
+    },
+
+    {
+      "name": "admin members authenticates and checks PI role",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "GET", "path": "/api/admin/members", "rawBody": null,
+      "status": 403, "contentType": "application/json", "json": { "error": "pi only" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM members", "rows": [{ "count": 4 }] }]
+    },
+    {
+      "name": "admin members lists active first disabled last without API keys",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "GET", "path": "/api/admin/members", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "members": [
+        { "id": 2, "name": "Member", "role": "developer", "status": "active", "created_at": "2026-07-02 00:00:00", "post_count": 0, "last_post_at": null },
+        { "id": 1, "name": "Owner", "role": "student", "status": "active", "created_at": "2026-07-01 00:00:00", "post_count": 1, "last_post_at": "2026-07-06 00:00:00" },
+        { "id": 3, "name": "PI", "role": "pi", "status": "active", "created_at": "2026-07-03 00:00:00", "post_count": 0, "last_post_at": null },
+        { "id": 4, "name": "Disabled", "role": "student", "status": "disabled", "created_at": "2026-07-04 00:00:00", "post_count": 0, "last_post_at": null }
+      ] }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM audit_log", "rows": [{ "count": 0 }] }]
+    },
+    {
+      "name": "admin key regenerate checks PI before target existence",
+      "auth": { "id": 2, "name": "Member", "role": "developer" }, "method": "POST", "path": "/api/admin/members/999/api-key/regenerate", "rawBody": "{broken",
+      "status": 403, "contentType": "application/json", "json": { "error": "pi only" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM audit_log", "rows": [{ "count": 0 }] }]
+    },
+    {
+      "name": "admin key regenerate supports disabled member and writes audit",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/admin/members/4/api-key/regenerate", "rawBody": null,
+      "status": 200, "contentType": "application/json", "json": { "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH", "member_id": 4 }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT api_key,status FROM members WHERE id=4", "rows": [{ "api_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH", "status": "disabled" }] }, { "query": "SELECT actor_id,target_member_id,action,detail FROM audit_log", "rows": [{ "actor_id": 3, "target_member_id": 4, "action": "admin_regenerate_api_key", "detail": "" }] }]
+    },
+    {
+      "name": "admin member update returns not found before malformed body",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/admin/members/999", "rawBody": "{broken",
+      "status": 404, "contentType": "application/json", "json": { "error": "not found" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM audit_log", "rows": [{ "count": 0 }] }]
+    },
+    {
+      "name": "admin member update rejects invalid role before status",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/admin/members/2", "jsonBody": { "role": "root", "status": "gone" },
+      "status": 400, "contentType": "application/json", "json": { "error": "invalid role" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT role,status FROM members WHERE id=2", "rows": [{ "role": "developer", "status": "active" }] }]
+    },
+    {
+      "name": "admin member update forbids PI self demotion",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/admin/members/3", "jsonBody": { "role": "student", "status": "disabled" },
+      "status": 400, "contentType": "application/json", "json": { "error": "cannot demote yourself" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT role,status FROM members WHERE id=3", "rows": [{ "role": "pi", "status": "active" }] }, { "query": "SELECT COUNT(*) AS count FROM audit_log", "rows": [{ "count": 0 }] }]
+    },
+    {
+      "name": "admin member update changes role and status and writes audit",
+      "auth": { "id": 3, "name": "PI", "role": "pi" }, "method": "POST", "path": "/api/admin/members/2", "jsonBody": { "role": "operator", "status": "disabled" },
+      "status": 200, "contentType": "application/json", "json": { "ok": true }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT role,status FROM members WHERE id=2", "rows": [{ "role": "operator", "status": "disabled" }] }, { "query": "SELECT actor_id,target_member_id,action,detail FROM audit_log", "rows": [{ "actor_id": 3, "target_member_id": 2, "action": "admin_update_member", "detail": "role=operator status=disabled" }] }]
+    },
+    {
+      "name": "malformed admin member POST path negotiates method before auth",
+      "auth": null, "method": "POST", "path": "/api/admin/members/2.0", "jsonBody": {},
+      "status": 405, "contentType": "text/html; charset=utf-8", "body": "<!doctype html>\n<html lang=en>\n<title>405 Method Not Allowed</title>\n<h1>Method Not Allowed</h1>\n<p>The method is not allowed for the requested URL.</p>\n", "noMutation": true,
+      "expectedDb": [{ "query": "SELECT role,status FROM members WHERE id=2", "rows": [{ "role": "developer", "status": "active" }] }]
+    },
+
+    {
+      "name": "Goodbai post rejects missing API key before malformed JSON",
+      "auth": null, "headers": {}, "method": "POST", "path": "/api/post", "rawBody": "{broken",
+      "status": 401, "contentType": "application/json", "json": { "error": "invalid api key" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "Goodbai post rejects disabled member API key",
+      "auth": null, "headers": { "X-API-Key": "disabled-key" }, "method": "POST", "path": "/api/post", "jsonBody": { "did": "must not write" },
+      "status": 401, "contentType": "application/json", "json": { "error": "invalid api key" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "Goodbai post ignores JSON text with non JSON content type",
+      "auth": null, "headers": { "X-API-Key": "active-owner-key" }, "method": "POST", "path": "/api/post", "rawBody": "{\"did\":\"ignored\"}", "requestContentType": "text/plain",
+      "status": 400, "contentType": "application/json", "json": { "error": "empty post" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "Goodbai post preserves Python whitespace underscore coercion and source",
+      "auth": null, "headers": { "X-API-Key": "active-owner-key" }, "method": "POST", "path": "/api/post", "jsonBody": { "did": "\u001c shipped \u001c", "learned": " learned ", "blocked": "", "tags": " tag ", "links": " https://link.invalid ", "project_id": "1_0" },
+      "status": 200, "contentType": "application/json", "json": { "id": 21, "url": "/post/21" }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,author_id,did,learned,blocked,tags,links,source,project_id FROM posts WHERE id=21", "rows": [{ "id": 21, "author_id": 1, "did": "shipped", "learned": "learned", "blocked": "", "tags": "tag", "links": "https://link.invalid", "source": "skill", "project_id": 10 }] }]
+    },
+    {
+      "name": "Goodbai post rejects boolean project id after Python coercion",
+      "auth": null, "headers": { "X-API-Key": "active-owner-key" }, "method": "POST", "path": "/api/post", "jsonBody": { "did": "x", "project_id": true },
+      "status": 400, "contentType": "application/json", "json": { "error": "invalid project_id" }, "noMutation": true,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 1 }] }]
+    },
+    {
+      "name": "Goodbai post preserves unsafe numeric project and response ids",
+      "seedVariant": "unsafe-project-and-post", "auth": null, "headers": { "X-API-Key": "active-owner-key" }, "method": "POST", "path": "/api/post", "rawBody": "{\"did\":\"unsafe\",\"project_id\":9007199254740993}",
+      "status": 200, "contentType": "application/json", "json": { "id": { "$integer": "9007199254740993" }, "url": "/post/9007199254740993" }, "noMutation": false,
+      "expectedDb": [{ "query": "SELECT id,author_id,source,project_id FROM posts ORDER BY id DESC LIMIT 1", "safeIntegers": true, "rows": [{ "id": { "$integer": "9007199254740993" }, "author_id": { "$integer": "1" }, "source": "skill", "project_id": { "$integer": "9007199254740993" } }] }]
+    }
+  ]
+}

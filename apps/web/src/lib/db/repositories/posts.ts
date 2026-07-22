@@ -116,14 +116,15 @@ export function projectExists(conn: Database.Database, id: FlaskInt): boolean {
 
 export function insertPost(
   conn: Database.Database,
-  authorId: number,
+  authorId: FlaskInt,
   payload: WritePostPayload,
+  source = 'web',
 ): SqliteInteger {
   return conn.prepare(`INSERT INTO posts
     (author_id,did,learned,blocked,tags,links,source,project_id)
     VALUES (?,?,?,?,?,?,?,?)`).safeIntegers().run(
     authorId, payload.did, payload.learned, payload.blocked, payload.tags,
-    payload.links, 'web', payload.projectId,
+    payload.links, source, payload.projectId,
   ).lastInsertRowid;
 }
 

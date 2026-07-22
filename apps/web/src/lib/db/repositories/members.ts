@@ -55,3 +55,91 @@ export function getMemberById(id: FlaskInt): ReadMemberPublic | null {
 }
 
 export type DbConnection = Database.Database;
+
+export type MemberAccountRow = {
+  id: SqliteInteger;
+  name: string;
+  api_key: string;
+  role: string;
+  status: string;
+};
+
+export function getMemberAccountById(id: FlaskInt, includeDisabled = false): MemberAccountRow | null {
+  const statusClause = includeDisabled ? '' : " AND status='active'";
+  return (normalizeSqliteIntegers(getDb().prepare(
+    `SELECT id,name,api_key,role,status FROM members WHERE id=?${statusClause}`,
+  ).safeIntegers().get(id)) as MemberAccountRow | undefined) ?? null;
+}
+
+export function getMemberAccountByApiKey(apiKey: string): MemberAccountRow | null {
+  return (normalizeSqliteIntegers(getDb().prepare(
+    "SELECT id,name,api_key,role,status FROM members WHERE api_key=? AND status='active'",
+  ).safeIntegers().get(apiKey)) as MemberAccountRow | undefined) ?? null;
+}
+
+export type AdminMemberRow = Omit<MemberAccountRow, 'api_key'> & {
+  created_at: string;
+  post_count: number;
+  last_post_at: string | null;
+};
+
+export function listAdminMembers(): AdminMemberRow[] {
+  return normalizeSqliteIntegers(getDb().prepare(`SELECT m.id,m.name,m.role,m.status,m.created_at,
+    COUNT(p.id) AS post_count,MAX(p.created_at) AS last_post_at
+    FROM members m LEFT JOIN posts p ON p.author_id=m.id
+    GROUP BY m.id
+    ORDER BY (m.status='active') DESC,m.name ASC`).safeIntegers().all()) as AdminMemberRow[];
+}
+
+export function memberExists(conn: Database.Database, id: FlaskInt): boolean {
+  return Boolean(conn.prepare("SELECT 1 FROM members WHERE id=? AND status='active'").get(id));
+}
+
+export function memberExistsAnyStatus(conn: Database.Database, id: FlaskInt): boolean {
+  return Boolean(conn.prepare('SELECT 1 FROM members WHERE id=?').get(id));
+}
+
+export function activeMemberRole(conn: Database.Database, id: FlaskInt): string | null {
+  const row = conn.prepare("SELECT role FROM members WHERE id=? AND status='active'").get(id) as
+    | { role: string }
+    | undefined;
+  return row?.role ?? null;
+}
+
+export function apiKeyAuthenticatesMember(
+  conn: Database.Database,
+  apiKey: string,
+  id: FlaskInt,
+): boolean {
+  return Boolean(conn.prepare(
+    "SELECT 1 FROM members WHERE id=? AND api_key=? AND status='active'",
+  ).get(id, apiKey));
+}
+
+export function updateMemberApiKey(conn: Database.Database, id: FlaskInt, apiKey: string) {
+  conn.prepare('UPDATE members SET api_key=? WHERE id=?').run(apiKey, id);
+}
+
+export function updateMemberAccount(
+  conn: Database.Database,
+  id: FlaskInt,
+  role: string | null,
+  status: string | null,
+) {
+  const fields: string[] = [];
+  const values: Array<string | FlaskInt> = [];
+  if (role !== null) { fields.push('role=?'); values.push(role); }
+  if (status !== null) { fields.push('status=?'); values.push(status); }
+  if (fields.length) conn.prepare(`UPDATE members SET ${fields.join(',')} WHERE id=?`).run(...values, id);
+}
+
+export function insertAuditLog(
+  conn: Database.Database,
+  actorId: number,
+  action: string,
+  targetMemberId: FlaskInt,
+  detail = '',
+) {
+  conn.prepare('INSERT INTO audit_log (actor_id,target_member_id,action,detail) VALUES (?,?,?,?)')
+    .run(actorId, targetMemberId, action, detail);
+}

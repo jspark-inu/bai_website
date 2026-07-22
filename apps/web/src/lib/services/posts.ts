@@ -1,8 +1,14 @@
 import { getMemberById, listMembersWithStats, listWeeklyMemberRows } from '../db/repositories/members.ts';
-import { splitPythonWhitespace, type FlaskInt } from '../api-params.ts';
 import {
-  getPost, listComments, listOpenQuestions, listPosts, listPostsByMember,
-  listPostsByTag, listReactedMemberIds, searchPosts,
+  isPythonFalsyJson, parsePythonIntValue, splitPythonWhitespace, trimPythonWhitespace,
+  type FlaskInt,
+} from '../api-params.ts';
+import { withWriteTransaction } from '../db/transaction.ts';
+import type { SqliteInteger } from '../db/read-values.ts';
+import {
+  getPost, getPostOwner, insertComment, insertPost, listComments, listOpenQuestions,
+  listPosts, listPostsByMember, listPostsByTag, listReactedMemberIds, projectExists,
+  searchPosts, toggleThumbsup, updatePost, type WritePostPayload,
 } from '../db/repositories/posts.ts';
 
 export { listPosts, listPostsByTag, searchPosts };
@@ -68,4 +74,92 @@ export function getWeeklyStatus() {
   const reported = rows.filter((row) => row.reported);
   const missing = rows.filter((row) => !row.reported);
   return { total: rows.length, reported_count: reported.length, missing, reported };
+}
+
+function stringField(data: Record<string, unknown>, key: string): string {
+  const value = data[key];
+  if (isPythonFalsyJson(value)) return '';
+  if (typeof value !== 'string') throw new TypeError(`${key} must be a string`);
+  return trimPythonWhitespace(value);
+}
+
+export function parsePostPayload(data: Record<string, unknown>): WritePostPayload {
+  return {
+    did: stringField(data, 'did'),
+    learned: stringField(data, 'learned'),
+    blocked: stringField(data, 'blocked'),
+    tags: stringField(data, 'tags'),
+    links: stringField(data, 'links'),
+    projectId: parsePythonIntValue(data.project_id) ?? null,
+  };
+}
+
+export type WriteResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; status: number; error: string };
+
+export function createWebPost(
+  authorId: number,
+  data: Record<string, unknown>,
+): WriteResult<{ id: SqliteInteger }> {
+  const payload = parsePostPayload(data);
+  if (!(payload.did || payload.learned || payload.blocked)) {
+    return { ok: false, status: 400, error: 'empty post' };
+  }
+  return withWriteTransaction((conn) => {
+    if (payload.projectId !== null && !projectExists(conn, payload.projectId)) {
+      return { ok: false, status: 400, error: 'invalid project_id' };
+    }
+    return { ok: true, value: { id: insertPost(conn, authorId, payload) } };
+  });
+}
+
+export function editWebPost(
+  id: FlaskInt,
+  authorId: number,
+  data: Record<string, unknown>,
+): WriteResult<{ id: FlaskInt }> {
+  return withWriteTransaction((conn) => {
+    const owner = getPostOwner(conn, id);
+    if (owner === null) return { ok: false, status: 404, error: 'not found' };
+    if (owner !== authorId && owner !== BigInt(authorId)) {
+      return { ok: false, status: 403, error: 'forbidden' };
+    }
+    const payload = parsePostPayload(data);
+    if (!(payload.did || payload.learned || payload.blocked)) {
+      return { ok: false, status: 400, error: 'empty post' };
+    }
+    if (payload.projectId !== null && !projectExists(conn, payload.projectId)) {
+      return { ok: false, status: 400, error: 'invalid project_id' };
+    }
+    updatePost(conn, id, payload);
+    return { ok: true, value: { id } };
+  });
+}
+
+export function commentOnPost(
+  id: FlaskInt,
+  authorId: number,
+  data: Record<string, unknown>,
+): WriteResult<{ id: SqliteInteger }> {
+  return withWriteTransaction((conn) => {
+    if (getPostOwner(conn, id) === null) {
+      return { ok: false, status: 404, error: 'not found' };
+    }
+    const body = stringField(data, 'body');
+    if (!body) return { ok: false, status: 400, error: 'empty comment' };
+    return { ok: true, value: { id: insertComment(conn, id, authorId, body) } };
+  });
+}
+
+export function reactToPost(
+  id: FlaskInt,
+  memberId: number,
+): WriteResult<{ reaction_count: number }> {
+  return withWriteTransaction((conn) => {
+    if (getPostOwner(conn, id) === null) {
+      return { ok: false, status: 404, error: 'not found' };
+    }
+    return { ok: true, value: { reaction_count: toggleThumbsup(conn, id, memberId) } };
+  });
 }

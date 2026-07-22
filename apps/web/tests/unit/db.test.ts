@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { addWallMessage, getDb, listMaterials, listMembers, listWallMessages, resolveDbPath } from '@/lib/db';
 import { closeDbForTests, openWriteDb } from '@/lib/db/client';
 import { runMigrations } from '@/lib/db/migrations';
+import { withWriteTransaction } from '@/lib/db/transaction';
 
 const originalDbPath = process.env.LAB_FEED_DB;
 const originalReadonly = process.env.LAB_FEED_DB_READONLY;
@@ -65,6 +66,42 @@ describe('SQLite adapter', () => {
     process.env.LAB_FEED_DB_READONLY = '0';
     const conn = openWriteDb();
     conn.close();
+  });
+
+  it('acquires an immediate write lock before a mutation callback can race', () => {
+    let competitorBlocked = false;
+    withWriteTransaction(() => {
+      const competitor = new Database(fixtureDbPath, { timeout: 0 });
+      competitor.pragma('busy_timeout = 0');
+      try {
+        competitor.exec('BEGIN IMMEDIATE');
+      } catch (error) {
+        competitorBlocked = (error as { code?: string }).code === 'SQLITE_BUSY';
+      } finally {
+        if (competitor.inTransaction) competitor.exec('ROLLBACK');
+        competitor.close();
+      }
+    });
+    expect(competitorBlocked).toBe(true);
+  });
+
+  it('rolls back a write callback that throws', () => {
+    const wallCount = () => {
+      const verification = new Database(fixtureDbPath, { readonly: true });
+      try {
+        return (verification.prepare('SELECT COUNT(*) AS count FROM wall_messages')
+          .get() as { count: number }).count;
+      } finally {
+        verification.close();
+      }
+    };
+    const before = wallCount();
+    expect(() => withWriteTransaction((conn) => {
+      conn.prepare('INSERT INTO wall_messages (author_id, body) VALUES (?, ?)')
+        .run(1, 'must roll back');
+      throw new Error('injected failure');
+    })).toThrow('injected failure');
+    expect(wallCount()).toBe(before);
   });
 
   it('does not reuse a pooled handle after the readonly mode changes', () => {

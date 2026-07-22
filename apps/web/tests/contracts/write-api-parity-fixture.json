@@ -1,0 +1,471 @@
+{
+  "version": 1,
+  "seed": {
+    "members": [
+      { "id": 1, "name": "학생1", "password_hash": "hash", "api_key": "key-1", "role": "student", "status": "active" },
+      { "id": 2, "name": "학생2", "password_hash": "hash", "api_key": "key-2", "role": "student", "status": "active" },
+      { "id": 3, "name": "PI", "password_hash": "hash", "api_key": "key-3", "role": "pi", "status": "active" }
+    ],
+    "projects": [
+      { "id": 10, "title": "프로젝트", "status": "active", "owner_member_id": 1 }
+    ],
+    "posts": [
+      { "id": 100, "author_id": 1, "did": "did", "learned": "learned", "blocked": "blocked", "tags": "alpha", "links": "https://old.invalid", "source": "web", "project_id": 10 },
+      { "id": 101, "author_id": 2, "did": "other", "learned": "", "blocked": "", "tags": "", "links": "", "source": "web", "project_id": null }
+    ],
+    "inquiries": [
+      { "id": 20, "member_id": 1, "question": "기존 문의" }
+    ],
+    "wall_messages": [
+      { "id": 30, "author_id": 1, "body": "첫째", "created_at": "2026-07-20 00:00:00" },
+      { "id": 31, "author_id": 2, "body": "둘째", "created_at": "2026-07-20 00:01:00" },
+      { "id": 32, "author_id": 1, "body": "셋째", "created_at": "2026-07-20 00:02:00" }
+    ]
+  },
+  "seedVariants": {
+    "reaction-present": {
+      "reactions": [{ "post_id": 100, "member_id": 1, "kind": "thumbsup" }]
+    },
+    "answered-inquiry": {
+      "inquiryUpdates": [{ "id": 20, "answer": "이전 답변", "status": "answered", "answered_by": 3, "answered_at": "2026-07-19 00:00:00" }]
+    },
+    "unsafe-integer-write": {
+      "projects": [{ "id": { "$integer": "9007199254740993" }, "title": "큰 ID 프로젝트", "status": "active", "owner_member_id": 1 }],
+      "sqliteSequences": [{ "table": "posts", "seq": { "$integer": "9007199254740992" } }]
+    }
+  },
+  "cases": [
+    {
+      "name": "web post authenticates before parsing malformed JSON",
+      "auth": null,
+      "method": "POST",
+      "path": "/api/web/post",
+      "rawBody": "{broken",
+      "status": 401,
+      "json": { "error": "login required" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "web post ignores JSON text without a JSON content type",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "rawBody": "{\"did\":\"must be ignored\"}",
+      "contentType": "text/plain",
+      "status": 400,
+      "json": { "error": "empty post" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "web post preserves Flask 500 for truthy non-object JSON",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "rawBody": "true",
+      "expectUnhandled": true,
+      "status": 500,
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "web post creates with Python whitespace and project coercion",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "jsonBody": { "did": "\u001c 새 작업 \u001c", "learned": " 배움 ", "blocked": "", "tags": " alpha ", "links": " https://example.invalid ", "project_id": "1_0" },
+      "status": 200,
+      "json": { "id": 102, "url": "/post/102" },
+      "expectedDb": [{ "query": "SELECT id,author_id,did,learned,blocked,tags,links,source,project_id FROM posts WHERE id=102", "rows": [{ "id": 102, "author_id": 1, "did": "새 작업", "learned": "배움", "blocked": "", "tags": "alpha", "links": "https://example.invalid", "source": "web", "project_id": 10 }] }],
+      "noMutation": false
+    },
+    {
+      "name": "web post preserves unsafe numeric JSON and response IDs",
+      "seedVariant": "unsafe-integer-write",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "rawBody": "{\"did\":\"큰 ID 저장\",\"project_id\":9007199254740993}",
+      "status": 200,
+      "json": { "id": { "$integer": "9007199254740993" }, "url": "/post/9007199254740993" },
+      "expectedDb": [{ "query": "SELECT id,project_id FROM posts ORDER BY id DESC LIMIT 1", "safeIntegers": true, "rows": [{ "id": { "$integer": "9007199254740993" }, "project_id": { "$integer": "9007199254740993" } }] }],
+      "noMutation": false
+    },
+    {
+      "name": "web post rejects empty Python-only whitespace",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "jsonBody": { "did": "\u001c" },
+      "status": 400,
+      "json": { "error": "empty post" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "web post rejects invalid project",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "jsonBody": { "did": "x", "project_id": 999 },
+      "status": 400,
+      "json": { "error": "invalid project_id" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "edit rejects non-owner before parsing malformed JSON",
+      "auth": { "id": 2, "name": "학생2", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/edit",
+      "rawBody": "{broken",
+      "status": 403,
+      "json": { "error": "forbidden" },
+      "expectedDb": [{ "query": "SELECT did,project_id FROM posts WHERE id=100", "rows": [{ "did": "did", "project_id": 10 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "edit returns not found before body validation",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/999/edit",
+      "jsonBody": { "did": "\u001c" },
+      "status": 404,
+      "json": { "error": "not found" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "owner edits post",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/edit",
+      "jsonBody": { "did": " 수정 ", "learned": "", "blocked": "", "tags": "beta", "links": "", "project_id": null },
+      "status": 200,
+      "json": { "id": 100 },
+      "expectedDb": [{ "query": "SELECT did,learned,blocked,tags,links,project_id FROM posts WHERE id=100", "rows": [{ "did": "수정", "learned": "", "blocked": "", "tags": "beta", "links": "", "project_id": null }] }],
+      "noMutation": false
+    },
+    {
+      "name": "comment returns not found before empty validation",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/999/comment",
+      "jsonBody": { "body": "\u001c" },
+      "status": 404,
+      "json": { "error": "not found" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM comments", "rows": [{ "count": 0 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "comment rejects empty Python-only whitespace",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/comment",
+      "jsonBody": { "body": "\u001c" },
+      "status": 400,
+      "json": { "error": "empty comment" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM comments", "rows": [{ "count": 0 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "comment creates with Python whitespace normalization",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/comment",
+      "jsonBody": { "body": "\u001c 댓글 \u001c" },
+      "status": 200,
+      "json": { "id": 1 },
+      "expectedDb": [{ "query": "SELECT id,post_id,author_id,body FROM comments", "rows": [{ "id": 1, "post_id": 100, "author_id": 1, "body": "댓글" }] }],
+      "noMutation": false
+    },
+    {
+      "name": "reaction inserts",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/react",
+      "jsonBody": {},
+      "status": 200,
+      "json": { "reaction_count": 1 },
+      "expectedDb": [{ "query": "SELECT post_id,member_id,kind FROM reactions", "rows": [{ "post_id": 100, "member_id": 1, "kind": "thumbsup" }] }],
+      "noMutation": false
+    },
+    {
+      "name": "reaction deletes existing toggle",
+      "seedVariant": "reaction-present",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/react",
+      "jsonBody": {},
+      "status": 200,
+      "json": { "reaction_count": 0 },
+      "expectedDb": [{ "query": "SELECT post_id,member_id,kind FROM reactions", "rows": [] }],
+      "noMutation": false
+    },
+    {
+      "name": "reaction missing post does not mutate",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/999/react",
+      "rawBody": "{broken",
+      "status": 404,
+      "json": { "error": "not found" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM reactions", "rows": [{ "count": 0 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall GET limit zero uses default",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "GET",
+      "path": "/api/wall?limit=0",
+      "rawBody": null,
+      "status": 200,
+      "json": { "messages": [{ "body": "첫째", "created_at": "2026-07-20 00:00:00", "id": 30 }, { "body": "둘째", "created_at": "2026-07-20 00:01:00", "id": 31 }, { "body": "셋째", "created_at": "2026-07-20 00:02:00", "id": 32 }] },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall GET negative clamps to one",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "GET",
+      "path": "/api/wall?limit=-1",
+      "rawBody": null,
+      "status": 200,
+      "json": { "messages": [{ "body": "셋째", "created_at": "2026-07-20 00:02:00", "id": 32 }] },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall GET limit two",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "GET",
+      "path": "/api/wall?limit=2",
+      "rawBody": null,
+      "status": 200,
+      "json": { "messages": [{ "body": "둘째", "created_at": "2026-07-20 00:01:00", "id": 31 }, { "body": "셋째", "created_at": "2026-07-20 00:02:00", "id": 32 }] },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall GET malformed limit uses default",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "GET",
+      "path": "/api/wall?limit=malformed",
+      "rawBody": null,
+      "status": 200,
+      "json": { "messages": [{ "body": "첫째", "created_at": "2026-07-20 00:00:00", "id": 30 }, { "body": "둘째", "created_at": "2026-07-20 00:01:00", "id": 31 }, { "body": "셋째", "created_at": "2026-07-20 00:02:00", "id": 32 }] },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall GET huge limit clamps to forty",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "GET",
+      "path": "/api/wall?limit=999999999999999999999999999",
+      "rawBody": null,
+      "status": 200,
+      "json": { "messages": [{ "body": "첫째", "created_at": "2026-07-20 00:00:00", "id": 30 }, { "body": "둘째", "created_at": "2026-07-20 00:01:00", "id": 31 }, { "body": "셋째", "created_at": "2026-07-20 00:02:00", "id": 32 }] },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall POST authenticates before parsing malformed JSON",
+      "auth": null,
+      "method": "POST",
+      "path": "/api/wall",
+      "rawBody": "{broken",
+      "status": 401,
+      "json": { "error": "login required" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall normalizes U+001C but preserves U+FEFF",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/wall",
+      "jsonBody": { "body": "  a\u001cb   \ufeff c  " },
+      "status": 200,
+      "json": { "id": 33 },
+      "expectedDb": [{ "query": "SELECT id,author_id,body FROM wall_messages WHERE id=33", "rows": [{ "id": 33, "author_id": 1, "body": "a b \ufeff c" }] }],
+      "noMutation": false
+    },
+    {
+      "name": "wall rejects empty Python-only whitespace",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/wall",
+      "jsonBody": { "body": "\u001c" },
+      "status": 400,
+      "json": { "error": "message required" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall accepts eighty emoji by code point",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/wall",
+      "jsonBody": { "bodyRepeat": { "value": "😀", "count": 80 } },
+      "status": 200,
+      "json": { "id": 33 },
+      "expectedDb": [{ "query": "SELECT id,author_id,length(body) AS length FROM wall_messages WHERE id=33", "rows": [{ "id": 33, "author_id": 1, "length": 80 }] }],
+      "noMutation": false
+    },
+    {
+      "name": "wall rejects eighty-one emoji by code point",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/wall",
+      "jsonBody": { "bodyRepeat": { "value": "😀", "count": 81 } },
+      "status": 400,
+      "json": { "error": "message too long" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "inquiry creates with Python whitespace normalization",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/inquiries",
+      "jsonBody": { "question": "\u001c 새 문의 \u001c" },
+      "status": 200,
+      "json": { "id": 21 },
+      "expectedDb": [{ "query": "SELECT id,member_id,question,status FROM inquiries WHERE id=21", "rows": [{ "id": 21, "member_id": 1, "question": "새 문의", "status": "open" }] }],
+      "noMutation": false
+    },
+    {
+      "name": "inquiry rejects empty Python-only whitespace",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/inquiries",
+      "jsonBody": { "question": "\u001c" },
+      "status": 400,
+      "json": { "error": "question required" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM inquiries", "rows": [{ "count": 1 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "answer checks PI role before existence and malformed body",
+      "auth": { "id": 2, "name": "학생2", "role": "student" },
+      "method": "POST",
+      "path": "/api/inquiries/999/answer",
+      "rawBody": "{broken",
+      "status": 403,
+      "json": { "error": "pi only" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM inquiries", "rows": [{ "count": 1 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "answer returns not found before body validation",
+      "auth": { "id": 3, "name": "PI", "role": "pi" },
+      "method": "POST",
+      "path": "/api/inquiries/999/answer",
+      "jsonBody": { "answer": "\u001c" },
+      "status": 404,
+      "json": { "error": "not found" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM inquiries", "rows": [{ "count": 1 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "answer rejects empty Python-only whitespace",
+      "auth": { "id": 3, "name": "PI", "role": "pi" },
+      "method": "POST",
+      "path": "/api/inquiries/20/answer",
+      "jsonBody": { "answer": "\u001c" },
+      "status": 400,
+      "json": { "error": "answer required" },
+      "expectedDb": [{ "query": "SELECT answer,status,answered_by,answered_at IS NOT NULL AS stamped FROM inquiries WHERE id=20", "rows": [{ "answer": "", "status": "open", "answered_by": null, "stamped": 0 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "answer overwrites an existing answer",
+      "seedVariant": "answered-inquiry",
+      "auth": { "id": 3, "name": "PI", "role": "pi" },
+      "method": "POST",
+      "path": "/api/inquiries/20/answer",
+      "jsonBody": { "answer": "\u001c 새 답변 \u001c" },
+      "status": 200,
+      "json": { "ok": true },
+      "expectedDb": [{ "query": "SELECT answer,status,answered_by,answered_at IS NOT NULL AS stamped FROM inquiries WHERE id=20", "rows": [{ "answer": "새 답변", "status": "answered", "answered_by": 3, "stamped": 1 }] }],
+      "noMutation": false
+    },
+    {
+      "name": "web post treats empty containers as Python falsey fields",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "jsonBody": { "did": [], "learned": {}, "blocked": [] },
+      "status": 400,
+      "json": { "error": "empty post" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM posts", "rows": [{ "count": 2 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "web post accepts empty containers in optional string fields",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/web/post",
+      "jsonBody": { "did": "작업", "tags": {}, "links": [] },
+      "status": 200,
+      "json": { "id": 102, "url": "/post/102" },
+      "expectedDb": [{ "query": "SELECT id,did,tags,links FROM posts WHERE id=102", "rows": [{ "id": 102, "did": "작업", "tags": "", "links": "" }] }],
+      "noMutation": false
+    },
+    {
+      "name": "comment treats an empty array as a Python falsey body",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/post/100/comment",
+      "jsonBody": { "body": [] },
+      "status": 400,
+      "json": { "error": "empty comment" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM comments", "rows": [{ "count": 0 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "wall treats an empty object as a Python falsey body",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/wall",
+      "jsonBody": { "body": {} },
+      "status": 400,
+      "json": { "error": "message required" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM wall_messages", "rows": [{ "count": 3 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "inquiry treats an empty array as a Python falsey question",
+      "auth": { "id": 1, "name": "학생1", "role": "student" },
+      "method": "POST",
+      "path": "/api/inquiries",
+      "jsonBody": { "question": [] },
+      "status": 400,
+      "json": { "error": "question required" },
+      "expectedDb": [{ "query": "SELECT COUNT(*) AS count FROM inquiries", "rows": [{ "count": 1 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "answer treats an empty object as a Python falsey answer",
+      "auth": { "id": 3, "name": "PI", "role": "pi" },
+      "method": "POST",
+      "path": "/api/inquiries/20/answer",
+      "jsonBody": { "answer": {} },
+      "status": 400,
+      "json": { "error": "answer required" },
+      "expectedDb": [{ "query": "SELECT answer,status,answered_by,answered_at IS NOT NULL AS stamped FROM inquiries WHERE id=20", "rows": [{ "answer": "", "status": "open", "answered_by": null, "stamped": 0 }] }],
+      "noMutation": true
+    },
+    {
+      "name": "malformed typed POST path negotiates method before auth",
+      "auth": null,
+      "method": "POST",
+      "path": "/api/post/100.0/edit",
+      "jsonBody": { "did": "x" },
+      "status": 405,
+      "expectedDb": [{ "query": "SELECT did FROM posts WHERE id=100", "rows": [{ "did": "did" }] }],
+      "noMutation": true
+    }
+  ]
+}

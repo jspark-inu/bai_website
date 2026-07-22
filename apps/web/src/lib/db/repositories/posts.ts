@@ -1,4 +1,5 @@
 import { getDb } from '../client.ts';
+import type Database from 'better-sqlite3';
 import {
   splitPythonWhitespace, trimPythonWhitespace, type FlaskInt,
 } from '../../api-params.ts';
@@ -92,4 +93,76 @@ export function listReactedMemberIds(postId: FlaskInt): SqliteInteger[] {
     getDb().prepare("SELECT member_id FROM reactions WHERE post_id=? AND kind='thumbsup'")
       .safeIntegers().all(postId),
   ) as Array<{ member_id: SqliteInteger }>).map(({ member_id }) => member_id);
+}
+
+export type WritePostPayload = {
+  did: string;
+  learned: string;
+  blocked: string;
+  tags: string;
+  links: string;
+  projectId: FlaskInt | null;
+};
+
+export function getPostOwner(conn: Database.Database, id: FlaskInt): SqliteInteger | null {
+  const row = conn.prepare('SELECT author_id FROM posts WHERE id=?').safeIntegers()
+    .get(id) as { author_id: bigint } | undefined;
+  return row?.author_id ?? null;
+}
+
+export function projectExists(conn: Database.Database, id: FlaskInt): boolean {
+  return Boolean(conn.prepare('SELECT 1 FROM projects WHERE id=?').get(id));
+}
+
+export function insertPost(
+  conn: Database.Database,
+  authorId: number,
+  payload: WritePostPayload,
+): SqliteInteger {
+  return conn.prepare(`INSERT INTO posts
+    (author_id,did,learned,blocked,tags,links,source,project_id)
+    VALUES (?,?,?,?,?,?,?,?)`).safeIntegers().run(
+    authorId, payload.did, payload.learned, payload.blocked, payload.tags,
+    payload.links, 'web', payload.projectId,
+  ).lastInsertRowid;
+}
+
+export function updatePost(
+  conn: Database.Database,
+  id: FlaskInt,
+  payload: WritePostPayload,
+) {
+  conn.prepare(`UPDATE posts SET did=?,learned=?,blocked=?,tags=?,links=?,project_id=?,
+    updated_at=datetime('now') WHERE id=?`).run(
+    payload.did, payload.learned, payload.blocked, payload.tags,
+    payload.links, payload.projectId, id,
+  );
+}
+
+export function insertComment(
+  conn: Database.Database,
+  postId: FlaskInt,
+  authorId: number,
+  body: string,
+): SqliteInteger {
+  return conn.prepare('INSERT INTO comments (post_id,author_id,body) VALUES (?,?,?)')
+    .safeIntegers().run(postId, authorId, body).lastInsertRowid;
+}
+
+export function toggleThumbsup(
+  conn: Database.Database,
+  postId: FlaskInt,
+  memberId: number,
+): number {
+  const existing = conn.prepare(
+    "SELECT id FROM reactions WHERE post_id=? AND member_id=? AND kind='thumbsup'",
+  ).safeIntegers().get(postId, memberId) as { id: bigint } | undefined;
+  if (existing) {
+    conn.prepare('DELETE FROM reactions WHERE id=?').run(existing.id);
+  } else {
+    conn.prepare("INSERT INTO reactions (post_id,member_id,kind) VALUES (?,?,'thumbsup')")
+      .run(postId, memberId);
+  }
+  return (conn.prepare("SELECT COUNT(*) AS count FROM reactions WHERE post_id=? AND kind='thumbsup'")
+    .get(postId) as { count: number }).count;
 }

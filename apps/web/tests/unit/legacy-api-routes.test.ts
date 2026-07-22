@@ -19,7 +19,7 @@ import { POST as talentAssign } from '@/app/api/talent-office/[rid]/assignees/ro
 import { POST as talentSolution } from '@/app/api/talent-office/[rid]/solution/route';
 import { POST as talentDecision } from '@/app/api/talent-office/[rid]/decision/route';
 import { GET as talentPoints } from '@/app/api/talent-office/points/route';
-import { GET as wallList, POST as wallCreate } from '@/app/api/wall/route';
+
 
 const response = Response.json({ ok: true });
 const request = (path: string, method = 'GET') => new Request(`http://next.test${path}`, { method });
@@ -58,16 +58,6 @@ describe('legacy-backed auth and talent API routes', () => {
     expect(mocks.proxyLegacyApi).toHaveBeenNthCalledWith(3, postReq, 'me');
   });
 
-  it('keeps anonymous wall writes on the Flask database writer', async () => {
-    const listReq = request('/api/wall?limit=8');
-    const createReq = request('/api/wall', 'POST');
-    await wallList(listReq);
-    await wallCreate(createReq);
-    expect(mocks.proxyLegacyApi.mock.calls).toEqual([
-      [listReq, 'wall'],
-      [createReq, 'wall'],
-    ]);
-  });
 
   it('maps every standard talent operation to its Flask endpoint', async () => {
     const listReq = request('/api/talent-office');

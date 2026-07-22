@@ -30,7 +30,7 @@ import { GET as memberDetail } from '@/app/api/member/[mid]/route';
 import { GET as tag } from '@/app/api/tag/[tag]/route';
 import { GET as search } from '@/app/api/search/route';
 import { GET as questions } from '@/app/api/questions/route';
-import { GET as inquiries, POST as createInquiry } from '@/app/api/inquiries/route';
+import { GET as inquiries } from '@/app/api/inquiries/route';
 import { GET as members } from '@/app/api/members/route';
 import { GET as projects, POST as createProject } from '@/app/api/projects/route';
 import { GET as projectDetail, POST as updateProject } from '@/app/api/projects/[pid]/route';
@@ -167,17 +167,15 @@ describe('Flask ↔ explicit Next read API parity', () => {
     }
   });
 
-  it('preserves out-of-scope project and inquiry writes through the legacy proxy', async () => {
+  it('preserves out-of-scope project writes through the legacy proxy', async () => {
     proxyLegacyApi.mockClear();
-    const request = new NextRequest('http://fixture.invalid/api/inquiries', { method: 'POST' });
-    await createInquiry(request);
     await createProject(new NextRequest('http://fixture.invalid/api/projects', { method: 'POST' }));
     await updateProject(
       new NextRequest('http://fixture.invalid/api/projects/10', { method: 'POST' }),
       { params: Promise.resolve({ pid: '10' }) },
     );
     expect(proxyLegacyApi.mock.calls.map(([, target]) => target)).toEqual([
-      'inquiries', 'projects', ['projects', '10'],
+      'projects', ['projects', '10'],
     ]);
   });
 

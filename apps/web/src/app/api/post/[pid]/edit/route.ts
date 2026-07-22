@@ -1,0 +1,16 @@
+import { parseFlaskPathInt } from '@/lib/api-params';
+import { requireApiMember } from '@/lib/auth';
+import { editWebPost } from '@/lib/services/posts';
+import { readJsonObject, writeResultResponse } from '@/lib/write-route';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+type Context = { params: Promise<{ pid: string }> };
+
+export async function POST(request: Request, context: Context) {
+  const id = parseFlaskPathInt((await context.params).pid);
+  if (id === null) return new Response(null, { status: 405 });
+  const auth = await requireApiMember();
+  if (!auth.ok) return auth.error;
+  return writeResultResponse(editWebPost(id, auth.member.id, await readJsonObject(request)));
+}

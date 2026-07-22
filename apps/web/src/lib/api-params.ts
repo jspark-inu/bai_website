@@ -23,6 +23,12 @@ export function splitPythonWhitespace(value: string): string[] {
   return trimmed ? trimmed.split(PYTHON_WHITESPACE_RUN) : [];
 }
 
+export function isPythonFalsyJson(value: unknown): boolean {
+  if (!value) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  return typeof value === 'object' && Object.keys(value).length === 0;
+}
+
 function decimalDigit(value: string): number | null {
   const codePoint = value.codePointAt(0)!;
   for (const blockStart of PYTHON_DECIMAL_BLOCKS) {
@@ -49,6 +55,16 @@ function normalizeDecimalDigits(value: string, allowUnderscores: boolean): strin
 }
 
 export type FlaskInt = number | bigint;
+
+export function parsePythonIntValue(value: unknown): FlaskInt | undefined {
+  if (value === null || value === '' || value === 'null') return undefined;
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'string') return parsePythonIntQuery(value);
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const truncated = Math.trunc(value);
+  return Number.isSafeInteger(truncated) ? truncated : BigInt(truncated);
+}
 
 export function parseFlaskPathInt(value: string): FlaskInt | null {
   const digits = normalizeDecimalDigits(value, false);

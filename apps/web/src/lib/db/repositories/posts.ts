@@ -76,9 +76,9 @@ export function searchPosts(query: string): PostRow[] {
     ORDER BY p.id DESC`).safeIntegers().all(like, like, like, like, like)) as PostRow[];
 }
 
-export function listOpenQuestions(): PostRow[] {
+export function listQuestions(): PostRow[] {
   return (normalizeSqliteIntegers(getDb().prepare(`${ENRICHED_POST_SELECT}
-    WHERE TRIM(p.blocked) <> '' ORDER BY p.id ASC`).safeIntegers().all()) as PostRow[])
+    WHERE TRIM(p.blocked) <> '' ORDER BY p.id DESC`).safeIntegers().all()) as PostRow[])
     .filter((post) => post.comment_count === 0);
 }
 

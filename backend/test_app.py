@@ -285,7 +285,9 @@ def test_login_page_keeps_the_approved_compact_account_guidance(client):
     assert "멤버 계정으로 로그인하세요." in body
     assert "BAI 운영자에게 계정 발급을 요청해 주세요." in body
     assert "함께 만든 과정이" not in body
-    assert 'location.href = "/"' in body
+    assert 'action="/api/login"' in body
+    assert 'method="post"' in body
+    assert 'fetch("/api/login"' not in body
     assert "/cockpit" not in body
 
 
@@ -512,12 +514,12 @@ def test_search_api(client):
 
 
 def test_questions_api(client):
-    _seed_two_posts(client)  # 첫 글에 blocked 있고 댓글 0 → 미해결
+    _seed_two_posts(client)  # 첫 글에 blocked 있음
     _login(client)
     body = client.get("/api/questions").get_json()
     assert len(body["posts"]) == 1
     assert body["posts"][0]["blocked"] == "검증셋 누수"
-    # 댓글 달면 미해결에서 빠짐
+    # 댓글이 달리면 막힌 질문 탭에서는 사라지고 글 상세/자유 기록에는 남음
     pid = body["posts"][0]["id"]
     client.post("/api/post/%d/comment" % pid, json={"body": "답"})
     assert client.get("/api/questions").get_json()["posts"] == []

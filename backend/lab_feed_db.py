@@ -1109,9 +1109,9 @@ class LabFeedDB:
         finally:
             conn.close()
 
-    # --- R3: 미해결 질문 보드 ---
+    # --- R3: 미답변 막힌 질문 보드 ---
     def list_open_questions(self):
-        """blocked 비어있지 않고 댓글 0개인 글, 오래된 순(오래 방치된 질문 먼저)."""
+        """blocked 비어있지 않고 댓글 0개인 글, 최근 순."""
         conn = self._conn()
         try:
             rows = conn.execute(
@@ -1123,7 +1123,7 @@ class LabFeedDB:
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS reaction_count FROM reactions GROUP BY post_id) rc ON rc.post_id = p.id "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS comment_count FROM comments GROUP BY post_id) cc ON cc.post_id = p.id "
                 "WHERE TRIM(p.blocked) <> '' "
-                "ORDER BY p.id ASC",
+                "ORDER BY p.id DESC",
                 (),
             ).fetchall()
             return [dict(r) for r in rows if r["comment_count"] == 0]

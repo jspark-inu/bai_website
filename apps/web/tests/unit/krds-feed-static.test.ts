@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const krdsJs = fs.readFileSync(path.join(process.cwd(), 'public/static/krds.js'), 'utf8');
 const krdsCss = fs.readFileSync(path.join(process.cwd(), 'public/static/krds.css'), 'utf8');
 const globalsCss = fs.readFileSync(path.join(process.cwd(), 'src/styles/globals.css'), 'utf8');
+const legacyShell = fs.readFileSync(path.join(process.cwd(), 'src/components/LegacyShell.tsx'), 'utf8');
 
 function escapeHtml(value: unknown) {
   return String(value ?? '').replace(/[&<>\"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] ?? ch));
@@ -100,8 +101,19 @@ describe('KRDS feed renderer static behavior', () => {
 
   it('keeps free records separate from project activity and blocked questions', () => {
     expect(krdsJs).toContain('function renderFeed(view)');
-    expect(krdsJs).toContain('!p.project_id && !String(p.blocked || "").trim()');
+    expect(krdsJs).toContain('function freeRecordFormHtml()');
+    expect(krdsJs).toContain('${freeRecordFormHtml()}');
+    expect(krdsJs).toContain('한 일 또는 배운 것을 입력해 주세요.');
+    expect(krdsJs).toContain('const records = allPosts.filter(p => !p.project_id);');
+    expect(krdsJs).toContain('const freeRecords = ALL.filter(p => !p.project_id);');
     expect(krdsJs).toContain('["/feed", "자유 기록", "feed"]');
+  });
+
+  it('lets the blocked question tab create and show unanswered blocked questions', () => {
+    expect(krdsJs).toContain('function questionFormHtml()');
+    expect(krdsJs).toContain('id="newQuestionBtn">질문하기');
+    expect(krdsJs).toContain('if (!payload.blocked) { err.textContent = "막힌 질문을 입력해 주세요."; return; }');
+    expect(krdsJs).toContain('답변이 달리면 자유 기록과 글 상세에는 남고 이 목록에서는 사라집니다.');
   });
 
   it('uses the weekly API count and preserves deep-link hashes during route refreshes', () => {
@@ -118,11 +130,18 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('id="retryViewBtn"');
   });
 
-  it('preserves the legacy login contract used by Flask-backed endpoints', () => {
-    expect(krdsJs).toContain('fetch("/api/login"');
+  it('uses a top-level login form so mobile browsers commit the session cookie before navigation', () => {
+    expect(krdsJs).toContain('<form id="loginForm" action="/api/login" method="post"');
+    expect(krdsJs).toContain('login_error');
+    expect(krdsJs).not.toContain('fetch("/api/login"');
     expect(krdsJs).not.toContain('fetch("/api/auth/login"');
+    expect(krdsJs).not.toContain('document.getElementById("loginForm").onsubmit');
     expect(krdsJs).not.toContain('함께 만든 과정이');
     expect(krdsJs).not.toContain('class="login-intro"');
+  });
+
+  it('busts the cached login script when the mobile session flow changes', () => {
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-mobile-login1';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {

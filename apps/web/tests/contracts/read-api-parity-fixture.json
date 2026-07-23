@@ -696,23 +696,6 @@
         "json": {
           "posts": [
             {
-              "author_id": 1,
-              "author_name": "Fixture Alice",
-              "blocked": "Need GPU",
-              "comment_count": 0,
-              "created_at": "2020-03-01 00:00:00",
-              "did": "Built alpha model",
-              "id": 100,
-              "learned": "GAN basics",
-              "links": "https://fixture.invalid/a",
-              "project_id": 10,
-              "project_title": "Active Alpha",
-              "reaction_count": 3,
-              "source": "web",
-              "tags": "GAN, alpha",
-              "updated_at": "2020-03-01 01:00:00"
-            },
-            {
               "author_id": 2,
               "author_name": "Fixture Bob",
               "blocked": "Need answer",
@@ -728,6 +711,23 @@
               "source": "web",
               "tags": "alpha question",
               "updated_at": "2020-03-05 01:00:00"
+            },
+            {
+              "author_id": 1,
+              "author_name": "Fixture Alice",
+              "blocked": "Need GPU",
+              "comment_count": 0,
+              "created_at": "2020-03-01 00:00:00",
+              "did": "Built alpha model",
+              "id": 100,
+              "learned": "GAN basics",
+              "links": "https://fixture.invalid/a",
+              "project_id": 10,
+              "project_title": "Active Alpha",
+              "reaction_count": 3,
+              "source": "web",
+              "tags": "GAN, alpha",
+              "updated_at": "2020-03-01 01:00:00"
             }
           ]
         }

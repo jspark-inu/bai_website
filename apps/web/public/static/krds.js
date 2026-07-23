@@ -1213,6 +1213,7 @@ function renderLogin(view) {
     credentials: "이름 또는 비밀번호가 올바르지 않습니다.",
     rate_limit: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
     unavailable: "로그인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    cookie: "이 브라우저에서 로그인 정보를 저장하지 못했습니다. Safari 또는 Chrome에서 직접 열어 주세요.",
   };
   document.getElementById("loginErr").textContent = messages[loginError] || "";
   document.getElementById("loginName").focus();

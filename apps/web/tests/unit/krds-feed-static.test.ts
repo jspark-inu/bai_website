@@ -133,6 +133,7 @@ describe('KRDS feed renderer static behavior', () => {
   it('uses a top-level login form so mobile browsers commit the session cookie before navigation', () => {
     expect(krdsJs).toContain('<form id="loginForm" action="/api/login" method="post"');
     expect(krdsJs).toContain('login_error');
+    expect(krdsJs).toContain('이 브라우저에서 로그인 정보를 저장하지 못했습니다.');
     expect(krdsJs).not.toContain('fetch("/api/login"');
     expect(krdsJs).not.toContain('fetch("/api/auth/login"');
     expect(krdsJs).not.toContain('document.getElementById("loginForm").onsubmit');
@@ -141,7 +142,7 @@ describe('KRDS feed renderer static behavior', () => {
   });
 
   it('busts the cached login script when the mobile session flow changes', () => {
-    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-mobile-login1';");
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-mobile-login2';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {

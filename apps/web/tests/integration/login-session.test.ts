@@ -121,15 +121,22 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
     expect((await feed(new NextRequest('http://next.test/api/feed'))).status).toBe(200);
   });
 
-  it('commits a mobile form login cookie before redirecting into the app', async () => {
+  it('commits a mobile form login cookie on a bridge document before entering the app', async () => {
     const response = await compatLogin(formRequest('/api/login', {
       name: 'PBKDF2 member',
       password: PASSWORD,
     }) as never);
 
-    expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe('/');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('location')).toBeNull();
     expect(response.headers.get('cache-control')).toBe('private, no-store');
+    const bridge = await response.text();
+    expect(bridge).toContain('로그인 확인 중');
+    expect(bridge).toContain('fetch("/api/me"');
+    expect(bridge).toContain('credentials: "same-origin"');
+    expect(bridge).toContain('location.replace("/")');
+    expect(bridge).toContain('/login?login_error=cookie');
     expect(jarState.lastSet).toMatchObject({
       name: SESSION_COOKIE_NAME,
       options: { httpOnly: true, sameSite: 'lax', path: '/', maxAge: expect.any(Number) },

@@ -577,6 +577,10 @@ async function renderMembers(view) {
 // ---------------- 뷰: 세션 가능 시간 ----------------
 const AVAILABILITY_DAYS = ["월", "화", "수", "목", "금"];
 const AVAILABILITY_START_HOUR = 10;
+function availabilityDateLabel(iso) {
+  const [, month, day] = String(iso || "").split("-").map(Number);
+  return month && day ? `${month}/${day}` : "";
+}
 function availabilityRectangleKeys(start, end) {
   const minDay = Math.max(0, Math.min(start.day, end.day));
   const maxDay = Math.min(AVAILABILITY_DAYS.length - 1, Math.max(start.day, end.day));
@@ -592,7 +596,7 @@ function availabilityGridHtml(data) {
   const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length && s.hour >= AVAILABILITY_START_HOUR).map(s => `${s.day}-${s.hour}`));
   const summary = data.summary;
   const summaryBySlot = new Map((summary?.slots || []).map(s => [`${s.day}-${s.hour}`, s]));
-  const headers = AVAILABILITY_DAYS.map(day => `<div class="availability-day" role="columnheader">${day}</div>`).join("");
+  const headers = AVAILABILITY_DAYS.map((day, index) => `<div class="availability-day" role="columnheader">${day}<span>${availabilityDateLabel(data.week?.days?.[index])}</span></div>`).join("");
   let cells = `<div class="availability-corner" aria-hidden="true">시간</div>${headers}`;
   for (let hour = AVAILABILITY_START_HOUR; hour < 24; hour += 1) {
     const nextHour = (hour + 1) % 24;
@@ -605,7 +609,7 @@ function availabilityGridHtml(data) {
       const names = overlap?.names?.join(", ") || "";
       const label = `${AVAILABILITY_DAYS[day]}요일 ${String(hour).padStart(2, "0")}:00–${String(nextHour).padStart(2, "0")}:00`;
       const title = overlap ? `${label} · ${overlap.count}명: ${names}` : label;
-      cells += `<button class="availability-cell${active ? " is-selected" : ""}" data-day="${day}" data-hour="${hour}" aria-pressed="${active}" aria-label="${label}" title="${esc(title)}" style="--heat:${ratio || 0}">${overlap?.count || ""}</button>`;
+      cells += `<button class="availability-cell${active ? " is-selected" : ""}" data-day="${day}" data-hour="${hour}" aria-pressed="${active}" aria-disabled="${Boolean(data.unavailable)}"${data.unavailable ? " disabled" : ""} aria-label="${label}" title="${esc(title)}" style="--heat:${ratio || 0}">${overlap?.count || ""}</button>`;
     }
   }
 
@@ -613,16 +617,21 @@ function availabilityGridHtml(data) {
   if (summary) {
     const best = [...summary.slots].filter(slot => slot.day < AVAILABILITY_DAYS.length && slot.hour >= AVAILABILITY_START_HOUR).sort((a, b) => b.count - a.count || a.day - b.day || a.hour - b.hour).slice(0, 5);
     const recommendations = best.length ? best.map(slot => `<li><b>${AVAILABILITY_DAYS[slot.day]}요일 ${String(slot.hour).padStart(2, "0")}:00</b><span>${slot.count}명 · ${esc(slot.names.join(", "))}</span></li>`).join("") : '<li class="muted">아직 제출된 시간이 없습니다.</li>';
-    piSummary = `<aside class="availability-summary"><div class="availability-summary-head"><h2>겹치는 시간</h2><b>응답 ${summary.respondedCount}/${summary.memberCount}명</b></div><ol>${recommendations}</ol><p>숫자가 클수록 더 많은 멤버가 가능한 시간입니다.</p></aside>`;
+    const unavailableSummary = summary.unavailableCount
+      ? `<div class="availability-unavailable-summary"><b>참여 어려움 ${summary.unavailableCount}명</b><span>${esc((summary.unavailableNames || []).join(", "))}</span></div>`
+      : "";
+    piSummary = `<aside class="availability-summary"><div class="availability-summary-head"><h2>겹치는 시간</h2><b>응답 ${summary.respondedCount}/${summary.memberCount}명</b></div>${unavailableSummary}<ol>${recommendations}</ol><p>숫자가 클수록 더 많은 멤버가 가능한 시간입니다.</p></aside>`;
   }
 
-  return `<div class="page-head"><div><h1>세션 가능 시간</h1><p class="desc">${esc(data.member.name)}님의 반복 가능 시간을 선택합니다.</p></div></div>
-    <div class="panel-info"><b>매주 반복되는 평일 시간표</b> <span>오전 10시 이후 가능한 시간을 선택해 주세요. 한 칸을 클릭하거나, 시작점부터 끝점까지 드래그해 직사각형 범위를 한 번에 선택할 수 있습니다.</span></div>
+  const weekRange = `${availabilityDateLabel(data.week?.start)}–${availabilityDateLabel(data.week?.end)}`;
+  return `<div class="page-head"><div><h1>세션 가능 시간</h1><p class="desc">${esc(data.member.name)}님의 다음 주 가능 시간을 선택합니다. <b>${weekRange}</b></p></div></div>
+    <div class="panel-info"><b>다음 주 가능 시간</b> <span>월요일부터 금요일, 오전 10시 이후 가능한 시간을 선택해 주세요. 이 응답은 표시된 다음 주 한 주에만 적용됩니다.</span></div>
     <div class="availability-layout"><section>
+      <label class="availability-unavailable"><input type="checkbox" id="availabilityUnavailable"${data.unavailable ? " checked" : ""}><span><b>다음 주는 어렵습니다</b><small>가능한 시간이 하나도 없다면 체크해 주세요.</small></span></label>
       <div class="availability-actions"><p><b id="availabilityCount">${selected.size}</b>시간 선택됨</p><div><button class="btn btn-tertiary" id="clearAvailabilityBtn" type="button">모두 지우기</button><button class="btn btn-primary" id="saveAvailabilityBtn" type="button">저장하기</button></div></div>
       <p class="form-msg" id="availabilityMsg" aria-live="polite"></p>
       <p class="availability-mobile-hint">휴대폰에서는 시간표를 좌우로 밀어 다른 평일을 확인하세요.</p>
-      <div class="availability-scroll"><div class="availability-grid" id="availabilityGrid" role="grid" aria-label="월요일부터 금요일까지 오전 10시 이후 1시간 단위 가능 시간">${cells}</div></div>
+      <div class="availability-scroll"><div class="availability-grid${data.unavailable ? " is-unavailable" : ""}" id="availabilityGrid" role="grid" aria-label="${weekRange} 월요일부터 금요일까지 오전 10시 이후 1시간 단위 가능 시간">${cells}</div></div>
     </section>${piSummary}</div>`;
 }
 
@@ -633,6 +642,7 @@ async function renderAvailability(view) {
   view.innerHTML = availabilityGridHtml(data);
   const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length && s.hour >= AVAILABILITY_START_HOUR).map(s => `${s.day}-${s.hour}`));
   const grid = document.getElementById("availabilityGrid");
+  const unavailableInput = document.getElementById("availabilityUnavailable");
   const count = document.getElementById("availabilityCount");
   const message = document.getElementById("availabilityMsg");
   let dragging = false;
@@ -649,6 +659,18 @@ async function renderAvailability(view) {
     count.textContent = selected.size;
     message.textContent = "";
   };
+  const syncUnavailable = () => {
+    const unavailable = unavailableInput.checked;
+    grid.classList.toggle("is-unavailable", unavailable);
+    grid.querySelectorAll(".availability-cell").forEach(button => {
+      if (unavailable) setCell(button, false);
+      button.disabled = unavailable;
+      button.setAttribute("aria-disabled", String(unavailable));
+    });
+    message.textContent = "";
+  };
+  unavailableInput.addEventListener("change", syncUnavailable);
+  syncUnavailable();
   const applyDragRectangle = button => {
     const end = { day: Number(button.dataset.day), hour: Number(button.dataset.hour) };
     dragEndKey = `${end.day}-${end.hour}`;
@@ -668,7 +690,7 @@ async function renderAvailability(view) {
   };
   grid.addEventListener("pointerdown", e => {
     const button = e.target.closest(".availability-cell");
-    if (!button || e.pointerType !== "mouse") return;
+    if (!button || unavailableInput.checked || e.pointerType !== "mouse") return;
     e.preventDefault();
     dragging = true;
     pointerHandledKey = `${button.dataset.day}-${button.dataset.hour}`;
@@ -689,12 +711,14 @@ async function renderAvailability(view) {
   });
   grid.addEventListener("click", e => {
     const button = e.target.closest(".availability-cell");
-    if (!button) return;
+    if (!button || unavailableInput.checked) return;
     const key = `${button.dataset.day}-${button.dataset.hour}`;
     if (pointerHandledKey === key) { pointerHandledKey = ""; return; }
     setCell(button, !selected.has(key));
   });
   document.getElementById("clearAvailabilityBtn").onclick = () => {
+    unavailableInput.checked = false;
+    syncUnavailable();
     grid.querySelectorAll(".availability-cell").forEach(button => setCell(button, false));
   };
   document.getElementById("saveAvailabilityBtn").onclick = async () => {
@@ -702,10 +726,21 @@ async function renderAvailability(view) {
       const [day, hour] = key.split("-").map(Number);
       return { day, hour };
     }).sort((a, b) => a.day - b.day || a.hour - b.hour);
-    const save = await fetch("/api/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slots }) });
+    const unavailable = unavailableInput.checked;
+    const save = await fetch("/api/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekStart: data.week.start, slots: unavailable ? [] : slots, unavailable }) });
+    if (save.status === 409) {
+      await renderAvailability(view);
+      const refreshedMessage = document.getElementById("availabilityMsg");
+      refreshedMessage.className = "form-msg error";
+      refreshedMessage.textContent = "조사 주간이 바뀌어 최신 다음 주 시간표를 불러왔습니다. 다시 선택해 주세요.";
+      return;
+    }
     if (!save.ok) { message.className = "form-msg error"; message.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요."; return; }
-    message.className = "form-msg ok";
-    message.textContent = "가능 시간을 저장했습니다.";
+    const successText = unavailable ? "다음 주 참여가 어렵다는 응답을 저장했습니다." : "다음 주 가능 시간을 저장했습니다.";
+    await renderAvailability(view);
+    const refreshedMessage = document.getElementById("availabilityMsg");
+    refreshedMessage.className = "form-msg ok";
+    refreshedMessage.textContent = successText;
   };
 }
 

@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { runMigrations } from '@/lib/db/migrations';
 import {
   readAvailabilityForMember,
+  readAvailabilityResponseForMember,
   readAvailabilitySummary,
   replaceAvailabilityInTransaction,
 } from '@/lib/db/repositories/availability';
-import { AvailabilityInputError, parseAvailabilityPayload } from '@/lib/services/availability';
+import {
+  AvailabilityInputError,
+  nextWeekWindow,
+  parseAvailabilityPayload,
+} from '@/lib/services/availability';
 
 function testDb() {
   const db = new Database(':memory:');
@@ -24,42 +29,65 @@ function testDb() {
 
 describe('weekly availability domain', () => {
   it('normalizes unique one-hour slots and rejects invalid coordinates', () => {
-    expect(parseAvailabilityPayload({ slots: [
+    expect(parseAvailabilityPayload({ weekStart: '2026-07-27', unavailable: false, slots: [
       { day: 2, hour: 18 }, { day: 0, hour: 10 }, { day: 2, hour: 18 },
-    ] })).toEqual([
-      { day: 0, hour: 10 }, { day: 2, hour: 18 },
-    ]);
+    ] })).toEqual({
+      weekStart: '2026-07-27',
+      unavailable: false,
+      slots: [{ day: 0, hour: 10 }, { day: 2, hour: 18 }],
+    });
+    expect(parseAvailabilityPayload({ weekStart: '2026-07-27', unavailable: true, slots: [] })).toEqual({
+      weekStart: '2026-07-27', unavailable: true, slots: [],
+    });
 
     for (const payload of [
       {},
       { slots: '0-9' },
-      { slots: [{ day: 5, hour: 9 }] },
-      { slots: [{ day: 6, hour: 9 }] },
-      { slots: [{ day: 7, hour: 9 }] },
-      { slots: [{ day: 0, hour: 9 }] },
-      { slots: [{ day: 0, hour: 24 }] },
-      { slots: [{ day: 0.5, hour: 9 }] },
+      { weekStart: '2026-07-27', slots: [{ day: 5, hour: 9 }] },
+      { weekStart: '2026-07-27', slots: [{ day: 6, hour: 9 }] },
+      { weekStart: '2026-07-27', slots: [{ day: 7, hour: 9 }] },
+      { weekStart: '2026-07-27', slots: [{ day: 0, hour: 9 }] },
+      { weekStart: '2026-07-27', slots: [{ day: 0, hour: 24 }] },
+      { weekStart: '2026-07-27', slots: [{ day: 0.5, hour: 9 }] },
+      { weekStart: '2026-07-27', unavailable: true, slots: [{ day: 0, hour: 10 }] },
     ]) {
       expect(() => parseAvailabilityPayload(payload)).toThrow(AvailabilityInputError);
     }
   });
 
+  it('targets the next Korean calendar week instead of a repeating schedule', () => {
+    expect(nextWeekWindow(new Date('2026-07-23T12:00:00Z'))).toEqual({
+      start: '2026-07-27',
+      end: '2026-07-31',
+      days: ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31'],
+    });
+    expect(nextWeekWindow(new Date('2026-07-26T16:00:00Z')).start).toBe('2026-08-03');
+  });
+
   it('replaces only the signed-in member slots, including clearing all slots', () => {
     const db = testDb();
+    const weekStart = '2026-07-27';
     try {
-      db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (2,1,10)').run();
-
-      expect(replaceAvailabilityInTransaction(db, 1, [
+      expect(replaceAvailabilityInTransaction(db, 1, weekStart, [
         { day: 0, hour: 10 }, { day: 2, hour: 18 },
-      ])).toBe(true);
-      expect(readAvailabilityForMember(db, 1)).toEqual([
+      ], false)).toBe(true);
+      expect(readAvailabilityForMember(db, 1, weekStart)).toEqual([
         { day: 0, hour: 10 }, { day: 2, hour: 18 },
       ]);
-      expect(readAvailabilityForMember(db, 2)).toEqual([{ day: 1, hour: 10 }]);
+      expect(readAvailabilityResponseForMember(db, 1, weekStart)).toEqual({
+        responded: true, unavailable: false,
+      });
+      expect(readAvailabilityForMember(db, 1, '2026-08-03')).toEqual([]);
+      expect(readAvailabilityResponseForMember(db, 1, '2026-08-03')).toEqual({
+        responded: false, unavailable: false,
+      });
 
-      expect(replaceAvailabilityInTransaction(db, 1, [])).toBe(true);
-      expect(readAvailabilityForMember(db, 1)).toEqual([]);
-      expect(replaceAvailabilityInTransaction(db, 4, [{ day: 0, hour: 10 }])).toBe(false);
+      expect(replaceAvailabilityInTransaction(db, 2, weekStart, [], true)).toBe(true);
+      expect(readAvailabilityForMember(db, 2, weekStart)).toEqual([]);
+      expect(readAvailabilityResponseForMember(db, 2, weekStart)).toEqual({
+        responded: true, unavailable: true,
+      });
+      expect(replaceAvailabilityInTransaction(db, 4, weekStart, [], true)).toBe(false);
     } finally {
       db.close();
     }
@@ -67,17 +95,21 @@ describe('weekly availability domain', () => {
 
   it('builds a PI summary from active members and names for each overlapping slot', () => {
     const db = testDb();
+    const weekStart = '2026-07-27';
     try {
-      db.exec(`
-        INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES
-          (1,0,10),(2,0,10),(2,1,11),(3,0,10),(4,0,10);
-      `);
+      replaceAvailabilityInTransaction(db, 1, weekStart, [{ day: 0, hour: 10 }], false);
+      replaceAvailabilityInTransaction(db, 2, weekStart, [
+        { day: 0, hour: 10 }, { day: 1, hour: 11 },
+      ], false);
+      replaceAvailabilityInTransaction(db, 3, weekStart, [], true);
 
-      expect(readAvailabilitySummary(db)).toEqual({
+      expect(readAvailabilitySummary(db, weekStart)).toEqual({
         memberCount: 3,
         respondedCount: 3,
+        unavailableCount: 1,
+        unavailableNames: ['박교수'],
         slots: [
-          { day: 0, hour: 10, count: 3, names: ['김학생', '박교수', '이학생'] },
+          { day: 0, hour: 10, count: 2, names: ['김학생', '이학생'] },
           { day: 1, hour: 11, count: 1, names: ['이학생'] },
         ],
       });

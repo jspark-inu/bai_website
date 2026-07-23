@@ -147,7 +147,7 @@ describe('KRDS feed renderer static behavior', () => {
   });
 
   it('busts the cached login script when the mobile session flow changes', () => {
-    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-availability7';");
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260724-availability8';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {
@@ -173,13 +173,24 @@ describe('KRDS feed renderer static behavior', () => {
     const { availabilityGridHtml } = loadKrdsHelpers();
     const html = availabilityGridHtml({
       member: { id: 1, name: '김학생', role: 'student' },
+      week: {
+        start: '2026-07-27', end: '2026-07-31',
+        days: ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31'],
+      },
+      responded: false,
+      unavailable: false,
       slots: [{ day: 0, hour: 10 }],
       summary: null,
     });
 
-    expect(html).toContain('김학생님의 반복 가능 시간을 선택합니다.');
+    expect(html).toContain('김학생님의 다음 주 가능 시간을 선택합니다.');
     expect(html.match(/class="availability-cell/g)).toHaveLength(70);
     expect(html).toContain('data-day="0" data-hour="10" aria-pressed="true"');
+    expect(html).toContain('월<span>7/27</span>');
+    expect(html).toContain('다음 주 가능 시간');
+    expect(html).toContain('id="availabilityUnavailable"');
+    expect(html).toContain('다음 주는 어렵습니다');
+    expect(html).not.toContain('매주 반복');
     expect(html).not.toContain('data-hour="9"');
     expect(html).not.toContain('data-day="5"');
     expect(html).not.toContain('>토<');
@@ -206,10 +217,18 @@ describe('KRDS feed renderer static behavior', () => {
     const { availabilityGridHtml } = loadKrdsHelpers();
     const html = availabilityGridHtml({
       member: { id: 2, name: '박교수', role: 'pi' },
+      week: {
+        start: '2026-07-27', end: '2026-07-31',
+        days: ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31'],
+      },
+      responded: true,
+      unavailable: false,
       slots: [],
       summary: {
         memberCount: 3,
         respondedCount: 2,
+        unavailableCount: 1,
+        unavailableNames: ['최학생'],
         slots: [{ day: 0, hour: 10, count: 2, names: ['김학생', '이학생'] }],
       },
     });
@@ -218,15 +237,22 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('function renderAvailability(view)');
     expect(krdsJs).toContain('fetch("/api/availability"');
     expect(krdsJs).toContain('method: "PUT"');
+    expect(krdsJs).toContain('JSON.stringify({ weekStart: data.week.start, slots: unavailable ? [] : slots, unavailable })');
+    expect(krdsJs).toContain('if (save.status === 409)');
+    expect(krdsJs).toContain('unavailableInput.addEventListener("change", syncUnavailable)');
+    expect(krdsJs).toContain('await renderAvailability(view);');
     expect(krdsJs).toContain('availabilityRectangleKeys(dragStart, end)');
     expect(krdsJs).toContain('let pointerHandledKey = "";');
     expect(krdsJs).not.toContain('setTimeout(() => { suppressClick');
     expect(html).toContain('응답 2/3명');
     expect(html).toContain('김학생, 이학생');
+    expect(html).toContain('참여 어려움 1명');
+    expect(html).toContain('최학생');
     expect(html).toContain('좌우로 밀어 다른 평일');
     expect(krdsCss).toContain('.availability-grid');
     expect(krdsCss).toContain('.availability-hour { position: sticky; left: 0;');
     expect(krdsCss).toContain('.availability-layout { display: grid; grid-template-columns: 1fr;');
+    expect(krdsCss).toContain('.availability-unavailable');
     expect(krdsCss).not.toContain('var(--krds-primary-30)');
   });
 });

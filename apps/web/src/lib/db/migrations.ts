@@ -438,6 +438,31 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    id: '008_next_week_availability_responses',
+    up(conn) {
+      conn.exec(`
+        CREATE TABLE availability_responses (
+          member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+          week_start TEXT NOT NULL CHECK (week_start GLOB '????-??-??'),
+          unavailable INTEGER NOT NULL DEFAULT 0 CHECK (unavailable IN (0, 1)),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX availability_responses_week_idx
+          ON availability_responses (week_start, unavailable, member_id);
+        INSERT INTO availability_responses (member_id,week_start,unavailable,updated_at)
+          SELECT DISTINCT member_id,
+            date('now', '+9 hours', printf('+%d days',
+              CASE CAST(strftime('%w','now','+9 hours') AS INTEGER)
+                WHEN 0 THEN 1 WHEN 1 THEN 7
+                ELSE 8 - CAST(strftime('%w','now','+9 hours') AS INTEGER)
+              END)),
+            0,
+            datetime('now')
+          FROM weekly_availability;
+      `);
+    },
+  },
 ];
 
 export const MIGRATION_IDS = MIGRATIONS.map(({ id }) => id) as readonly string[];

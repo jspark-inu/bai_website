@@ -147,7 +147,7 @@ describe('KRDS feed renderer static behavior', () => {
   });
 
   it('busts the cached login script when the mobile session flow changes', () => {
-    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-availability5';");
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-availability6';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {
@@ -192,6 +192,13 @@ describe('KRDS feed renderer static behavior', () => {
     const expected = ['1-9', '1-10', '1-11', '2-9', '2-10', '2-11'];
     expect(availabilityRectangleKeys({ day: 1, hour: 9 }, { day: 2, hour: 11 })).toEqual(expected);
     expect(availabilityRectangleKeys({ day: 2, hour: 11 }, { day: 1, hour: 9 })).toEqual(expected);
+  });
+
+  it('uses a fresh mint palette and elevated cards for the availability view', () => {
+    expect(krdsCss).toContain('body[data-view="availability"] {');
+    expect(krdsCss).toContain('--availability-mint: #2f9f7b;');
+    expect(krdsCss).toContain('linear-gradient(135deg, #2f9f7b, #59c5a1)');
+    expect(krdsCss).toContain('box-shadow: 0 12px 32px rgba(25, 88, 72, .08);');
   });
 
   it('adds a session-time route, save action, and PI-only overlap summary', () => {

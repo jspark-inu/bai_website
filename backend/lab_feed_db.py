@@ -1109,9 +1109,9 @@ class LabFeedDB:
         finally:
             conn.close()
 
-    # --- R3: 막힌 질문 보드 ---
+    # --- R3: 미답변 막힌 질문 보드 ---
     def list_open_questions(self):
-        """blocked 비어있지 않은 모든 글, 최근 순."""
+        """blocked 비어있지 않고 댓글 0개인 글, 최근 순."""
         conn = self._conn()
         try:
             rows = conn.execute(
@@ -1126,7 +1126,7 @@ class LabFeedDB:
                 "ORDER BY p.id DESC",
                 (),
             ).fetchall()
-            return [dict(r) for r in rows]
+            return [dict(r) for r in rows if r["comment_count"] == 0]
         finally:
             conn.close()
 

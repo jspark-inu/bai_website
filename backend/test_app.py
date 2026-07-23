@@ -517,13 +517,10 @@ def test_questions_api(client):
     body = client.get("/api/questions").get_json()
     assert len(body["posts"]) == 1
     assert body["posts"][0]["blocked"] == "검증셋 누수"
-    # 댓글이 달려도 막힌 질문 탭에는 계속 남음
+    # 댓글이 달리면 막힌 질문 탭에서는 사라지고 글 상세/자유 기록에는 남음
     pid = body["posts"][0]["id"]
     client.post("/api/post/%d/comment" % pid, json={"body": "답"})
-    answered = client.get("/api/questions").get_json()["posts"]
-    assert len(answered) == 1
-    assert answered[0]["id"] == pid
-    assert answered[0]["comment_count"] == 1
+    assert client.get("/api/questions").get_json()["posts"] == []
 
 
 def test_members_api(client):

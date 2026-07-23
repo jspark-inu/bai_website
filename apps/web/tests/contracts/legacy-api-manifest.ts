@@ -102,7 +102,7 @@ export const legacyApiManifest = [
   {
     method: 'GET', path: '/api/questions', authorization: SESSION,
     request: EMPTY_REQUEST,
-    response: { successStatus: 200, success: '{posts}', statuses: { 200: 'blocked question posts', 401: '{error:"login required"}' } },
+    response: { successStatus: 200, success: '{posts}', statuses: { 200: 'open questions', 401: '{error:"login required"}' } },
   },
   {
     method: 'GET', path: '/api/inquiries', authorization: SESSION,

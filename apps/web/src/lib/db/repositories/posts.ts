@@ -77,8 +77,9 @@ export function searchPosts(query: string): PostRow[] {
 }
 
 export function listQuestions(): PostRow[] {
-  return normalizeSqliteIntegers(getDb().prepare(`${ENRICHED_POST_SELECT}
-    WHERE TRIM(p.blocked) <> '' ORDER BY p.id DESC`).safeIntegers().all()) as PostRow[];
+  return (normalizeSqliteIntegers(getDb().prepare(`${ENRICHED_POST_SELECT}
+    WHERE TRIM(p.blocked) <> '' ORDER BY p.id DESC`).safeIntegers().all()) as PostRow[])
+    .filter((post) => post.comment_count === 0);
 }
 
 export function listComments(postId: FlaskInt) {

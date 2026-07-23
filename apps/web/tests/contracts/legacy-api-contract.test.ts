@@ -234,7 +234,7 @@ def future():
 
   it('freezes every exact manifest metadata value', () => {
     const digest = createHash('sha256').update(JSON.stringify(legacyApiManifest)).digest('hex');
-    expect(digest).toBe('4ebbbf279b274309d3e2398e084f3bb9395b26a53a4f1a1821ed05c64b992f18');
+    expect(digest).toBe('7c9d9c163313aa8109a0d0173ac5c11faa4aa8bbeaf2f1fec4c823eb4954ae81');
   });
 
   it('loads the shared executable success, 401, 403, and 404 fixtures', () => {

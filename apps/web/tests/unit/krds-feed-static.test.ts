@@ -100,8 +100,18 @@ describe('KRDS feed renderer static behavior', () => {
 
   it('keeps free records separate from project activity and blocked questions', () => {
     expect(krdsJs).toContain('function renderFeed(view)');
+    expect(krdsJs).toContain('function freeRecordFormHtml()');
+    expect(krdsJs).toContain('${freeRecordFormHtml()}');
+    expect(krdsJs).toContain('한 일 또는 배운 것을 입력해 주세요.');
     expect(krdsJs).toContain('!p.project_id && !String(p.blocked || "").trim()');
     expect(krdsJs).toContain('["/feed", "자유 기록", "feed"]');
+  });
+
+  it('lets the blocked question tab create and show all blocked questions', () => {
+    expect(krdsJs).toContain('function questionFormHtml()');
+    expect(krdsJs).toContain('id="newQuestionBtn">질문하기');
+    expect(krdsJs).toContain('if (!payload.blocked) { err.textContent = "막힌 질문을 입력해 주세요."; return; }');
+    expect(krdsJs).toContain('홈 체크인과 멤버 프로필에 보이는 질문도 이곳에 함께 남습니다.');
   });
 
   it('uses the weekly API count and preserves deep-link hashes during route refreshes', () => {

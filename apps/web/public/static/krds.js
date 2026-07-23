@@ -221,7 +221,33 @@ function projectOptions(selected) {
 }
 
 // 진행 공유 입력폼 (KRDS 입력폼 패턴)
-function postFormHtml(idPrefix) {
+function freeRecordFormHtml() {
+  return `
+    <div class="field"><label for="did">한 일·결과</label>
+      <textarea class="textarea" id="did" placeholder="예: 베이스라인 정확도 0.81 확보, 데이터 300건 정제"></textarea></div>
+    <div class="field"><label for="learned">배운 것·메모</label>
+      <textarea class="textarea" id="learned" placeholder="예: 단순 모델 기준선이 생각보다 강했습니다"></textarea></div>
+    <div class="field"><label for="tags">태그</label>
+      <input class="input" id="tags" placeholder="예: 논문 실험 NLP (공백 구분)"></div>
+    <div class="field"><label for="links">산출물 링크</label>
+      <input class="input" id="links" placeholder="GitHub·데모 주소 (공백 구분)"></div>`;
+}
+function questionFormHtml() {
+  return `
+    <div class="field"><label for="blocked">막힌 질문 <span class="req" aria-hidden="true">*</span></label>
+      <textarea class="textarea" id="blocked" placeholder="예: 라벨 기준을 어떻게 잡을지 고민됩니다" aria-required="true"></textarea>
+      <p class="hint">질문 첫 줄이 막힌 질문 탭의 제목으로 보입니다.</p></div>
+    <div class="field"><label for="did">상황·배경</label>
+      <textarea class="textarea" id="did" placeholder="예: 데이터가 클래스별로 불균형하고, 평가 기준을 정하는 중입니다"></textarea></div>
+    <div class="field"><label for="learned">시도해 본 것</label>
+      <textarea class="textarea" id="learned" placeholder="예: 가중치 조정과 샘플링을 비교했지만 기준을 못 정했습니다"></textarea></div>
+    <div class="field"><label for="project_id">프로젝트 연결</label>${projectOptions()}</div>
+    <div class="field"><label for="tags">태그</label>
+      <input class="input" id="tags" placeholder="예: 실험 라벨링 질문 (공백 구분)"></div>
+    <div class="field"><label for="links">참고 링크</label>
+      <input class="input" id="links" placeholder="관련 노트·코드·데모 주소 (공백 구분)"></div>`;
+}
+function postFormHtml() {
   return `
     <div class="field"><label for="did">한 일·결과</label>
       <textarea class="textarea" id="did" placeholder="예: 베이스라인 정확도 0.81 확보, 데이터 300건 정제"></textarea></div>
@@ -237,13 +263,17 @@ function postFormHtml(idPrefix) {
       <input class="input" id="links" placeholder="GitHub·데모 주소 (공백 구분)"></div>`;
 }
 function readPostPayload() {
+  const valueOf = id => {
+    const element = document.getElementById(id);
+    return element && "value" in element ? element.value.trim() : "";
+  };
   return {
-    did: document.getElementById("did").value.trim(),
-    learned: document.getElementById("learned").value.trim(),
-    blocked: document.getElementById("blocked").value.trim(),
-    tags: document.getElementById("tags").value.trim(),
-    links: document.getElementById("links").value.trim(),
-    project_id: document.getElementById("project_id").value,
+    did: valueOf("did"),
+    learned: valueOf("learned"),
+    blocked: valueOf("blocked"),
+    tags: valueOf("tags"),
+    links: valueOf("links"),
+    project_id: valueOf("project_id"),
   };
 }
 
@@ -352,8 +382,8 @@ async function renderHome(view) {
     </section>
   </section>
   <div class="panel-form hidden" id="editor">
-    <div class="form-head"><b>오늘의 진행 공유</b><span>짧아도 됩니다. 한 일, 배운 것, 막힌 점 중 하나만 있으면 됩니다.</span></div>
-    ${postFormHtml()}
+    <div class="form-head"><b>자유 기록 남기기</b><span>오늘 한 일과 배운 것을 편하게 남깁니다. 막힌 질문은 막힌 질문 탭에서 남겨 주세요.</span></div>
+    ${freeRecordFormHtml()}
     <div class="form-actions"><button class="btn btn-primary" id="submitBtn">올리기</button>
       <button class="btn btn-tertiary" id="cancelBtn">취소</button>
       <p class="form-msg error" id="postErr" aria-live="polite"></p></div>
@@ -374,8 +404,8 @@ async function renderHome(view) {
     const payload = readPostPayload();
     const err = document.getElementById("postErr");
     err.textContent = "";
-    if (!payload.did && !payload.learned && !payload.blocked) {
-      err.textContent = "한 일, 배운 것, 막힌 점 중 하나는 입력해 주세요."; return;
+    if (!payload.did && !payload.learned) {
+      err.textContent = "한 일 또는 배운 것을 입력해 주세요."; return;
     }
     const r = await fetch("/api/web/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (r.ok) route(location.pathname + location.search + location.hash, false); else err.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -388,8 +418,8 @@ async function renderFeed(view) {
     <p class="desc">프로젝트와 막힌 질문을 제외한 일상의 배움과 진행을 기록합니다.</p></div>
     <button class="btn btn-primary" id="newBtn">기록 남기기</button></div>
     <div class="panel-form hidden" id="editor">
-      <div class="form-head"><b>오늘의 진행 공유</b><span>프로젝트 기록과 막힌 질문은 각 소속 페이지에서도 확인할 수 있습니다.</span></div>
-      ${postFormHtml()}
+      <div class="form-head"><b>자유 기록 남기기</b><span>프로젝트 기록과 막힌 질문을 제외한 일상의 배움과 진행을 남깁니다.</span></div>
+      ${freeRecordFormHtml()}
       <div class="form-actions"><button class="btn btn-primary" id="submitBtn">올리기</button>
         <button class="btn btn-tertiary" id="cancelBtn">취소</button>
         <p class="form-msg error" id="postErr" aria-live="polite"></p></div>
@@ -416,8 +446,8 @@ async function renderFeed(view) {
     const payload = readPostPayload();
     const err = document.getElementById("postErr");
     err.textContent = "";
-    if (!payload.did && !payload.learned && !payload.blocked) {
-      err.textContent = "한 일, 배운 것, 막힌 점 중 하나는 입력해 주세요."; return;
+    if (!payload.did && !payload.learned) {
+      err.textContent = "한 일 또는 배운 것을 입력해 주세요."; return;
     }
     const r = await fetch("/api/web/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (r.ok) route("/feed", false); else err.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -767,11 +797,33 @@ async function renderSearch(view, query) {
 // ---------------- 뷰: 막힌 질문 ----------------
 async function renderQuestions(view) {
   view.innerHTML = `<div class="page-head"><div><h1>막힌 질문</h1>
-    <p class="desc">막혔는데 아직 댓글이 없는 글입니다. 아는 내용이 있으면 답을 남겨 주세요.</p></div></div><div class="question-feed" id="feedlist"></div>`;
+    <p class="desc">막힌 질문을 모아 봅니다. 홈 체크인과 멤버 프로필에 보이는 질문도 이곳에 함께 남습니다.</p></div>
+    <button class="btn btn-primary" id="newQuestionBtn">질문하기</button></div>
+    <div class="panel-form hidden" id="questionEditor">
+      <div class="form-head"><b>막힌 질문 남기기</b><span>질문을 먼저 쓰고, 상황과 시도한 내용을 덧붙이면 답변하기 쉽습니다.</span></div>
+      ${questionFormHtml()}
+      <div class="form-actions"><button class="btn btn-primary" id="submitQuestionBtn">질문 올리기</button>
+        <button class="btn btn-tertiary" id="questionCancelBtn">취소</button>
+        <p class="form-msg error" id="questionErr" aria-live="polite"></p></div>
+    </div><div class="question-feed" id="feedlist"></div>`;
+  const editor = document.getElementById("questionEditor");
+  document.getElementById("newQuestionBtn").onclick = () => {
+    editor.classList.toggle("hidden");
+    if (!editor.classList.contains("hidden")) document.getElementById("blocked").focus();
+  };
+  document.getElementById("questionCancelBtn").onclick = () => editor.classList.add("hidden");
+  document.getElementById("submitQuestionBtn").onclick = async () => {
+    const payload = readPostPayload();
+    const err = document.getElementById("questionErr");
+    err.textContent = "";
+    if (!payload.blocked) { err.textContent = "막힌 질문을 입력해 주세요."; return; }
+    const r = await fetch("/api/web/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (r.ok) route("/questions", false); else err.textContent = "질문을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  };
   const d = await (await fetch("/api/questions")).json();
   document.getElementById("feedlist").innerHTML = d.posts.length
     ? d.posts.map(questionCard).join("")
-    : '<div class="empty">미해결 질문이 없습니다. 모든 질문에 답이 달렸습니다.</div>';
+    : '<div class="empty">아직 막힌 질문이 없습니다. 첫 질문을 남겨 주세요.</div>';
 }
 
 // ---------------- 뷰: 문의/FAQ ----------------

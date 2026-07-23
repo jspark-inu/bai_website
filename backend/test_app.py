@@ -512,15 +512,18 @@ def test_search_api(client):
 
 
 def test_questions_api(client):
-    _seed_two_posts(client)  # 첫 글에 blocked 있고 댓글 0 → 미해결
+    _seed_two_posts(client)  # 첫 글에 blocked 있음
     _login(client)
     body = client.get("/api/questions").get_json()
     assert len(body["posts"]) == 1
     assert body["posts"][0]["blocked"] == "검증셋 누수"
-    # 댓글 달면 미해결에서 빠짐
+    # 댓글이 달려도 막힌 질문 탭에는 계속 남음
     pid = body["posts"][0]["id"]
     client.post("/api/post/%d/comment" % pid, json={"body": "답"})
-    assert client.get("/api/questions").get_json()["posts"] == []
+    answered = client.get("/api/questions").get_json()["posts"]
+    assert len(answered) == 1
+    assert answered[0]["id"] == pid
+    assert answered[0]["comment_count"] == 1
 
 
 def test_members_api(client):

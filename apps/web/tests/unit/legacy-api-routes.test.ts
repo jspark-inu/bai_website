@@ -9,9 +9,9 @@ import { GET as compatMeGet, POST as compatMePost } from '@/app/api/me/route';
 import { POST as changePassword } from '@/app/api/change-password/route';
 
 describe('explicit Next auth route wiring', () => {
-  it('uses the same login implementation for modern and compatibility URLs', () => {
+  it('keeps the modern JSON handler direct and gives the compatibility URL a mobile form adapter', () => {
     expect(authLogin).toBe(loginPOST);
-    expect(compatLogin).toBe(loginPOST);
+    expect(compatLogin).not.toBe(loginPOST);
   });
 
   it('uses the same logout implementation for modern and compatibility URLs', () => {

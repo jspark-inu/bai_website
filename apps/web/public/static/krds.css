@@ -429,6 +429,34 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
 .profile-head .meta { font-size: 1.4rem; color: var(--krds-gray-50); margin-top: 2px; }
 .profile-head .ph-tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* ---------- 세션 가능 시간 ---------- */
+.availability-layout { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
+.availability-layout > section { min-width: 0; }
+.availability-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 8px; }
+.availability-actions p { margin: 0; color: var(--krds-gray-60); font-size: 1.4rem; }
+.availability-actions p b { color: var(--krds-primary-60); font-size: 2rem; margin-right: 4px; }
+.availability-actions > div { display: flex; gap: 8px; }
+.availability-scroll { overflow-x: auto; padding-bottom: 8px; border: 1px solid var(--krds-gray-30); border-radius: var(--r-lg); }
+.availability-mobile-hint { display: none; margin: 0 0 8px; color: var(--krds-gray-60); font-size: 1.3rem; }
+.availability-grid { min-width: 760px; display: grid; grid-template-columns: 70px repeat(7, minmax(84px, 1fr)); background: var(--krds-gray-10); gap: 1px; user-select: none; }
+.availability-corner, .availability-day, .availability-hour { display: grid; place-items: center; min-height: 38px; background: var(--krds-gray-5); color: var(--krds-gray-70); font-size: 1.3rem; font-weight: 700; }
+.availability-day { position: sticky; top: 0; z-index: 1; }
+.availability-hour { position: sticky; left: 0; z-index: 2; }
+.availability-corner { position: sticky; left: 0; z-index: 3; }
+.availability-cell { min-height: 34px; border: 0; border-radius: 0; background: color-mix(in srgb, var(--krds-primary-50) calc(var(--heat) * 70%), var(--krds-gray-0)); color: var(--krds-primary-70); cursor: pointer; font: inherit; font-size: 1.2rem; font-weight: 800; touch-action: manipulation; }
+.availability-cell:hover { outline: 2px solid var(--krds-primary-50); outline-offset: -2px; }
+.availability-cell.is-selected { background: var(--krds-primary-50); color: #fff; box-shadow: inset 0 0 0 3px var(--krds-primary-70); }
+.availability-cell:focus-visible { position: relative; z-index: 2; outline: 3px solid var(--krds-secondary-50); outline-offset: -3px; }
+.availability-summary { border: 1px solid var(--krds-gray-30); border-radius: var(--r-lg); padding: 20px; background: var(--krds-gray-0); }
+.availability-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.availability-summary-head h2 { font-size: 1.9rem; }
+.availability-summary-head > b { color: var(--krds-primary-60); font-size: 1.4rem; }
+.availability-summary ol { margin: 16px 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.availability-summary li { padding: 12px; border-radius: var(--r-md); background: var(--krds-primary-5); }
+.availability-summary li b, .availability-summary li span { display: block; }
+.availability-summary li span { margin-top: 3px; color: var(--krds-gray-60); font-size: 1.3rem; line-height: 1.45; }
+.availability-summary > p { color: var(--krds-gray-50); font-size: 1.3rem; }
+
 .section-label {
   font-size: 1.5rem; font-weight: 700; color: var(--krds-gray-70);
   margin: 32px 0 12px; padding-left: 10px;
@@ -468,6 +496,7 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
 /* ---------- 반응형 ---------- */
 @media (max-width: 1023px) {
   .two-col { grid-template-columns: 1fr; }
+  .availability-layout { grid-template-columns: 1fr; }
   .hd-main { height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
   .gnb { flex: 1 1 100%; flex-wrap: wrap; order: 3; }
   .gnb a { padding: 8px 10px; font-size: 1.5rem; }
@@ -1058,6 +1087,7 @@ button:active, .btn:active { transform: translateY(1px); }
 }
 
 @media (max-width: 680px) {
+  .availability-mobile-hint { display: block; }
   .main, .crumb { width: min(100% - 32px, var(--contents-size)); }
   .page-head { min-height: 0; padding-bottom: 24px; align-items: flex-start; }
   .page-head h1 { font-size: 3.6rem; }

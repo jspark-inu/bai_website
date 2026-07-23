@@ -574,6 +574,102 @@ async function renderMembers(view) {
   }).join("");
 }
 
+// ---------------- 뷰: 세션 가능 시간 ----------------
+const AVAILABILITY_DAYS = ["월", "화", "수", "목", "금", "토", "일"];
+function availabilityGridHtml(data) {
+  const selected = new Set((data.slots || []).map(s => `${s.day}-${s.hour}`));
+  const summary = data.summary;
+  const summaryBySlot = new Map((summary?.slots || []).map(s => [`${s.day}-${s.hour}`, s]));
+  const headers = AVAILABILITY_DAYS.map(day => `<div class="availability-day" role="columnheader">${day}</div>`).join("");
+  let cells = `<div class="availability-corner" aria-hidden="true">시간</div>${headers}`;
+  for (let hour = 0; hour < 24; hour += 1) {
+    const nextHour = (hour + 1) % 24;
+    cells += `<div class="availability-hour" role="rowheader">${String(hour).padStart(2, "0")}:00</div>`;
+    for (let day = 0; day < 7; day += 1) {
+      const key = `${day}-${hour}`;
+      const active = selected.has(key);
+      const overlap = summaryBySlot.get(key);
+      const ratio = summary?.memberCount ? overlap?.count / summary.memberCount : 0;
+      const names = overlap?.names?.join(", ") || "";
+      const label = `${AVAILABILITY_DAYS[day]}요일 ${String(hour).padStart(2, "0")}:00–${String(nextHour).padStart(2, "0")}:00`;
+      const title = overlap ? `${label} · ${overlap.count}명: ${names}` : label;
+      cells += `<button class="availability-cell${active ? " is-selected" : ""}" data-day="${day}" data-hour="${hour}" aria-pressed="${active}" aria-label="${label}" title="${esc(title)}" style="--heat:${ratio || 0}">${overlap?.count || ""}</button>`;
+    }
+  }
+
+  let piSummary = "";
+  if (summary) {
+    const best = [...summary.slots].sort((a, b) => b.count - a.count || a.day - b.day || a.hour - b.hour).slice(0, 5);
+    const recommendations = best.length ? best.map(slot => `<li><b>${AVAILABILITY_DAYS[slot.day]}요일 ${String(slot.hour).padStart(2, "0")}:00</b><span>${slot.count}명 · ${esc(slot.names.join(", "))}</span></li>`).join("") : '<li class="muted">아직 제출된 시간이 없습니다.</li>';
+    piSummary = `<aside class="availability-summary"><div class="availability-summary-head"><h2>겹치는 시간</h2><b>응답 ${summary.respondedCount}/${summary.memberCount}명</b></div><ol>${recommendations}</ol><p>숫자가 클수록 더 많은 멤버가 가능한 시간입니다.</p></aside>`;
+  }
+
+  return `<div class="page-head"><div><h1>세션 가능 시간</h1><p class="desc">${esc(data.member.name)}님의 반복 가능 시간을 선택합니다.</p></div></div>
+    <div class="panel-info"><b>매주 반복되는 시간표</b> <span>가능한 1시간 블록을 클릭하거나 마우스로 드래그한 뒤 저장해 주세요. 이름은 로그인 계정에서 자동으로 연결됩니다.</span></div>
+    <div class="availability-layout"><section>
+      <div class="availability-actions"><p><b id="availabilityCount">${selected.size}</b>시간 선택됨</p><div><button class="btn btn-tertiary" id="clearAvailabilityBtn" type="button">모두 지우기</button><button class="btn btn-primary" id="saveAvailabilityBtn" type="button">저장하기</button></div></div>
+      <p class="form-msg" id="availabilityMsg" aria-live="polite"></p>
+      <p class="availability-mobile-hint">휴대폰에서는 시간표를 좌우로 밀어 다른 요일을 확인하세요.</p>
+      <div class="availability-scroll"><div class="availability-grid" id="availabilityGrid" role="grid" aria-label="월요일부터 일요일까지 1시간 단위 가능 시간">${cells}</div></div>
+    </section>${piSummary}</div>`;
+}
+
+async function renderAvailability(view) {
+  const response = await fetch("/api/availability");
+  if (!response.ok) throw new Error("availability load failed");
+  const data = await response.json();
+  view.innerHTML = availabilityGridHtml(data);
+  const selected = new Set((data.slots || []).map(s => `${s.day}-${s.hour}`));
+  const grid = document.getElementById("availabilityGrid");
+  const count = document.getElementById("availabilityCount");
+  const message = document.getElementById("availabilityMsg");
+  let dragging = false;
+  let dragValue = false;
+  let pointerHandledKey = "";
+  const setCell = (button, active) => {
+    const key = `${button.dataset.day}-${button.dataset.hour}`;
+    if (active) selected.add(key); else selected.delete(key);
+    button.classList.toggle("is-selected", active);
+    button.setAttribute("aria-pressed", String(active));
+    count.textContent = selected.size;
+    message.textContent = "";
+  };
+  grid.addEventListener("pointerdown", e => {
+    const button = e.target.closest(".availability-cell");
+    if (!button || e.pointerType !== "mouse") return;
+    e.preventDefault();
+    dragging = true;
+    pointerHandledKey = `${button.dataset.day}-${button.dataset.hour}`;
+    dragValue = !selected.has(pointerHandledKey);
+    setCell(button, dragValue);
+    document.addEventListener("pointerup", () => { dragging = false; }, { once: true });
+  });
+  grid.addEventListener("pointerover", e => {
+    const button = e.target.closest(".availability-cell");
+    if (dragging && button) setCell(button, dragValue);
+  });
+  grid.addEventListener("click", e => {
+    const button = e.target.closest(".availability-cell");
+    if (!button) return;
+    const key = `${button.dataset.day}-${button.dataset.hour}`;
+    if (pointerHandledKey === key) { pointerHandledKey = ""; return; }
+    setCell(button, !selected.has(key));
+  });
+  document.getElementById("clearAvailabilityBtn").onclick = () => {
+    grid.querySelectorAll(".availability-cell").forEach(button => setCell(button, false));
+  };
+  document.getElementById("saveAvailabilityBtn").onclick = async () => {
+    const slots = [...selected].map(key => {
+      const [day, hour] = key.split("-").map(Number);
+      return { day, hour };
+    }).sort((a, b) => a.day - b.day || a.hour - b.hour);
+    const save = await fetch("/api/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slots }) });
+    if (!save.ok) { message.className = "form-msg error"; message.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요."; return; }
+    message.className = "form-msg ok";
+    message.textContent = "가능 시간을 저장했습니다.";
+  };
+}
+
 // ---------------- 뷰: 자료실 ----------------
 async function renderMaterials(view) {
   view.innerHTML = `
@@ -1222,7 +1318,7 @@ function renderLogin(view) {
 // ---------------- 헤더/브레드크럼 ----------------
 const GNB_GROUPS = [
   ["오늘", [["/", "홈", "home"], ["/feed", "자유 기록", "feed"]]],
-  ["함께 만들기", [["/projects", "프로젝트", "projects"], ["/questions", "막힌 질문", "questions"], ["/talent-office", "인력사무소", "talent"]]],
+  ["함께 만들기", [["/availability", "세션 시간", "availability"], ["/projects", "프로젝트", "projects"], ["/questions", "막힌 질문", "questions"], ["/talent-office", "인력사무소", "talent"]]],
   ["아카이브", [["/materials", "자료실", "materials"], ["/members", "멤버", "members"]]],
   ["도움", [["/search", "검색", "search"], ["/ask", "FAQ", "ask"]]],
 ];
@@ -1250,7 +1346,7 @@ function setCrumb(key, extra) {
   const names = {
     home: "홈", feed: "자유 기록", projects: "프로젝트", materials: "자료실", questions: "막힌 질문",
     ask: "FAQ", members: "멤버", search: "검색", account: "계정",
-    developer: "Goodbai API", admin: "멤버 관리", talent: "인력사무소",
+    developer: "Goodbai API", admin: "멤버 관리", talent: "인력사무소", availability: "세션 시간",
   };
   if (key === "home" && !extra) { wrap.hidden = true; return; }
   let h = `<a href="/">홈</a>`;
@@ -1274,6 +1370,7 @@ function matchRoute(path) {
   if (p === "/questions") return ["questions", v => renderQuestions(v), null];
   if (p === "/ask") return ["ask", v => renderAsk(v), null];
   if (p === "/talent-office") return ["talent", v => renderTalentOffice(v), null];
+  if (p === "/availability") return ["availability", v => renderAvailability(v), null];
   if (p.startsWith("/talent-office/")) { const id = +p.split("/")[2]; return ["talent", v => renderTalentDetail(v, id), "요청 상세"]; }
   if (p === "/projects") return ["projects", v => renderProjects(v), null];
   if (p.startsWith("/projects/")) { const id = +p.split("/")[2]; return ["projects", v => renderProjectDetail(v, id), "프로젝트 상세"]; }
@@ -1316,7 +1413,7 @@ async function route(path, push) {
 function navigate(path) { route(path, true); }
 
 // ---------------- 초기화 ----------------
-const ROUTE_RE = /^\/(?:$|feed|post\/|member\/|members|projects|talent-office|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
+const ROUTE_RE = /^\/(?:$|feed|post\/|member\/|members|projects|talent-office|availability|materials|developer|goodbai|admin\/members|search|questions|ask|account|tag\/)/;
 async function initApp() {
   const view = document.getElementById("view");
   try {

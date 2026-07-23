@@ -33,6 +33,8 @@ describe('weekly availability domain', () => {
     for (const payload of [
       {},
       { slots: '0-9' },
+      { slots: [{ day: 5, hour: 9 }] },
+      { slots: [{ day: 6, hour: 9 }] },
       { slots: [{ day: 7, hour: 9 }] },
       { slots: [{ day: 0, hour: 24 }] },
       { slots: [{ day: 0.5, hour: 9 }] },

@@ -438,7 +438,7 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
 .availability-actions > div { display: flex; gap: 8px; }
 .availability-scroll { overflow-x: auto; padding-bottom: 8px; border: 1px solid var(--krds-gray-30); border-radius: var(--r-lg); }
 .availability-mobile-hint { display: none; margin: 0 0 8px; color: var(--krds-gray-60); font-size: 1.3rem; }
-.availability-grid { min-width: 760px; display: grid; grid-template-columns: 70px repeat(7, minmax(84px, 1fr)); background: var(--krds-gray-10); gap: 1px; user-select: none; }
+.availability-grid { min-width: 550px; display: grid; grid-template-columns: 70px repeat(5, minmax(96px, 1fr)); background: var(--krds-gray-10); gap: 1px; user-select: none; }
 .availability-corner, .availability-day, .availability-hour { display: grid; place-items: center; min-height: 38px; background: var(--krds-gray-5); color: var(--krds-gray-70); font-size: 1.3rem; font-weight: 700; }
 .availability-day { position: sticky; top: 0; z-index: 1; }
 .availability-hour { position: sticky; left: 0; z-index: 2; }

@@ -211,7 +211,7 @@ describe('canonical pre-deploy migrations', () => {
     expect(db.prepare('SELECT member_id,day_of_week,hour FROM weekly_availability').get()).toEqual({
       member_id: 1, day_of_week: 0, hour: 9,
     });
-    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,7,9)').run())
+    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,5,9)').run())
       .toThrow(/check constraint/i);
     expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,24)').run())
       .toThrow(/check constraint/i);

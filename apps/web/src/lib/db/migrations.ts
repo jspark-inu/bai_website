@@ -400,6 +400,22 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    id: '006_weekly_availability',
+    up(conn) {
+      conn.exec(`
+        CREATE TABLE weekly_availability (
+          member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 4),
+          hour INTEGER NOT NULL CHECK (hour BETWEEN 0 AND 23),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (member_id, day_of_week, hour)
+        );
+        CREATE INDEX weekly_availability_slot_idx
+          ON weekly_availability (day_of_week, hour, member_id);
+      `);
+    },
+  },
 ];
 
 export const MIGRATION_IDS = MIGRATIONS.map(({ id }) => id) as readonly string[];

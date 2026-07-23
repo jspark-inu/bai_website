@@ -33,6 +33,11 @@ function loadKrdsHelpers() {
     fullCard: (post: Record<string, unknown>) => string;
     postTitle: (post: Record<string, unknown>) => string;
     talentBadge: (status: string) => string;
+    availabilityGridHtml: (data: Record<string, unknown>) => string;
+    availabilityRectangleKeys: (
+      start: { day: number; hour: number },
+      end: { day: number; hour: number },
+    ) => string[];
   };
 }
 
@@ -142,7 +147,7 @@ describe('KRDS feed renderer static behavior', () => {
   });
 
   it('busts the cached login script when the mobile session flow changes', () => {
-    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-mobile-login2';");
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-availability6';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {
@@ -162,5 +167,65 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('비밀번호를 1234로 초기화');
     expect(krdsJs).toContain('/password/reset`');
     expect(krdsJs).toContain('비밀번호를 1234로 초기화했습니다.');
+  });
+
+  it('renders the signed-in member weekday schedule as 120 one-hour buttons without a name field', () => {
+    const { availabilityGridHtml } = loadKrdsHelpers();
+    const html = availabilityGridHtml({
+      member: { id: 1, name: '김학생', role: 'student' },
+      slots: [{ day: 0, hour: 9 }],
+      summary: null,
+    });
+
+    expect(html).toContain('김학생님의 반복 가능 시간을 선택합니다.');
+    expect(html.match(/class="availability-cell/g)).toHaveLength(120);
+    expect(html).toContain('data-day="0" data-hour="9" aria-pressed="true"');
+    expect(html).not.toContain('data-day="5"');
+    expect(html).not.toContain('>토<');
+    expect(html).not.toContain('>일<');
+    expect(html).not.toContain('name="name"');
+  });
+
+  it('fills every hour inside a weekday drag rectangle in either direction', () => {
+    const { availabilityRectangleKeys } = loadKrdsHelpers();
+
+    const expected = ['1-9', '1-10', '1-11', '2-9', '2-10', '2-11'];
+    expect(availabilityRectangleKeys({ day: 1, hour: 9 }, { day: 2, hour: 11 })).toEqual(expected);
+    expect(availabilityRectangleKeys({ day: 2, hour: 11 }, { day: 1, hour: 9 })).toEqual(expected);
+  });
+
+  it('uses a fresh mint palette and elevated cards for the availability view', () => {
+    expect(krdsCss).toContain('body[data-view="availability"] {');
+    expect(krdsCss).toContain('--availability-mint: #2f9f7b;');
+    expect(krdsCss).toContain('linear-gradient(135deg, #2f9f7b, #59c5a1)');
+    expect(krdsCss).toContain('box-shadow: 0 12px 32px rgba(25, 88, 72, .08);');
+  });
+
+  it('adds a session-time route, save action, and PI-only overlap summary', () => {
+    const { availabilityGridHtml } = loadKrdsHelpers();
+    const html = availabilityGridHtml({
+      member: { id: 2, name: '박교수', role: 'pi' },
+      slots: [],
+      summary: {
+        memberCount: 3,
+        respondedCount: 2,
+        slots: [{ day: 0, hour: 9, count: 2, names: ['김학생', '이학생'] }],
+      },
+    });
+
+    expect(krdsJs).toContain('["/availability", "세션 시간", "availability"]');
+    expect(krdsJs).toContain('function renderAvailability(view)');
+    expect(krdsJs).toContain('fetch("/api/availability"');
+    expect(krdsJs).toContain('method: "PUT"');
+    expect(krdsJs).toContain('availabilityRectangleKeys(dragStart, end)');
+    expect(krdsJs).toContain('let pointerHandledKey = "";');
+    expect(krdsJs).not.toContain('setTimeout(() => { suppressClick');
+    expect(html).toContain('응답 2/3명');
+    expect(html).toContain('김학생, 이학생');
+    expect(html).toContain('좌우로 밀어 다른 평일');
+    expect(krdsCss).toContain('.availability-grid');
+    expect(krdsCss).toContain('.availability-hour { position: sticky; left: 0;');
+    expect(krdsCss).toContain('.availability-layout { display: grid; grid-template-columns: 1fr;');
+    expect(krdsCss).not.toContain('var(--krds-primary-30)');
   });
 });

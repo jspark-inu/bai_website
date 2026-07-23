@@ -11,6 +11,7 @@ const MIGRATION_IDS = [
   '003_timestamp_compatibility',
   '004_material_file_cleanup_queue',
   '005_auth_sessions',
+  '006_weekly_availability',
 ];
 const CANONICAL_TABLES = [
   'audit_log',
@@ -30,6 +31,7 @@ const CANONICAL_TABLES = [
   'talent_request_assignees',
   'talent_requests',
   'wall_messages',
+  'weekly_availability',
 ];
 
 function memoryDb() {
@@ -198,6 +200,25 @@ describe('canonical pre-deploy migrations', () => {
     });
     expect(() => db.prepare(`INSERT INTO auth_sessions (session_id,member_id,expires_at)
       VALUES ('other',999,1800000000000)`).run()).toThrow(/foreign key/i);
+  });
+
+  it('installs one-hour weekly availability slots owned by existing members', () => {
+    const db = memoryDb();
+    runMigrations(db);
+    db.prepare("INSERT INTO members (id,name,password_hash,api_key) VALUES (1,'member','hash','key')").run();
+
+    db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,9)').run();
+    expect(db.prepare('SELECT member_id,day_of_week,hour FROM weekly_availability').get()).toEqual({
+      member_id: 1, day_of_week: 0, hour: 9,
+    });
+    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,5,9)').run())
+      .toThrow(/check constraint/i);
+    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,24)').run())
+      .toThrow(/check constraint/i);
+    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,9)').run())
+      .toThrow(/unique constraint/i);
+    db.prepare('DELETE FROM members WHERE id=1').run();
+    expect(db.prepare('SELECT COUNT(*) AS count FROM weekly_availability').get()).toEqual({ count: 0 });
   });
 
   it('preserves legacy rows and IDs while adding the complete compatibility-column union', () => {

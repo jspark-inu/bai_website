@@ -41,6 +41,7 @@ describe('runtime deployment health', () => {
       { id: '003_timestamp_compatibility' },
       { id: '004_material_file_cleanup_queue' },
       { id: '005_auth_sessions' },
+      { id: '006_weekly_availability' },
     ]);
     mocks.uploadRoot.mockReset().mockReturnValue(process.cwd());
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"ok":true}', { status: 200 })));

@@ -6,7 +6,7 @@ declare global {
   interface Window { initApp?: () => void }
 }
 
-const ASSET_VERSION = '20260723-mobile-login2';
+const ASSET_VERSION = '20260723-availability6';
 
 // frontend/krds.html의 DOM 계약을 마운트하고 승인 렌더러의 byte-identical
 // 미러를 로드한다. 로그인 뷰도 krds.js가 같은 셸 안에서 렌더한다.

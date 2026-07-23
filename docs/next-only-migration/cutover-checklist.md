@@ -1,7 +1,7 @@
 ---
 title: BAI Next 단일 런타임 Task 9 cutover checklist
-status: observing
-updated_at: 2026-07-23T01:40:02+09:00
+status: done
+updated_at: 2026-07-23T13:29:49+09:00
 project: 1C38
 canonical: true
 ---
@@ -133,3 +133,6 @@ Rollback immediately on login/session failure, integrity error, partial write, u
 - [x] Update `handoff-current.md`, migration roadmap, project Hub, service card, and live-services map.
 - [x] Register the live migration in the operational validation registry as `observing`.
 - [x] Do not archive or delete Flask/Python sources until operational acceptance is recorded separately.
+- [x] PI direct-use acceptance recorded in `70-evaluation/verification/operational-acceptance/2026-07-23-bai-next-only-cutover.md`.
+- [x] Remove the unloaded legacy Flask plist from active LaunchAgents after verifying its SHA-256-identical mode-600 rollback copy.
+- [x] Retain `backend/` and `frontend/` in source as non-runtime contract oracle and approved-design source; they are not production dependencies.

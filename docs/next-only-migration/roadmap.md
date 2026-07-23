@@ -164,12 +164,12 @@
 
 ### Task 8: proxy와 Python 런타임 제거
 
-**Objective:** 운영과 저장소에서 Flask 의존성을 완전히 제거한다.
+**Objective:** 운영 요청 처리와 배포에서 Flask/Python 의존성을 완전히 제거한다. Source-level 계약 oracle과 승인 디자인 원본은 비운영 evidence로 유지할 수 있다.
 
 **Files:**
 - Delete: `apps/web/src/app/api/[...path]/route.ts`
 - Delete: `apps/web/src/lib/legacy-api-proxy.ts`
-- Delete after archival confirmation: `backend/`, `frontend/`
+- Retain as non-runtime evidence: `backend/` Flask contract oracle, `frontend/` approved design source
 - Modify: `.env.example`
 - Modify: `scripts/deploy-react-to-live.sh`
 - Modify: `scripts/autodeploy-main.sh`

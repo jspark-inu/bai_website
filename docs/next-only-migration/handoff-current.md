@@ -1,7 +1,7 @@
 ---
 title: BAI Next 단일 런타임 전환 handoff
-status: observing
-updated_at: 2026-07-23T01:40:02+09:00
+status: done
+updated_at: 2026-07-23T13:29:49+09:00
 project: bai_website
 workspace: /Users/hai_1/AI-Workspace/code/projects/dev/bai_website
 branch: main
@@ -9,13 +9,13 @@ baseline_head: 3266d80
 implementation_commit: 4728452
 current_head: caa8fc0
 source_state: local docs-only closeout commit ahead of deployed head; not pushed
-current_phase: Task 9 Next-only cutover 기술 완료 / 운영 수용 관찰
+current_phase: Task 9 Next-only cutover 운영 수용 완료
 canonical: true
 ---
 
 # BAI Next 단일 런타임 전환 handoff
 
-> 이 문서는 Task 9 Next-only 운영 cutover의 기술 검증 결과와 남은 실사용 수용·Flask source archival 경계를 잇는 canonical handoff다. 작업 전 반드시 live repository 상태를 다시 확인하며, 이 문서의 수치와 경로를 현재 상태보다 우선하지 않는다.
+> 이 문서는 Task 9 Next-only 운영 cutover의 기술 검증과 PI 실사용 수용 결과, 남은 Flask source archival 경계를 보존하는 canonical closeout이다. 작업 전 반드시 live repository 상태를 다시 확인하며, 이 문서의 수치와 경로를 현재 상태보다 우선하지 않는다.
 
 ## 1. 최종 목표
 
@@ -44,14 +44,14 @@ Flask/Python과 Next가 함께 요청을 처리하는 현재 구조를 Next.js �
 - Task 8 implementation commit: `764a118`
 - Task 9 deployed HEAD: `caa8fc09d8fce9edb20e93b2371c7256d5254de5`
 - Local source: Task 9 closeout 문서 commit이 deployed HEAD보다 1개 앞서며, 관찰 후 재배포를 피하려고 push하지 않음
-- Working tree: local closeout commit 후 clean
+- Working tree: local closeout commit 뒤 운영 수용·archival 정본 갱신이 아직 uncommitted 상태
 - Task 1–8: 완료
-- Task 9: Next-only cutover, 47-check live smoke, 기존 API-key smoke, 30분 61/61 기술 관찰 완료; 실사용 수용 추적 중
+- Task 9: Next-only cutover, 47-check live smoke, 기존 API-key smoke, 30분 61/61 기술 관찰과 PI 직접 실사용 수용 완료
 - Live runtime: `com.user.bai-next` + Node backup job, `com.user.baifeed` unloaded·persistently disabled, port 5066 closed
 
 ### Working tree 보호 규칙
 
-Task 6–7 구현은 `4728452`, Task 8은 `764a118`, Task 9 live release는 `caa8fc0`에 있다. Local `main`에는 push하지 않은 docs-only closeout commit 1개가 추가된다. 다음 세션은 local HEAD와 `origin/main`·deploy-state의 이 의도된 차이를 먼저 확인하고, 이 문서에 없는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
+Task 6–7 구현은 `4728452`, Task 8은 `764a118`, Task 9 live release는 `caa8fc0`에 있다. Local `main`에는 push하지 않은 docs-only closeout commit 1개와 이번 운영 수용·archival 정본 변경이 있다. 다음 세션은 local HEAD와 `origin/main`·deploy-state의 이 의도된 차이를 먼저 확인하고, 이 문서에 없는 예상 밖 변경은 사용자 작업으로 간주해 보존한다.
 
 금지:
 
@@ -513,9 +513,15 @@ Rollback은 코드뿐 아니라 DB migration compatibility, launch agent, port o
   anonymous auth cache header, DB quick/FK, ports 5067/5066, Flask persistent disable, deploy-state를
   61회 확인해 61/61 PASS, blocking regression 0이었다.
 
-기술 cutover가 끝나도 operational acceptance는 별도다. PI가 실제 계정으로 feed, materials,
-talent-office와 operator 권한을 사용해 확인하기 전에는 운영 수용 원장의 `observing` 상태를 유지한다.
-Flask/Python source·plist archival 또는 삭제는 그 수용 기록과 별도 사용자 승인 뒤에만 수행한다.
+### 운영 수용 완료 — 2026-07-23
+
+- PI가 실제 BAI 계정으로 서비스를 직접 사용한 뒤 “괜찮은 것 같다”고 판정했다.
+- 직접 사용한 세부 동선을 추정해 확대 기록하지 않는다. 기술 cutover의 47-check live smoke, 기존 API-key smoke,
+  61/61 관찰, 본 세션의 public browser·runtime·DB·backup 재검증을 보조 근거로 결합해 운영 수용으로 종결한다.
+- 운영 수용 durable record는
+  `70-evaluation/verification/operational-acceptance/2026-07-23-bai-next-only-cutover.md`다.
+- 사용자 후속 지시에 따라 legacy Flask plist는 SHA-256 동일한 mode-600 rollback 사본을 확인한 뒤 active LaunchAgents에서 제거했다.
+- Python `backend/`와 `frontend/`는 각각 Flask 계약 oracle과 승인 디자인 원본으로 현재 tests/harness가 참조하므로 삭제하지 않고 비운영 evidence로 유지한다.
 
 ---
 
@@ -542,4 +548,4 @@ Flask/Python source·plist archival 또는 삭제는 그 수용 기록과 별도
 
 다음 문장을 새 세션에 전달한다.
 
-> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical handoff로 읽고 BAI Next-only migration의 운영 수용 관찰을 이어가라. 먼저 project rules와 rule.md, architecture.md, roadmap.md를 읽고 local `main`의 docs-only closeout commit 1개와 `origin/main`·deploy-state `caa8fc0`의 의도된 차이, `com.user.bai-next`, Node backup job, `com.user.baifeed` unloaded·persistently disabled, ports 5067/5066 상태를 read-only로 검증하라. 실제 PI 계정으로 feed·materials·talent-office·operator 흐름이 성공하면 operational acceptance 절차를 수행하되, 별도 사용자 승인 없이는 Flask/Python source·plist를 archive/delete하거나 추가 deploy하지 마라.
+> `/Users/hai_1/AI-Workspace/code/projects/dev/bai_website/docs/next-only-migration/handoff-current.md`를 canonical closeout으로 읽어라. Task 9 Next-only cutover와 PI 운영 수용, legacy plist archival은 완료됐다. Python `backend/`와 `frontend/`는 production dependency가 아닌 계약 oracle·승인 디자인 원본이므로 보존한다. local `main`과 `origin/main`·deploy-state의 의도된 docs-only 차이를 유지하고 추가 deploy하지 마라. 회귀가 보고될 때만 rollback evidence와 durable acceptance record를 기준으로 재개하라.

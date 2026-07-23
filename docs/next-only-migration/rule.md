@@ -7,8 +7,8 @@ BAI 운영 사이트를 React 19 + Next.js 16의 단일 애플리케이션으로
 ## 현재 운영 경계
 
 - 2026-07-23 `caa8fc0`에서 Next-only cutover의 기술 검증을 완료했다.
-- Flask service와 port 5066은 영구 비활성화하되 plist와 Python source는 rollback용으로 보존한다.
-- PI 실계정 수용 기록과 별도 사용자 승인 전에는 Flask/Python source·plist를 archive/delete하지 않는다.
+- Flask service와 port 5066은 영구 비활성화했다. Legacy plist는 active LaunchAgents에서 제거하고 mode-600 rollback bundle에 보존한다.
+- PI 실계정 운영 수용을 완료했다. Python `backend/`와 `frontend/`는 production runtime이 아니라 계약 oracle·승인 디자인 원본으로 source tree에 유지한다.
 
 ## 불변 조건
 

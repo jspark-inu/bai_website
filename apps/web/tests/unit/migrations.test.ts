@@ -13,10 +13,12 @@ const MIGRATION_IDS = [
   '005_auth_sessions',
   '006_weekly_availability',
   '007_availability_after_ten',
+  '008_next_week_availability_responses',
 ];
 const CANONICAL_TABLES = [
   'audit_log',
   'auth_sessions',
+  'availability_responses',
   'comments',
   'contribution_points',
   'inquiries',
@@ -244,10 +246,17 @@ describe('canonical pre-deploy migrations', () => {
       INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,9),(1,0,10);
     `);
 
-    expect(runMigrations(db)).toEqual(['007_availability_after_ten']);
+    expect(runMigrations(db)).toEqual([
+      '007_availability_after_ten', '008_next_week_availability_responses',
+    ]);
     expect(db.prepare('SELECT day_of_week AS day,hour FROM weekly_availability').all())
       .toEqual([{ day: 0, hour: 10 }]);
     expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,1,9)').run())
+      .toThrow(/check constraint/i);
+    expect(db.prepare('SELECT member_id,week_start,unavailable FROM availability_responses').get())
+      .toEqual({ member_id: 1, week_start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), unavailable: 0 });
+    expect(() => db.prepare(`INSERT INTO availability_responses
+      (member_id,week_start,unavailable) VALUES (1,'2026-07-27',2)`).run())
       .toThrow(/check constraint/i);
   });
 

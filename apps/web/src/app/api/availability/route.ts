@@ -31,7 +31,11 @@ export async function PUT(request: Request) {
     if (!result.ok) {
       return privateJsonResponse({ error: result.error }, { status: result.status });
     }
-    return privateJsonResponse({ slots: result.slots });
+    return privateJsonResponse({
+      week: result.week,
+      unavailable: result.unavailable,
+      slots: result.slots,
+    });
   } catch (error) {
     if (error instanceof AvailabilityInputError) {
       return privateJsonResponse({ error: error.message }, { status: error.status });

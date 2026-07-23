@@ -45,16 +45,16 @@ describe('weekly availability API', () => {
     const save = await PUT(new Request('http://next.test/api/availability', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slots: [{ day: 0, hour: 9 }, { day: 2, hour: 18 }] }),
+      body: JSON.stringify({ slots: [{ day: 0, hour: 10 }, { day: 2, hour: 18 }] }),
     }));
     expect(save.status).toBe(200);
-    expect(await save.json()).toEqual({ slots: [{ day: 0, hour: 9 }, { day: 2, hour: 18 }] });
+    expect(await save.json()).toEqual({ slots: [{ day: 0, hour: 10 }, { day: 2, hour: 18 }] });
 
     const response = await GET();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       member: { id: 1, name: '김학생', role: 'student' },
-      slots: [{ day: 0, hour: 9 }, { day: 2, hour: 18 }],
+      slots: [{ day: 0, hour: 10 }, { day: 2, hour: 18 }],
       summary: null,
     });
   });
@@ -62,7 +62,7 @@ describe('weekly availability API', () => {
   it('returns the aggregate and names only to the PI', async () => {
     await PUT(new Request('http://next.test/api/availability', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slots: [{ day: 0, hour: 9 }] }),
+      body: JSON.stringify({ slots: [{ day: 0, hour: 10 }] }),
     }));
     mocks.requireApiMember.mockResolvedValue({
       ok: true, member: { id: 2, name: '박교수', role: 'pi' },
@@ -74,7 +74,7 @@ describe('weekly availability API', () => {
       summary: {
         memberCount: 2,
         respondedCount: 1,
-        slots: [{ day: 0, hour: 9, count: 1, names: ['김학생'] }],
+        slots: [{ day: 0, hour: 10, count: 1, names: ['김학생'] }],
       },
     });
   });
@@ -82,7 +82,7 @@ describe('weekly availability API', () => {
   it('rejects invalid slots and unauthenticated requests without writing', async () => {
     const invalid = await PUT(new Request('http://next.test/api/availability', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slots: [{ day: 7, hour: 9 }] }),
+      body: JSON.stringify({ slots: [{ day: 0, hour: 9 }] }),
     }));
     expect(invalid.status).toBe(400);
 

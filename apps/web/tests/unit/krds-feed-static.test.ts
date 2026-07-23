@@ -147,7 +147,7 @@ describe('KRDS feed renderer static behavior', () => {
   });
 
   it('busts the cached login script when the mobile session flow changes', () => {
-    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-availability6';");
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-availability7';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {
@@ -169,17 +169,18 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('비밀번호를 1234로 초기화했습니다.');
   });
 
-  it('renders the signed-in member weekday schedule as 120 one-hour buttons without a name field', () => {
+  it('renders the signed-in member weekday schedule from 10:00 as 70 one-hour buttons without a name field', () => {
     const { availabilityGridHtml } = loadKrdsHelpers();
     const html = availabilityGridHtml({
       member: { id: 1, name: '김학생', role: 'student' },
-      slots: [{ day: 0, hour: 9 }],
+      slots: [{ day: 0, hour: 10 }],
       summary: null,
     });
 
     expect(html).toContain('김학생님의 반복 가능 시간을 선택합니다.');
-    expect(html.match(/class="availability-cell/g)).toHaveLength(120);
-    expect(html).toContain('data-day="0" data-hour="9" aria-pressed="true"');
+    expect(html.match(/class="availability-cell/g)).toHaveLength(70);
+    expect(html).toContain('data-day="0" data-hour="10" aria-pressed="true"');
+    expect(html).not.toContain('data-hour="9"');
     expect(html).not.toContain('data-day="5"');
     expect(html).not.toContain('>토<');
     expect(html).not.toContain('>일<');
@@ -189,7 +190,7 @@ describe('KRDS feed renderer static behavior', () => {
   it('fills every hour inside a weekday drag rectangle in either direction', () => {
     const { availabilityRectangleKeys } = loadKrdsHelpers();
 
-    const expected = ['1-9', '1-10', '1-11', '2-9', '2-10', '2-11'];
+    const expected = ['1-10', '1-11', '2-10', '2-11'];
     expect(availabilityRectangleKeys({ day: 1, hour: 9 }, { day: 2, hour: 11 })).toEqual(expected);
     expect(availabilityRectangleKeys({ day: 2, hour: 11 }, { day: 1, hour: 9 })).toEqual(expected);
   });
@@ -209,7 +210,7 @@ describe('KRDS feed renderer static behavior', () => {
       summary: {
         memberCount: 3,
         respondedCount: 2,
-        slots: [{ day: 0, hour: 9, count: 2, names: ['김학생', '이학생'] }],
+        slots: [{ day: 0, hour: 10, count: 2, names: ['김학생', '이학생'] }],
       },
     });
 

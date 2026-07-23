@@ -416,6 +416,28 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    id: '007_availability_after_ten',
+    up(conn) {
+      conn.exec(`
+        ALTER TABLE weekly_availability RENAME TO weekly_availability_before_ten;
+        CREATE TABLE weekly_availability (
+          member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 4),
+          hour INTEGER NOT NULL CHECK (hour BETWEEN 10 AND 23),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (member_id, day_of_week, hour)
+        );
+        INSERT INTO weekly_availability (member_id,day_of_week,hour,updated_at)
+          SELECT member_id,day_of_week,hour,updated_at
+          FROM weekly_availability_before_ten
+          WHERE hour >= 10;
+        DROP TABLE weekly_availability_before_ten;
+        CREATE INDEX weekly_availability_slot_idx
+          ON weekly_availability (day_of_week, hour, member_id);
+      `);
+    },
+  },
 ];
 
 export const MIGRATION_IDS = MIGRATIONS.map(({ id }) => id) as readonly string[];

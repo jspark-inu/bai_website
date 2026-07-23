@@ -576,10 +576,11 @@ async function renderMembers(view) {
 
 // ---------------- 뷰: 세션 가능 시간 ----------------
 const AVAILABILITY_DAYS = ["월", "화", "수", "목", "금"];
+const AVAILABILITY_START_HOUR = 10;
 function availabilityRectangleKeys(start, end) {
   const minDay = Math.max(0, Math.min(start.day, end.day));
   const maxDay = Math.min(AVAILABILITY_DAYS.length - 1, Math.max(start.day, end.day));
-  const minHour = Math.max(0, Math.min(start.hour, end.hour));
+  const minHour = Math.max(AVAILABILITY_START_HOUR, Math.min(start.hour, end.hour));
   const maxHour = Math.min(23, Math.max(start.hour, end.hour));
   const keys = [];
   for (let day = minDay; day <= maxDay; day += 1) {
@@ -588,12 +589,12 @@ function availabilityRectangleKeys(start, end) {
   return keys;
 }
 function availabilityGridHtml(data) {
-  const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length).map(s => `${s.day}-${s.hour}`));
+  const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length && s.hour >= AVAILABILITY_START_HOUR).map(s => `${s.day}-${s.hour}`));
   const summary = data.summary;
   const summaryBySlot = new Map((summary?.slots || []).map(s => [`${s.day}-${s.hour}`, s]));
   const headers = AVAILABILITY_DAYS.map(day => `<div class="availability-day" role="columnheader">${day}</div>`).join("");
   let cells = `<div class="availability-corner" aria-hidden="true">시간</div>${headers}`;
-  for (let hour = 0; hour < 24; hour += 1) {
+  for (let hour = AVAILABILITY_START_HOUR; hour < 24; hour += 1) {
     const nextHour = (hour + 1) % 24;
     cells += `<div class="availability-hour" role="rowheader">${String(hour).padStart(2, "0")}:00</div>`;
     for (let day = 0; day < AVAILABILITY_DAYS.length; day += 1) {
@@ -610,18 +611,18 @@ function availabilityGridHtml(data) {
 
   let piSummary = "";
   if (summary) {
-    const best = [...summary.slots].filter(slot => slot.day < AVAILABILITY_DAYS.length).sort((a, b) => b.count - a.count || a.day - b.day || a.hour - b.hour).slice(0, 5);
+    const best = [...summary.slots].filter(slot => slot.day < AVAILABILITY_DAYS.length && slot.hour >= AVAILABILITY_START_HOUR).sort((a, b) => b.count - a.count || a.day - b.day || a.hour - b.hour).slice(0, 5);
     const recommendations = best.length ? best.map(slot => `<li><b>${AVAILABILITY_DAYS[slot.day]}요일 ${String(slot.hour).padStart(2, "0")}:00</b><span>${slot.count}명 · ${esc(slot.names.join(", "))}</span></li>`).join("") : '<li class="muted">아직 제출된 시간이 없습니다.</li>';
     piSummary = `<aside class="availability-summary"><div class="availability-summary-head"><h2>겹치는 시간</h2><b>응답 ${summary.respondedCount}/${summary.memberCount}명</b></div><ol>${recommendations}</ol><p>숫자가 클수록 더 많은 멤버가 가능한 시간입니다.</p></aside>`;
   }
 
   return `<div class="page-head"><div><h1>세션 가능 시간</h1><p class="desc">${esc(data.member.name)}님의 반복 가능 시간을 선택합니다.</p></div></div>
-    <div class="panel-info"><b>매주 반복되는 평일 시간표</b> <span>한 칸을 클릭하거나, 시작점부터 끝점까지 드래그해 직사각형 범위를 한 번에 선택한 뒤 저장해 주세요. 이름은 로그인 계정에서 자동으로 연결됩니다.</span></div>
+    <div class="panel-info"><b>매주 반복되는 평일 시간표</b> <span>오전 10시 이후 가능한 시간을 선택해 주세요. 한 칸을 클릭하거나, 시작점부터 끝점까지 드래그해 직사각형 범위를 한 번에 선택할 수 있습니다.</span></div>
     <div class="availability-layout"><section>
       <div class="availability-actions"><p><b id="availabilityCount">${selected.size}</b>시간 선택됨</p><div><button class="btn btn-tertiary" id="clearAvailabilityBtn" type="button">모두 지우기</button><button class="btn btn-primary" id="saveAvailabilityBtn" type="button">저장하기</button></div></div>
       <p class="form-msg" id="availabilityMsg" aria-live="polite"></p>
       <p class="availability-mobile-hint">휴대폰에서는 시간표를 좌우로 밀어 다른 평일을 확인하세요.</p>
-      <div class="availability-scroll"><div class="availability-grid" id="availabilityGrid" role="grid" aria-label="월요일부터 금요일까지 1시간 단위 가능 시간">${cells}</div></div>
+      <div class="availability-scroll"><div class="availability-grid" id="availabilityGrid" role="grid" aria-label="월요일부터 금요일까지 오전 10시 이후 1시간 단위 가능 시간">${cells}</div></div>
     </section>${piSummary}</div>`;
 }
 
@@ -630,7 +631,7 @@ async function renderAvailability(view) {
   if (!response.ok) throw new Error("availability load failed");
   const data = await response.json();
   view.innerHTML = availabilityGridHtml(data);
-  const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length).map(s => `${s.day}-${s.hour}`));
+  const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length && s.hour >= AVAILABILITY_START_HOUR).map(s => `${s.day}-${s.hour}`));
   const grid = document.getElementById("availabilityGrid");
   const count = document.getElementById("availabilityCount");
   const message = document.getElementById("availabilityMsg");

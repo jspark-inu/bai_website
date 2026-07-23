@@ -14,7 +14,7 @@ export function readAvailabilityForMember(
 ): AvailabilitySlot[] {
   return conn.prepare(`SELECT day_of_week AS day,hour
     FROM weekly_availability
-    WHERE member_id=?
+    WHERE member_id=? AND hour>=10
     ORDER BY day_of_week,hour`).all(memberId) as AvailabilitySlot[];
 }
 
@@ -40,11 +40,11 @@ export function readAvailabilitySummary(conn: Database.Database): AvailabilitySu
   const respondedCount = Number((conn.prepare(`SELECT COUNT(DISTINCT wa.member_id) AS count
     FROM weekly_availability wa
     JOIN members m ON m.id=wa.member_id
-    WHERE m.status='active'`).get() as { count: number | bigint }).count);
+    WHERE m.status='active' AND wa.hour>=10`).get() as { count: number | bigint }).count);
   const rows = conn.prepare(`SELECT wa.day_of_week AS day,wa.hour,m.name
     FROM weekly_availability wa
     JOIN members m ON m.id=wa.member_id
-    WHERE m.status='active'
+    WHERE m.status='active' AND wa.hour>=10
     ORDER BY wa.day_of_week,wa.hour,m.name`).all() as Array<AvailabilitySlot & { name: string }>;
 
   const slots: AvailabilitySummarySlot[] = [];

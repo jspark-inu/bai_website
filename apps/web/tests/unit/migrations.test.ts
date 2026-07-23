@@ -12,6 +12,7 @@ const MIGRATION_IDS = [
   '004_material_file_cleanup_queue',
   '005_auth_sessions',
   '006_weekly_availability',
+  '007_availability_after_ten',
 ];
 const CANONICAL_TABLES = [
   'audit_log',
@@ -207,18 +208,47 @@ describe('canonical pre-deploy migrations', () => {
     runMigrations(db);
     db.prepare("INSERT INTO members (id,name,password_hash,api_key) VALUES (1,'member','hash','key')").run();
 
-    db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,9)').run();
+    db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,10)').run();
     expect(db.prepare('SELECT member_id,day_of_week,hour FROM weekly_availability').get()).toEqual({
-      member_id: 1, day_of_week: 0, hour: 9,
+      member_id: 1, day_of_week: 0, hour: 10,
     });
     expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,5,9)').run())
       .toThrow(/check constraint/i);
     expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,24)').run())
       .toThrow(/check constraint/i);
-    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,9)').run())
+    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,10)').run())
       .toThrow(/unique constraint/i);
     db.prepare('DELETE FROM members WHERE id=1').run();
     expect(db.prepare('SELECT COUNT(*) AS count FROM weekly_availability').get()).toEqual({ count: 0 });
+  });
+
+  it('removes existing morning availability and enforces a 10:00 start', () => {
+    const db = memoryDb();
+    db.exec(`
+      CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL);
+      INSERT INTO schema_migrations (id,applied_at) VALUES
+        ('001_core_schema','now'),('002_legacy_compatibility','now'),
+        ('003_timestamp_compatibility','now'),('004_material_file_cleanup_queue','now'),
+        ('005_auth_sessions','now'),('006_weekly_availability','now');
+      CREATE TABLE members (id INTEGER PRIMARY KEY);
+      INSERT INTO members (id) VALUES (1);
+      CREATE TABLE weekly_availability (
+        member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 4),
+        hour INTEGER NOT NULL CHECK (hour BETWEEN 0 AND 23),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (member_id,day_of_week,hour)
+      );
+      CREATE INDEX weekly_availability_slot_idx
+        ON weekly_availability (day_of_week,hour,member_id);
+      INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,9),(1,0,10);
+    `);
+
+    expect(runMigrations(db)).toEqual(['007_availability_after_ten']);
+    expect(db.prepare('SELECT day_of_week AS day,hour FROM weekly_availability').all())
+      .toEqual([{ day: 0, hour: 10 }]);
+    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,1,9)').run())
+      .toThrow(/check constraint/i);
   });
 
   it('preserves legacy rows and IDs while adding the complete compatibility-column union', () => {

@@ -29,8 +29,8 @@ export function parseAvailabilityPayload(input: unknown): AvailabilitySlot[] {
     }
     const { day, hour } = candidate as { day?: unknown; hour?: unknown };
     if (!Number.isInteger(day) || !Number.isInteger(hour)
-      || Number(day) < 0 || Number(day) > 4 || Number(hour) < 0 || Number(hour) > 23) {
-      throw new AvailabilityInputError('day must be 0-4 and hour must be 0-23');
+      || Number(day) < 0 || Number(day) > 4 || Number(hour) < 10 || Number(hour) > 23) {
+      throw new AvailabilityInputError('day must be 0-4 and hour must be 10-23');
     }
     unique.set(`${day}-${hour}`, { day: Number(day), hour: Number(hour) });
   }

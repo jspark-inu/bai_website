@@ -25,9 +25,9 @@ function testDb() {
 describe('weekly availability domain', () => {
   it('normalizes unique one-hour slots and rejects invalid coordinates', () => {
     expect(parseAvailabilityPayload({ slots: [
-      { day: 2, hour: 18 }, { day: 0, hour: 9 }, { day: 2, hour: 18 },
+      { day: 2, hour: 18 }, { day: 0, hour: 10 }, { day: 2, hour: 18 },
     ] })).toEqual([
-      { day: 0, hour: 9 }, { day: 2, hour: 18 },
+      { day: 0, hour: 10 }, { day: 2, hour: 18 },
     ]);
 
     for (const payload of [
@@ -36,6 +36,7 @@ describe('weekly availability domain', () => {
       { slots: [{ day: 5, hour: 9 }] },
       { slots: [{ day: 6, hour: 9 }] },
       { slots: [{ day: 7, hour: 9 }] },
+      { slots: [{ day: 0, hour: 9 }] },
       { slots: [{ day: 0, hour: 24 }] },
       { slots: [{ day: 0.5, hour: 9 }] },
     ]) {
@@ -49,16 +50,16 @@ describe('weekly availability domain', () => {
       db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (2,1,10)').run();
 
       expect(replaceAvailabilityInTransaction(db, 1, [
-        { day: 0, hour: 9 }, { day: 2, hour: 18 },
+        { day: 0, hour: 10 }, { day: 2, hour: 18 },
       ])).toBe(true);
       expect(readAvailabilityForMember(db, 1)).toEqual([
-        { day: 0, hour: 9 }, { day: 2, hour: 18 },
+        { day: 0, hour: 10 }, { day: 2, hour: 18 },
       ]);
       expect(readAvailabilityForMember(db, 2)).toEqual([{ day: 1, hour: 10 }]);
 
       expect(replaceAvailabilityInTransaction(db, 1, [])).toBe(true);
       expect(readAvailabilityForMember(db, 1)).toEqual([]);
-      expect(replaceAvailabilityInTransaction(db, 4, [{ day: 0, hour: 9 }])).toBe(false);
+      expect(replaceAvailabilityInTransaction(db, 4, [{ day: 0, hour: 10 }])).toBe(false);
     } finally {
       db.close();
     }
@@ -69,15 +70,15 @@ describe('weekly availability domain', () => {
     try {
       db.exec(`
         INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES
-          (1,0,9),(2,0,9),(2,1,10),(3,0,9),(4,0,9);
+          (1,0,10),(2,0,10),(2,1,11),(3,0,10),(4,0,10);
       `);
 
       expect(readAvailabilitySummary(db)).toEqual({
         memberCount: 3,
         respondedCount: 3,
         slots: [
-          { day: 0, hour: 9, count: 3, names: ['김학생', '박교수', '이학생'] },
-          { day: 1, hour: 10, count: 1, names: ['이학생'] },
+          { day: 0, hour: 10, count: 3, names: ['김학생', '박교수', '이학생'] },
+          { day: 1, hour: 11, count: 1, names: ['이학생'] },
         ],
       });
     } finally {

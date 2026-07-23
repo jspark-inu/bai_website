@@ -11,6 +11,10 @@ export function deleteAuthSession(conn: Database.Database, sessionId: string) {
   conn.prepare('DELETE FROM auth_sessions WHERE session_id=?').run(sessionId);
 }
 
+export function deleteMemberAuthSessions(conn: Database.Database, memberId: FlaskInt) {
+  conn.prepare('DELETE FROM auth_sessions WHERE member_id=?').run(memberId);
+}
+
 export function deleteExpiredAuthSessions(conn: Database.Database, now: number) {
   conn.prepare('DELETE FROM auth_sessions WHERE expires_at<=?').run(now);
 }

@@ -1,6 +1,6 @@
 import { unstable_rethrow } from 'next/navigation';
 import { privateJsonResponse } from '../exact-json-response.ts';
-import { getMemberById } from '../db/repositories/members.ts';
+import { activeMemberPasswordMatches, getMemberById } from '../db/repositories/members.ts';
 import { authSessionExists, deleteAuthSession, deleteExpiredAuthSessions, insertAuthSession } from '../db/repositories/auth-sessions.ts';
 import { openWriteDb } from '../db/client.ts';
 import { withTransaction } from '../db/transaction.ts';
@@ -22,20 +22,36 @@ export type ApiMemberResult =
   | { ok: true; member: MemberPublic }
   | { ok: false; error: Response };
 
-export function createMemberSession(memberId: number, now = Date.now()) {
+function persistMemberSession(memberId: number, now: number, expectedPasswordHash?: string) {
   const token = signSessionToken(memberId, { now: () => now });
   const payload = verifySessionToken(token, { now: () => now - 1 });
   if (!payload) throw new Error('newly signed session could not be verified');
   const conn = openWriteDb();
+  let inserted = false;
   try {
     withTransaction(conn, () => {
       deleteExpiredAuthSessions(conn, now);
+      if (expectedPasswordHash !== undefined
+        && !activeMemberPasswordMatches(conn, memberId, expectedPasswordHash)) return;
       insertAuthSession(conn, payload.sessionId, payload.memberId, payload.expiresAt);
+      inserted = true;
     });
   } finally {
     conn.close();
   }
-  return token;
+  return inserted ? token : null;
+}
+
+export function createMemberSession(memberId: number, now = Date.now()) {
+  return persistMemberSession(memberId, now) as string;
+}
+
+export function createMemberSessionIfPasswordCurrent(
+  memberId: number,
+  expectedPasswordHash: string,
+  now = Date.now(),
+) {
+  return persistMemberSession(memberId, now, expectedPasswordHash);
 }
 
 export function revokeMemberSession(token: string | undefined, now = Date.now()) {

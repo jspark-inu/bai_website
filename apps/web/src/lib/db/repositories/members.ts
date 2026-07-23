@@ -61,6 +61,16 @@ export function getActiveMemberPassword(id: FlaskInt): string | null {
   return row?.password_hash ?? null;
 }
 
+export function activeMemberPasswordMatches(
+  conn: Database.Database,
+  id: FlaskInt,
+  expectedPasswordHash: string,
+) {
+  return Boolean(conn.prepare(
+    "SELECT 1 FROM members WHERE id=? AND status='active' AND password_hash=?",
+  ).get(id, expectedPasswordHash));
+}
+
 export function replaceActiveMemberPassword(
   conn: Database.Database,
   id: FlaskInt,
@@ -128,6 +138,13 @@ export function activeMemberRole(conn: Database.Database, id: FlaskInt): string 
   return row?.role ?? null;
 }
 
+export function memberRoleAnyStatus(conn: Database.Database, id: FlaskInt): string | null {
+  const row = conn.prepare('SELECT role FROM members WHERE id=?').get(id) as
+    | { role: string }
+    | undefined;
+  return row?.role ?? null;
+}
+
 export function apiKeyAuthenticatesMember(
   conn: Database.Database,
   apiKey: string,
@@ -140,6 +157,10 @@ export function apiKeyAuthenticatesMember(
 
 export function updateMemberApiKey(conn: Database.Database, id: FlaskInt, apiKey: string) {
   conn.prepare('UPDATE members SET api_key=? WHERE id=?').run(apiKey, id);
+}
+
+export function updateMemberPassword(conn: Database.Database, id: FlaskInt, passwordHash: string) {
+  conn.prepare('UPDATE members SET password_hash=? WHERE id=?').run(passwordHash, id);
 }
 
 export function updateMemberAccount(

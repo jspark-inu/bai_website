@@ -5,10 +5,13 @@ import { parsePostPayload, type WriteResult } from './posts.ts';
 import { withWriteTransaction } from '../db/transaction.ts';
 import type { SqliteInteger } from '../db/read-values.ts';
 import { insertPost, projectExists } from '../db/repositories/posts.ts';
+import { deleteMemberAuthSessions } from '../db/repositories/auth-sessions.ts';
+import { hashWerkzeugPassword } from '../auth/password.ts';
 import {
   activeMemberRole, apiKeyAuthenticatesMember, getMemberAccountByApiKey,
   getMemberAccountById, insertAuditLog, listAdminMembers, memberExists,
-  memberExistsAnyStatus, updateMemberAccount, updateMemberApiKey,
+  memberExistsAnyStatus, memberRoleAnyStatus, updateMemberAccount, updateMemberApiKey,
+  updateMemberPassword,
 } from '../db/repositories/members.ts';
 
 export const API_KEY_USAGE = { endpoint: '/api/post', header: 'X-API-Key', method: 'POST' } as const;
@@ -66,6 +69,33 @@ export function regenerateMemberApiKey(
     updateMemberApiKey(conn, targetId, apiKey);
     insertAuditLog(conn, actorId, 'admin_regenerate_api_key', targetId);
     return { ok: true, value: { api_key: apiKey, member_id: targetId } };
+  });
+}
+
+export async function resetMemberPassword(
+  actorId: number,
+  targetId: FlaskInt,
+): Promise<WriteResult<{ ok: true }>> {
+  const target = getMemberAccountById(targetId, true);
+  if (!target) {
+    return { ok: false, status: 404, error: 'not found' };
+  }
+  if (target.role === 'pi') return { ok: false, status: 400, error: 'cannot reset pi password' };
+  const passwordHash = await hashWerkzeugPassword('1234');
+  return withWriteTransaction((conn) => {
+    if (activeMemberRole(conn, actorId) !== 'pi') {
+      return { ok: false, status: 403, error: 'pi only' };
+    }
+    if (!memberExistsAnyStatus(conn, targetId)) {
+      return { ok: false, status: 404, error: 'not found' };
+    }
+    if (memberRoleAnyStatus(conn, targetId) === 'pi') {
+      return { ok: false, status: 400, error: 'cannot reset pi password' };
+    }
+    updateMemberPassword(conn, targetId, passwordHash);
+    deleteMemberAuthSessions(conn, targetId);
+    insertAuditLog(conn, actorId, 'admin_reset_password', targetId);
+    return { ok: true, value: { ok: true } };
   });
 }
 

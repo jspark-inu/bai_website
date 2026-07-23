@@ -9,7 +9,11 @@ import { getOwnApiKey, regenerateOwnApiKey } from '../services/admin-goodbai.ts'
 import { readJsonObject } from '../write-route.ts';
 import { hashWerkzeugPassword, verifyLoginPassword, verifyWerkzeugPassword } from './password.ts';
 import { LoginRateLimiter, loginClientIp, loginRateLimiter } from './rate-limit.ts';
-import { createMemberSession, requireApiMember, revokeMemberSession } from './require-member.ts';
+import {
+  createMemberSessionIfPasswordCurrent,
+  requireApiMember,
+  revokeMemberSession,
+} from './require-member.ts';
 import { clearSessionCookie, readSessionCookie, setSessionCookie } from './session.ts';
 
 function anonymousMeResponse() {
@@ -61,7 +65,12 @@ export async function handleLogin(request: Request, dependencies: LoginDependenc
 
     const previous = await readSessionCookie();
     if (previous) revokeMemberSession(previous);
-    const token = createMemberSession(member.id);
+    const token = createMemberSessionIfPasswordCurrent(member.id, member.password_hash);
+    if (!token) {
+      dependencies.limiter.finishAttempt(admission.ticket, false);
+      finished = true;
+      return privateJsonResponse({ error: 'invalid credentials' }, { status: 401 });
+    }
     await setSessionCookie(token);
     dependencies.limiter.finishAttempt(admission.ticket, true);
     finished = true;

@@ -135,4 +135,12 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('class="account-links"');
     expect(krdsJs).toContain('class="member-grid"');
   });
+
+  it('offers the PI a confirmed member password reset to 1234', () => {
+    expect(krdsJs).toContain('data-reset-password-member');
+    expect(krdsJs).toContain('m.role !== "pi"');
+    expect(krdsJs).toContain('비밀번호를 1234로 초기화');
+    expect(krdsJs).toContain('/password/reset`');
+    expect(krdsJs).toContain('비밀번호를 1234로 초기화했습니다.');
+  });
 });

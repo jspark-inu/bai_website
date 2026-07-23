@@ -34,9 +34,13 @@ import { POST as compatLogin } from '@/app/api/login/route';
 import { POST as compatLogout } from '@/app/api/logout/route';
 import { GET as compatMe, POST as compatMePost } from '@/app/api/me/route';
 import { POST as changePassword } from '@/app/api/change-password/route';
+import { POST as resetMemberPassword } from '@/app/api/admin/members/[mid]/password/reset/route';
+import { handleLogin } from '@/lib/auth/handlers';
 import { closeDbForTests } from '@/lib/db/client';
 import { runMigrations } from '@/lib/db/migrations';
-import { replaceActiveMemberPassword } from '@/lib/db/repositories/members';
+import { getMemberByName, replaceActiveMemberPassword } from '@/lib/db/repositories/members';
+import { createMemberSession } from '@/lib/auth/require-member';
+import { LoginRateLimiter } from '@/lib/auth/rate-limit';
 import { SESSION_COOKIE_NAME } from '@/lib/auth/session';
 
 const PBKDF2_HASH = 'pbkdf2:sha256:1000000$FSVw4UciNL5tg1Sm$e087bd1acf2b14ed4ff54025901da3f9446b0415868ff7586713eca50c21141d';
@@ -53,13 +57,20 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 function seedDatabase() {
   const db = new Database(dbPath);
   runMigrations(db);
   db.prepare(`INSERT INTO members (id,name,password_hash,api_key,role,status) VALUES
     (1,'PBKDF2 member',?,'pbkdf2-key','student','active'),
     (2,'Scrypt member',?,'scrypt-key','developer','active'),
-    (3,'Disabled member',?,'disabled-key','student','disabled')`).run(PBKDF2_HASH, SCRYPT_HASH, PBKDF2_HASH);
+    (3,'Disabled member',?,'disabled-key','student','disabled'),
+    (4,'PI member',?,'pi-key','pi','active')`).run(PBKDF2_HASH, SCRYPT_HASH, PBKDF2_HASH, PBKDF2_HASH);
   db.close();
 }
 
@@ -70,6 +81,7 @@ beforeEach(() => {
   process.env.LAB_FEED_DB_READONLY = '0';
   process.env.LAB_FEED_SECRET = 'task-7-integration-secret-at-least-32-characters';
   vi.stubEnv('NODE_ENV', 'test');
+  vi.stubEnv('BAI_DEV_MEMBER_ID', '');
   jarState.values.clear();
   jarState.lastSet = null;
   closeDbForTests();
@@ -205,6 +217,77 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
     expect((await authLogin(jsonRequest('/api/auth/login', {
       name: 'PBKDF2 member', password: 'replacement password',
     }) as never)).status).toBe(200);
+  });
+
+  it('lets only the PI reset a member password to 1234 and records the action', async () => {
+    await authLogin(jsonRequest('/api/auth/login', { name: 'Scrypt member', password: PASSWORD }) as never);
+    expect((await resetMemberPassword(
+      new Request('http://next.test/api/admin/members/1/password/reset', { method: 'POST' }),
+      { params: Promise.resolve({ mid: '1' }) },
+    )).status).toBe(403);
+
+    await authLogin(jsonRequest('/api/auth/login', { name: 'PI member', password: PASSWORD }) as never);
+    expect((await resetMemberPassword(
+      new Request('http://next.test/api/admin/members/4/password/reset', { method: 'POST' }),
+      { params: Promise.resolve({ mid: '4' }) },
+    )).status).toBe(400);
+    const existingMemberSession = createMemberSession(1);
+    const reset = await resetMemberPassword(
+      new Request('http://next.test/api/admin/members/1/password/reset', { method: 'POST' }),
+      { params: Promise.resolve({ mid: '1' }) },
+    );
+    expect(reset.status).toBe(200);
+    await expect(reset.json()).resolves.toEqual({ ok: true });
+
+    jarState.values.set(SESSION_COOKIE_NAME, existingMemberSession);
+    expect((await authMe(new Request('http://next.test/api/auth/me'))).status).toBe(401);
+
+    jarState.values.clear();
+    expect((await authLogin(jsonRequest('/api/auth/login', {
+      name: 'PBKDF2 member', password: PASSWORD,
+    }) as never)).status).toBe(401);
+    expect((await authLogin(jsonRequest('/api/auth/login', {
+      name: 'PBKDF2 member', password: '1234',
+    }) as never)).status).toBe(200);
+
+    const db = new Database(dbPath, { readonly: true });
+    expect(db.prepare('SELECT actor_id,target_member_id,action,detail FROM audit_log').all()).toEqual([
+      { actor_id: 4, target_member_id: 1, action: 'admin_reset_password', detail: '' },
+    ]);
+    db.close();
+  });
+
+  it('does not issue a session when the password is reset during an in-flight login', async () => {
+    await authLogin(jsonRequest('/api/auth/login', { name: 'PI member', password: PASSWORD }) as never);
+    const verificationStarted = deferred<void>();
+    const releaseVerification = deferred<boolean>();
+    const limiter = new LoginRateLimiter({
+      limit: 5, cooldownMs: 60_000, maxEntries: 20, maxConcurrent: 2,
+    });
+    const loginAttempt = handleLogin(
+      jsonRequest('/api/auth/login', { name: 'PBKDF2 member', password: PASSWORD }),
+      {
+        limiter,
+        findMember: getMemberByName,
+        verifyPassword: async () => {
+          verificationStarted.resolve();
+          return releaseVerification.promise;
+        },
+      },
+    );
+    await verificationStarted.promise;
+
+    expect((await resetMemberPassword(
+      new Request('http://next.test/api/admin/members/1/password/reset', { method: 'POST' }),
+      { params: Promise.resolve({ mid: '1' }) },
+    )).status).toBe(200);
+    releaseVerification.resolve(true);
+
+    expect((await loginAttempt).status).toBe(401);
+    const db = new Database(dbPath, { readonly: true });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM auth_sessions WHERE member_id=1').get())
+      .toEqual({ count: 0 });
+    db.close();
   });
 
   it('rejects password change after the authenticated member is disabled without mutating the hash', async () => {

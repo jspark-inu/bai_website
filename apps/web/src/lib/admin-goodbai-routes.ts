@@ -3,7 +3,7 @@ import { exactJsonResponse, privateJsonResponse } from './exact-json-response.ts
 import { readJsonObject, writeResultResponse } from './write-route.ts';
 import {
   adminMemberExists, createGoodbaiPost, getAdminMembers, getApiKeyMember, getOwnApiKey,
-  regenerateMemberApiKey, regenerateOwnApiKey, updateAdminMember,
+  regenerateMemberApiKey, regenerateOwnApiKey, resetMemberPassword, updateAdminMember,
 } from './services/admin-goodbai.ts';
 import { parseFlaskPathInt } from './api-params.ts';
 
@@ -57,6 +57,15 @@ export async function adminMemberKeyRegeneratePOST(mid: string) {
   return result.ok
     ? privateJsonResponse(result.value)
     : privateJsonResponse({ error: result.error }, { status: result.status });
+}
+
+export async function adminMemberPasswordResetPOST(mid: string) {
+  const id = parseFlaskPathInt(mid);
+  if (id === null) return flaskMethodNotAllowedResponse();
+  const auth = await requirePi();
+  if (!auth.ok) return auth.error;
+  if (!adminMemberExists(id)) return Response.json({ error: 'not found' }, { status: 404 });
+  return writeResultResponse(await resetMemberPassword(auth.member.id, id));
 }
 
 export async function adminMemberPOST(request: Request, mid: string) {

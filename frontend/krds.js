@@ -1077,7 +1077,7 @@ async function renderDeveloper(view) {
 // ---------------- 뷰: 멤버 관리 (PI 전용) ----------------
 async function renderAdminMembers(view) {
   view.innerHTML = `<div class="page-head"><div><h1>멤버 관리</h1>
-    <p class="desc">PI 전용입니다. 학생 API key 재발급과 권한·상태 변경을 관리합니다.</p></div></div>
+    <p class="desc">PI 전용입니다. 학생 비밀번호 초기화, API key 재발급과 권한·상태 변경을 관리합니다.</p></div></div>
     <p class="form-msg ok" id="adminMsg" aria-live="polite"></p><div id="adminMembers"></div>`;
   const roleOptions = ["student", "admin_student", "developer", "operator", "pi"];
   const statusOptions = ["active", "disabled"];
@@ -1090,7 +1090,8 @@ async function renderAdminMembers(view) {
       <div class="detail-meta" style="margin-bottom:12px">${avatar(m.name, true)}<b>${esc(m.name)}</b>
         <span>글 ${m.post_count || 0}건</span>
         <span class="badge ${m.status === "active" ? "badge-success" : "badge-gray-o"}">${esc(m.status)}</span>
-        <button class="btn xs btn-tertiary" data-rotate-member="${m.id}" style="margin-left:auto">API key 재발급</button></div>
+        ${m.role !== "pi" ? `<button class="btn xs btn-tertiary" data-reset-password-member="${m.id}" style="margin-left:auto">비밀번호 1234 초기화</button>` : ""}
+        <button class="btn xs btn-tertiary" data-rotate-member="${m.id}" ${m.role === "pi" ? 'style="margin-left:auto"' : ""}>API key 재발급</button></div>
       <div class="admin-controls">
         <select class="select sm" data-role-member="${m.id}" aria-label="권한">${roleOptions.map(x => `<option value="${x}" ${m.role === x ? "selected" : ""}>${x}</option>`).join("")}</select>
         <select class="select sm" data-status-member="${m.id}" aria-label="상태">${statusOptions.map(x => `<option value="${x}" ${m.status === x ? "selected" : ""}>${x}</option>`).join("")}</select>
@@ -1107,6 +1108,18 @@ async function renderAdminMembers(view) {
         box.classList.remove("hidden");
         box.querySelector("code").textContent = d.api_key;
       } else alert("재발급하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    });
+    wrap.querySelectorAll("[data-reset-password-member]").forEach(b => b.onclick = async () => {
+      if (!confirm("이 학생의 비밀번호를 1234로 초기화하시겠습니까? 기존 비밀번호와 로그인 상태는 즉시 무효화됩니다.")) return;
+      const r = await fetch(`/api/admin/members/${b.dataset.resetPasswordMember}/password/reset`, { method: "POST" });
+      const msg = document.getElementById("adminMsg");
+      if (r.ok) {
+        msg.className = "form-msg ok";
+        msg.textContent = "비밀번호를 1234로 초기화했습니다.";
+      } else {
+        msg.className = "form-msg error";
+        msg.textContent = "비밀번호를 초기화하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+      }
     });
     wrap.querySelectorAll("[data-save-member]").forEach(b => b.onclick = async () => {
       const id = b.dataset.saveMember;

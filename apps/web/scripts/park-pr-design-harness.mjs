@@ -122,7 +122,7 @@ check('Next student routes delegate to the shared approved-design shell', () => 
 check('Next shell mounts the exact DOM contract required by approved krds.js', () => {
   const shell = read('apps/web/src/components/LegacyShell.tsx');
   const required = [
-    "const ASSET_VERSION = '20260722white-full-title2'",
+    "const ASSET_VERSION = '20260723-record-forms'",
     'script.id = \'bai-krds-script\'',
     'script.src = `/static/krds.js?v=${ASSET_VERSION}`',
     'script.onload = () => window.initApp?.()',

@@ -6,7 +6,7 @@ import {
 import { withWriteTransaction } from '../db/transaction.ts';
 import type { SqliteInteger } from '../db/read-values.ts';
 import {
-  getPost, getPostOwner, insertComment, insertPost, listComments, listOpenQuestions,
+  getPost, getPostOwner, insertComment, insertPost, listComments, listQuestions,
   listPosts, listPostsByMember, listPostsByTag, listReactedMemberIds, projectExists,
   searchPosts, toggleThumbsup, updatePost, type WritePostPayload,
 } from '../db/repositories/posts.ts';
@@ -38,8 +38,8 @@ export function getMemberJourney(id: FlaskInt) {
   };
 }
 
-export function getOpenQuestions() {
-  return { posts: listOpenQuestions() };
+export function getQuestions() {
+  return { posts: listQuestions() };
 }
 
 export function getMembers() {

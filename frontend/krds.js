@@ -1184,7 +1184,7 @@ function renderLogin(view) {
     <section class="login-box" aria-label="로그인">
       <div class="login-box-head"><p>BAI</p><h1>로그인</h1>
         <span>멤버 계정으로 로그인하세요.</span></div>
-      <form id="loginForm">
+      <form id="loginForm" action="/api/login" method="post" accept-charset="UTF-8">
         <div class="field"><label for="loginName">이름</label>
           <input class="input" id="loginName" name="name" autocomplete="username" required></div>
         <div class="field"><label for="loginPw">비밀번호</label>
@@ -1195,29 +1195,13 @@ function renderLogin(view) {
       <div class="login-note"><b>로그인이 처음인가요?</b><span>BAI 운영자에게 계정 발급을 요청해 주세요.</span></div>
     </section>
   </div>`;
-  const doLogin = async event => {
-    if (event) event.preventDefault();
-    const name = document.getElementById("loginName").value.trim();
-    const password = document.getElementById("loginPw").value;
-    const err = document.getElementById("loginErr");
-    const button = document.getElementById("loginBtn");
-    err.textContent = "";
-    button.disabled = true; button.textContent = "확인 중";
-    try {
-      const r = await fetch("/api/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),
-      });
-      if (r.ok) { location.href = "/"; return; }
-      if (r.status === 429) err.textContent = "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
-      else err.textContent = "이름 또는 비밀번호가 올바르지 않습니다.";
-    } catch {
-      err.textContent = "로그인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.";
-    } finally {
-      button.disabled = false; button.textContent = "로그인";
-    }
+  const loginError = new URL(location.href).searchParams.get("login_error");
+  const messages = {
+    credentials: "이름 또는 비밀번호가 올바르지 않습니다.",
+    rate_limit: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    unavailable: "로그인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
   };
-  document.getElementById("loginForm").onsubmit = doLogin;
+  document.getElementById("loginErr").textContent = messages[loginError] || "";
   document.getElementById("loginName").focus();
 }
 

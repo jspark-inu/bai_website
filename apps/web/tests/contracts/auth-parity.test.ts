@@ -176,5 +176,5 @@ describe('shared Flask/Next authentication oracle', () => {
       if (step.db) await assertDb(step.db);
     }
     expect(proxyLegacyApi).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 });

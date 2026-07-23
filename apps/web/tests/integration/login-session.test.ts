@@ -53,6 +53,14 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
   });
 }
 
+function formRequest(path: string, body: Record<string, string>) {
+  return new Request(`http://next.test${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body),
+  });
+}
+
 function seedDatabase() {
   const db = new Database(dbPath);
   runMigrations(db);
@@ -99,6 +107,33 @@ describe('Flask-free login lifecycle through real Next handlers', () => {
     });
     expect((await authMe(new Request('http://next.test/api/auth/me'))).status).toBe(200);
     expect((await feed(new NextRequest('http://next.test/api/feed'))).status).toBe(200);
+  });
+
+  it('commits a mobile form login cookie before redirecting into the app', async () => {
+    const response = await compatLogin(formRequest('/api/login', {
+      name: 'PBKDF2 member',
+      password: PASSWORD,
+    }) as never);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(jarState.lastSet).toMatchObject({
+      name: SESSION_COOKIE_NAME,
+      options: { httpOnly: true, sameSite: 'lax', path: '/', maxAge: expect.any(Number) },
+    });
+    expect((await authMe(new Request('http://next.test/api/auth/me'))).status).toBe(200);
+  });
+
+  it('redirects failed mobile form logins back with a visible error reason', async () => {
+    const response = await compatLogin(formRequest('/api/login', {
+      name: 'PBKDF2 member',
+      password: 'wrong',
+    }) as never);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/login?login_error=credentials');
+    expect(jarState.values.has(SESSION_COOKIE_NAME)).toBe(false);
   });
 
   it('preserves failure, disabled-member, falsey, and non-JSON login contracts', async () => {

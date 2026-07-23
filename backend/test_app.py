@@ -285,7 +285,9 @@ def test_login_page_keeps_the_approved_compact_account_guidance(client):
     assert "멤버 계정으로 로그인하세요." in body
     assert "BAI 운영자에게 계정 발급을 요청해 주세요." in body
     assert "함께 만든 과정이" not in body
-    assert 'location.href = "/"' in body
+    assert 'action="/api/login"' in body
+    assert 'method="post"' in body
+    assert 'fetch("/api/login"' not in body
     assert "/cockpit" not in body
 
 

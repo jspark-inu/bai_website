@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const krdsJs = fs.readFileSync(path.join(process.cwd(), 'public/static/krds.js'), 'utf8');
 const krdsCss = fs.readFileSync(path.join(process.cwd(), 'public/static/krds.css'), 'utf8');
 const globalsCss = fs.readFileSync(path.join(process.cwd(), 'src/styles/globals.css'), 'utf8');
+const legacyShell = fs.readFileSync(path.join(process.cwd(), 'src/components/LegacyShell.tsx'), 'utf8');
 
 function escapeHtml(value: unknown) {
   return String(value ?? '').replace(/[&<>\"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] ?? ch));
@@ -129,11 +130,18 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('id="retryViewBtn"');
   });
 
-  it('preserves the legacy login contract used by Flask-backed endpoints', () => {
-    expect(krdsJs).toContain('fetch("/api/login"');
+  it('uses a top-level login form so mobile browsers commit the session cookie before navigation', () => {
+    expect(krdsJs).toContain('<form id="loginForm" action="/api/login" method="post"');
+    expect(krdsJs).toContain('login_error');
+    expect(krdsJs).not.toContain('fetch("/api/login"');
     expect(krdsJs).not.toContain('fetch("/api/auth/login"');
+    expect(krdsJs).not.toContain('document.getElementById("loginForm").onsubmit');
     expect(krdsJs).not.toContain('함께 만든 과정이');
     expect(krdsJs).not.toContain('class="login-intro"');
+  });
+
+  it('busts the cached login script when the mobile session flow changes', () => {
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260723-mobile-login1';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {

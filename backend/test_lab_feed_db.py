@@ -447,9 +447,8 @@ def test_list_open_questions(db):
     db.add_comment(post_id=q_answered, author_id=b, body="답")
     opens = db.list_open_questions()
     ids = [p["id"] for p in opens]
-    assert ids == [q_answered, q_open]    # 답 달린 질문도 유지, 최근 순
-    assert opens[0]["comment_count"] == 1
-    assert opens[1]["comment_count"] == 0
+    assert ids == [q_open]                # 답 달린 질문·막힘없는 글 제외
+    assert opens[0]["comment_count"] == 0
 
 
 def test_list_members_with_stats(db):

@@ -414,7 +414,7 @@ def create_app(db_path=None, secret=None):
         posts = [_enrich(p) for p in db.search_posts(q)]
         return jsonify({"q": q, "posts": posts})
 
-    # ---- R3: 막힌 질문 ----
+    # ---- R3: 미답변 막힌 질문 ----
     @app.route("/api/questions")
     def api_questions():
         if not current_member():

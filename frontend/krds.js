@@ -366,7 +366,7 @@ function wireWall() {
 async function renderHome(view) {
   const ALL = await (await fetch("/api/feed")).json();
   const w = await fetch("/api/weekly").then(r => r.ok ? r.json() : null).catch(() => null);
-  const freeRecords = ALL.filter(p => !p.project_id && !String(p.blocked || "").trim());
+  const freeRecords = ALL.filter(p => !p.project_id);
   const reported = (w && w.reported) || [];
   const mine = Number((reported.find(m => Number(m.id) === Number(ME.id)) || {}).week_count || 0);
   const checkedIn = reported.some(m => Number(m.id) === Number(ME.id));
@@ -415,10 +415,10 @@ async function renderHome(view) {
 
 async function renderFeed(view) {
   view.innerHTML = `<div class="page-head"><div><h1>자유 기록</h1>
-    <p class="desc">프로젝트와 막힌 질문을 제외한 일상의 배움과 진행을 기록합니다.</p></div>
+    <p class="desc">프로젝트와 별도로 남긴 일상의 배움, 진행, 막힌 질문을 함께 기록합니다.</p></div>
     <button class="btn btn-primary" id="newBtn">기록 남기기</button></div>
     <div class="panel-form hidden" id="editor">
-      <div class="form-head"><b>자유 기록 남기기</b><span>프로젝트 기록과 막힌 질문을 제외한 일상의 배움과 진행을 남깁니다.</span></div>
+      <div class="form-head"><b>자유 기록 남기기</b><span>일상의 배움과 진행을 남깁니다. 질문은 막힌 질문 탭의 질문하기를 이용해 주세요.</span></div>
       ${freeRecordFormHtml()}
       <div class="form-actions"><button class="btn btn-primary" id="submitBtn">올리기</button>
         <button class="btn btn-tertiary" id="cancelBtn">취소</button>
@@ -429,7 +429,7 @@ async function renderFeed(view) {
       <button data-f="mine" role="tab" aria-selected="false">내 기록</button>
     </div><div id="feedlist"></div>`;
   const allPosts = await (await fetch("/api/feed")).json();
-  const records = allPosts.filter(p => !p.project_id && !String(p.blocked || "").trim());
+  const records = allPosts.filter(p => !p.project_id);
   let filter = "all";
   const draw = () => {
     const list = filter === "mine" ? records.filter(p => p.author_id === ME.id) : records;
@@ -797,7 +797,7 @@ async function renderSearch(view, query) {
 // ---------------- 뷰: 막힌 질문 ----------------
 async function renderQuestions(view) {
   view.innerHTML = `<div class="page-head"><div><h1>막힌 질문</h1>
-    <p class="desc">막힌 질문을 모아 봅니다. 홈 체크인과 멤버 프로필에 보이는 질문도 이곳에 함께 남습니다.</p></div>
+    <p class="desc">아직 답변이 없는 막힌 질문입니다. 답변이 달리면 자유 기록과 글 상세에는 남고 이 목록에서는 사라집니다.</p></div>
     <button class="btn btn-primary" id="newQuestionBtn">질문하기</button></div>
     <div class="panel-form hidden" id="questionEditor">
       <div class="form-head"><b>막힌 질문 남기기</b><span>질문을 먼저 쓰고, 상황과 시도한 내용을 덧붙이면 답변하기 쉽습니다.</span></div>

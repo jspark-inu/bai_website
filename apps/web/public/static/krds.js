@@ -135,6 +135,12 @@ function linkChips(links, max) {
     return `<span class="linkchip">${label}</span>`;
   }).join(" ");
 }
+function materialFileLink(material) {
+  const fileUrl = String(material.file_url || "");
+  if (!/^\/uploads\/materials\/[A-Za-z0-9._%-]+$/.test(fileUrl)) return "";
+  const fileName = material.file_name || "첨부파일";
+  return `<a class="linkchip" href="${esc(fileUrl)}" download>첨부파일 다운로드: ${esc(fileName)}</a>`;
+}
 function metaBadges(p) {
   let h = "";
   if (p.source === "skill") h += `<span class="badge badge-info-o">스킬</span>`;
@@ -829,11 +835,12 @@ async function renderMaterials(view) {
   };
   const materialCard = m => {
     const canEdit = ME.role === "pi" || m.author_id === ME.id;
+    const links = [materialFileLink(m), m.url ? linkChips(m.url, 56) : ""].filter(Boolean).join(" ");
     return `<div class="material-row card">
       <div class="material-kind"><strong>${esc(m.category || "자료")}</strong>${m.guild ? `<span>${esc(m.guild)}</span>` : ""}</div>
       <div class="material-main"><h2>${esc(m.title)}</h2>
         ${m.body ? `<div class="material-body">${markdownHtml(m.body)}</div>` : ""}
-        ${m.url ? `<div class="material-links">${linkChips(m.url, 56)}</div>` : ""}</div>
+        ${links ? `<div class="material-links">${links}</div>` : ""}</div>
       <div class="material-side"><time>${fmtDate(m.created_at)}</time><strong>${esc(m.author_name || "작성자 미상")}</strong>
         ${canEdit ? `<div class="material-actions"><button class="btn xs btn-tertiary" data-edit-material="${m.id}">수정</button>
         <button class="btn xs btn-tertiary" data-delete-material="${m.id}">삭제</button></div>` : ""}</div>

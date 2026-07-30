@@ -463,6 +463,51 @@ const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    id: '009_availability_week_history',
+    up(conn) {
+      conn.exec(`
+        ALTER TABLE availability_responses RENAME TO availability_responses_latest;
+        ALTER TABLE weekly_availability RENAME TO weekly_availability_latest;
+        DROP INDEX availability_responses_week_idx;
+        DROP INDEX weekly_availability_slot_idx;
+
+        CREATE TABLE availability_responses (
+          member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          week_start TEXT NOT NULL CHECK (week_start GLOB '????-??-??'),
+          unavailable INTEGER NOT NULL DEFAULT 0 CHECK (unavailable IN (0, 1)),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (member_id, week_start)
+        );
+        CREATE INDEX availability_responses_week_idx
+          ON availability_responses (week_start, unavailable, member_id);
+
+        CREATE TABLE weekly_availability (
+          member_id INTEGER NOT NULL,
+          week_start TEXT NOT NULL CHECK (week_start GLOB '????-??-??'),
+          day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 4),
+          hour INTEGER NOT NULL CHECK (hour BETWEEN 10 AND 23),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (member_id, week_start, day_of_week, hour),
+          FOREIGN KEY (member_id, week_start)
+            REFERENCES availability_responses(member_id, week_start) ON DELETE CASCADE
+        );
+        CREATE INDEX weekly_availability_slot_idx
+          ON weekly_availability (week_start, day_of_week, hour, member_id);
+
+        INSERT INTO availability_responses (member_id,week_start,unavailable,updated_at)
+          SELECT member_id,week_start,unavailable,updated_at
+          FROM availability_responses_latest;
+        INSERT INTO weekly_availability (member_id,week_start,day_of_week,hour,updated_at)
+          SELECT wa.member_id,ar.week_start,wa.day_of_week,wa.hour,wa.updated_at
+          FROM weekly_availability_latest wa
+          JOIN availability_responses_latest ar ON ar.member_id=wa.member_id;
+
+        DROP TABLE weekly_availability_latest;
+        DROP TABLE availability_responses_latest;
+      `);
+    },
+  },
 ];
 
 export const MIGRATION_IDS = MIGRATIONS.map(({ id }) => id) as readonly string[];

@@ -36,6 +36,7 @@ function loadKrdsHelpers(
     fullCard: (post: Record<string, unknown>) => string;
     postTitle: (post: Record<string, unknown>) => string;
     talentBadge: (status: string) => string;
+    materialFileLink: (material: Record<string, unknown>) => string;
     availabilityGridHtml: (data: Record<string, unknown>) => string;
     renderAvailability: (view: Record<string, unknown>, weekStart?: string) => Promise<void>;
     availabilityRectangleKeys: (
@@ -163,6 +164,19 @@ describe('KRDS feed renderer static behavior', () => {
     expect(krdsJs).toContain('class="account-profile"');
     expect(krdsJs).toContain('class="account-links"');
     expect(krdsJs).toContain('class="member-grid"');
+  });
+
+  it('renders managed material attachments as safe download links', () => {
+    const { materialFileLink } = loadKrdsHelpers();
+    const html = materialFileLink({
+      file_url: '/uploads/materials/fixture-file.pdf',
+      file_name: 'BAI 안내서 <최종>.pdf',
+    });
+
+    expect(html).toContain('href="/uploads/materials/fixture-file.pdf" download');
+    expect(html).toContain('첨부파일 다운로드: BAI 안내서 &lt;최종&gt;.pdf');
+    expect(materialFileLink({ file_url: 'javascript:alert(1)', file_name: '위험한 파일' })).toBe('');
+    expect(krdsJs).toContain('const links = [materialFileLink(m), m.url ? linkChips(m.url, 56) : ""]');
   });
 
   it('offers the PI a confirmed member password reset to 1234', () => {

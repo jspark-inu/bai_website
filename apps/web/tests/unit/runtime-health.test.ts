@@ -44,6 +44,7 @@ describe('runtime deployment health', () => {
       { id: '006_weekly_availability' },
       { id: '007_availability_after_ten' },
       { id: '008_next_week_availability_responses' },
+      { id: '009_availability_week_history' },
     ]);
     mocks.uploadRoot.mockReset().mockReturnValue(process.cwd());
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"ok":true}', { status: 200 })));

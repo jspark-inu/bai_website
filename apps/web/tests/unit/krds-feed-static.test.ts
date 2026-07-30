@@ -12,14 +12,17 @@ function escapeHtml(value: unknown) {
   return String(value ?? '').replace(/[&<>\"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] ?? ch));
 }
 
-function loadKrdsHelpers() {
+function loadKrdsHelpers(
+  fetchImpl: typeof fetch = async () => new Response('{}', { status: 200 }),
+  documentImpl: Record<string, unknown> | null = null,
+) {
   const context = vm.createContext({
-    document: { createElement: () => ({ textContent: '', get innerHTML() { return escapeHtml(this.textContent); } }) },
+    document: documentImpl ?? { createElement: () => ({ textContent: '', get innerHTML() { return escapeHtml(this.textContent); } }) },
     encodeURIComponent,
     String,
     RegExp,
     URL,
-    fetch: async () => ({ ok: true, json: async () => ({}) }),
+    fetch: fetchImpl,
     location: { href: '', origin: 'http://localhost', pathname: '/', search: '' },
     history: { pushState() {}, replaceState() {} },
     window: { addEventListener() {}, scrollTo() {} },
@@ -34,6 +37,7 @@ function loadKrdsHelpers() {
     postTitle: (post: Record<string, unknown>) => string;
     talentBadge: (status: string) => string;
     availabilityGridHtml: (data: Record<string, unknown>) => string;
+    renderAvailability: (view: Record<string, unknown>, weekStart?: string) => Promise<void>;
     availabilityRectangleKeys: (
       start: { day: number; hour: number },
       end: { day: number; hour: number },
@@ -147,7 +151,7 @@ describe('KRDS feed renderer static behavior', () => {
   });
 
   it('busts the cached login script when the mobile session flow changes', () => {
-    expect(legacyShell).toContain("const ASSET_VERSION = '20260724-availability8';");
+    expect(legacyShell).toContain("const ASSET_VERSION = '20260730-availability-history1';");
   });
 
   it('includes the redesigned project, material, question, and member surfaces', () => {
@@ -198,6 +202,144 @@ describe('KRDS feed renderer static behavior', () => {
     expect(html).not.toContain('name="name"');
   });
 
+  it('renders selectable week tabs and keeps a prior week read-only', () => {
+    const { availabilityGridHtml } = loadKrdsHelpers();
+    const html = availabilityGridHtml({
+      member: { id: 2, name: '박교수', role: 'pi' },
+      week: {
+        start: '2026-07-27', end: '2026-07-31',
+        days: ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31'],
+      },
+      weeks: [
+        {
+          start: '2026-08-03', end: '2026-08-07', current: true,
+          days: ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07'],
+        },
+        {
+          start: '2026-07-27', end: '2026-07-31', current: false,
+          days: ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31'],
+        },
+      ],
+      editable: false,
+      responded: true,
+      unavailable: false,
+      slots: [{ day: 0, hour: 10 }],
+      summary: {
+        memberCount: 3, respondedCount: 2, unavailableCount: 0, unavailableNames: [],
+        slots: [{ day: 0, hour: 10, count: 2, names: ['김학생', '이학생'] }],
+      },
+    });
+
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('data-availability-week="2026-08-03"');
+    expect(html).toContain('8월 1째 주');
+    expect(html).toContain('data-availability-week="2026-07-27"');
+    expect(html).toContain('7월 4째 주');
+    expect(html).toContain('aria-selected="true"');
+    expect(html).toContain('지난 투표 결과');
+    expect(html).not.toContain('id="saveAvailabilityBtn"');
+    expect(html).not.toContain('id="availabilityUnavailable"');
+    expect(html).toContain('data-day="0" data-hour="10" aria-pressed="true" aria-disabled="true" disabled');
+  });
+
+  it('does not let a slower prior week request replace the latest selected week', async () => {
+    const pending = new Map<string, (response: Response) => void>();
+    const { renderAvailability } = loadKrdsHelpers((resource) => new Promise((resolve) => {
+      pending.set(String(resource), resolve);
+    }));
+    const writes: string[] = [];
+    const view = {
+      set innerHTML(value: string) { writes.push(value); },
+      querySelectorAll: () => [],
+    };
+    const payload = (start: string, name: string) => ({
+      member: { id: 1, name, role: 'student' },
+      week: { start, end: start, days: [start, start, start, start, start] },
+      weeks: [{ start, end: start, days: [start, start, start, start, start], current: false }],
+      editable: false, responded: true, unavailable: false, slots: [], summary: null,
+    });
+
+    const older = renderAvailability(view, '2026-07-20');
+    const latest = renderAvailability(view, '2026-07-27');
+    pending.get('/api/availability?week=2026-07-27')?.(new Response(
+      JSON.stringify(payload('2026-07-27', '최신 선택')),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    await latest;
+    pending.get('/api/availability?week=2026-07-20')?.(new Response(
+      JSON.stringify(payload('2026-07-20', '늦은 이전 응답')),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    await older;
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain('최신 선택');
+    expect(writes[0]).not.toContain('늦은 이전 응답');
+  });
+
+  it('keeps a historical week selected when an earlier current-week save finishes late', async () => {
+    let finishSave: ((response: Response) => void) | undefined;
+    const current = {
+      member: { id: 1, name: '현재 사용자', role: 'student' },
+      week: { start: '2026-08-03', end: '2026-08-07', days: ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07'] },
+      weeks: [
+        { start: '2026-08-03', end: '2026-08-07', days: [], current: true },
+        { start: '2026-07-27', end: '2026-07-31', days: [], current: false },
+      ],
+      editable: true, responded: true, unavailable: false, slots: [], summary: null,
+    };
+    const history = {
+      ...current,
+      member: { id: 1, name: '과거 선택 유지', role: 'student' },
+      week: { start: '2026-07-27', end: '2026-07-31', days: ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31'] },
+      editable: false,
+    };
+    const cellList: unknown[] = [];
+    const grid = {
+      classList: { toggle() {} },
+      querySelectorAll: () => cellList,
+      addEventListener() {},
+    };
+    const unavailable = { checked: false, addEventListener() {} };
+    const message = { textContent: '', className: '' };
+    const saveButton: { onclick?: () => Promise<void> } = {};
+    const elements: Record<string, unknown> = {
+      availabilityGrid: grid,
+      availabilityUnavailable: unavailable,
+      availabilityCount: { textContent: '' },
+      availabilityMsg: message,
+      clearAvailabilityBtn: {},
+      saveAvailabilityBtn: saveButton,
+    };
+    const documentImpl = {
+      createElement: () => ({ textContent: '', get innerHTML() { return escapeHtml(this.textContent); } }),
+      getElementById: (id: string) => elements[id],
+      addEventListener() {},
+    };
+    const fetchImpl = ((resource: RequestInfo | URL, options?: RequestInit) => {
+      if (options?.method === 'PUT') return new Promise<Response>((resolve) => { finishSave = resolve; });
+      const selectedHistory = String(resource).includes('week=2026-07-27');
+      return Promise.resolve(new Response(JSON.stringify(selectedHistory ? history : current), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }));
+    }) as typeof fetch;
+    const { renderAvailability } = loadKrdsHelpers(fetchImpl, documentImpl);
+    const writes: string[] = [];
+    const view = {
+      set innerHTML(value: string) { writes.push(value); },
+      querySelectorAll: () => [],
+    };
+
+    await renderAvailability(view);
+    const saving = saveButton.onclick?.();
+    await renderAvailability(view, '2026-07-27');
+    finishSave?.(new Response('{}', { status: 200 }));
+    await saving;
+
+    expect(writes).toHaveLength(2);
+    expect(writes.at(-1)).toContain('과거 선택 유지');
+  });
+
   it('fills every hour inside a weekday drag rectangle in either direction', () => {
     const { availabilityRectangleKeys } = loadKrdsHelpers();
 
@@ -234,8 +376,8 @@ describe('KRDS feed renderer static behavior', () => {
     });
 
     expect(krdsJs).toContain('["/availability", "세션 시간", "availability"]');
-    expect(krdsJs).toContain('function renderAvailability(view)');
-    expect(krdsJs).toContain('fetch("/api/availability"');
+    expect(krdsJs).toContain('function renderAvailability(view, weekStart = "")');
+    expect(krdsJs).toContain('fetch(`/api/availability${query}`)');
     expect(krdsJs).toContain('method: "PUT"');
     expect(krdsJs).toContain('JSON.stringify({ weekStart: data.week.start, slots: unavailable ? [] : slots, unavailable })');
     expect(krdsJs).toContain('if (save.status === 409)');

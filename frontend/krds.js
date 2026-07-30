@@ -577,9 +577,14 @@ async function renderMembers(view) {
 // ---------------- 뷰: 세션 가능 시간 ----------------
 const AVAILABILITY_DAYS = ["월", "화", "수", "목", "금"];
 const AVAILABILITY_START_HOUR = 10;
+let AVAILABILITY_RENDER_GENERATION = 0;
 function availabilityDateLabel(iso) {
   const [, month, day] = String(iso || "").split("-").map(Number);
   return month && day ? `${month}/${day}` : "";
+}
+function availabilityWeekLabel(iso) {
+  const [, month, day] = String(iso || "").split("-").map(Number);
+  return month && day ? `${month}월 ${Math.ceil(day / 7)}째 주` : "주차";
 }
 function availabilityRectangleKeys(start, end) {
   const minDay = Math.max(0, Math.min(start.day, end.day));
@@ -593,6 +598,7 @@ function availabilityRectangleKeys(start, end) {
   return keys;
 }
 function availabilityGridHtml(data) {
+  const editable = data.editable !== false;
   const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length && s.hour >= AVAILABILITY_START_HOUR).map(s => `${s.day}-${s.hour}`));
   const summary = data.summary;
   const summaryBySlot = new Map((summary?.slots || []).map(s => [`${s.day}-${s.hour}`, s]));
@@ -609,7 +615,8 @@ function availabilityGridHtml(data) {
       const names = overlap?.names?.join(", ") || "";
       const label = `${AVAILABILITY_DAYS[day]}요일 ${String(hour).padStart(2, "0")}:00–${String(nextHour).padStart(2, "0")}:00`;
       const title = overlap ? `${label} · ${overlap.count}명: ${names}` : label;
-      cells += `<button class="availability-cell${active ? " is-selected" : ""}" data-day="${day}" data-hour="${hour}" aria-pressed="${active}" aria-disabled="${Boolean(data.unavailable)}"${data.unavailable ? " disabled" : ""} aria-label="${label}" title="${esc(title)}" style="--heat:${ratio || 0}">${overlap?.count || ""}</button>`;
+      const disabled = Boolean(data.unavailable) || !editable;
+      cells += `<button class="availability-cell${active ? " is-selected" : ""}" data-day="${day}" data-hour="${hour}" aria-pressed="${active}" aria-disabled="${disabled}"${disabled ? " disabled" : ""} aria-label="${label}" title="${esc(title)}" style="--heat:${ratio || 0}">${overlap?.count || ""}</button>`;
     }
   }
 
@@ -624,22 +631,42 @@ function availabilityGridHtml(data) {
   }
 
   const weekRange = `${availabilityDateLabel(data.week?.start)}–${availabilityDateLabel(data.week?.end)}`;
-  return `<div class="page-head"><div><h1>세션 가능 시간</h1><p class="desc">${esc(data.member.name)}님의 다음 주 가능 시간을 선택합니다. <b>${weekRange}</b></p></div></div>
-    <div class="panel-info"><b>다음 주 가능 시간</b> <span>월요일부터 금요일, 오전 10시 이후 가능한 시간을 선택해 주세요. 이 응답은 표시된 다음 주 한 주에만 적용됩니다.</span></div>
+  const weeks = data.weeks?.length ? data.weeks : [{ ...data.week, current: editable }];
+  const weekTabs = weeks.map(week => `<button type="button" role="tab" data-availability-week="${week.start}" aria-selected="${week.start === data.week.start}" class="${week.start === data.week.start ? "on" : ""}">${availabilityWeekLabel(week.start)}<span>${availabilityDateLabel(week.start)}–${availabilityDateLabel(week.end)}</span></button>`).join("");
+  const controls = editable
+    ? `<label class="availability-unavailable"><input type="checkbox" id="availabilityUnavailable"${data.unavailable ? " checked" : ""}><span><b>다음 주는 어렵습니다</b><small>가능한 시간이 하나도 없다면 체크해 주세요.</small></span></label>
+       <div class="availability-actions"><p><b id="availabilityCount">${selected.size}</b>시간 선택됨</p><div><button class="btn btn-tertiary" id="clearAvailabilityBtn" type="button">모두 지우기</button><button class="btn btn-primary" id="saveAvailabilityBtn" type="button">저장하기</button></div></div>
+       <p class="form-msg" id="availabilityMsg" aria-live="polite"></p>`
+    : `<div class="availability-readonly"><b>지난 투표 결과</b><span>이 주차의 응답은 조회만 할 수 있습니다.</span></div>`;
+  const description = editable
+    ? `${esc(data.member.name)}님의 다음 주 가능 시간을 선택합니다.`
+    : `${esc(data.member.name)}님의 지난 투표 결과를 확인합니다.`;
+  const guide = editable
+    ? `<b>다음 주 가능 시간</b> <span>월요일부터 금요일, 오전 10시 이후 가능한 시간을 선택해 주세요. 이 응답은 표시된 다음 주 한 주에만 적용됩니다.</span>`
+    : `<b>지난 투표 결과</b> <span>주차 탭을 선택해 당시 응답과 겹치는 시간을 확인할 수 있습니다.</span>`;
+  return `<div class="page-head"><div><h1>세션 가능 시간</h1><p class="desc">${description} <b>${weekRange}</b></p></div></div>
+    <div class="availability-week-tabs" role="tablist" aria-label="투표 주차 선택">${weekTabs}</div>
+    <div class="panel-info">${guide}</div>
     <div class="availability-layout"><section>
-      <label class="availability-unavailable"><input type="checkbox" id="availabilityUnavailable"${data.unavailable ? " checked" : ""}><span><b>다음 주는 어렵습니다</b><small>가능한 시간이 하나도 없다면 체크해 주세요.</small></span></label>
-      <div class="availability-actions"><p><b id="availabilityCount">${selected.size}</b>시간 선택됨</p><div><button class="btn btn-tertiary" id="clearAvailabilityBtn" type="button">모두 지우기</button><button class="btn btn-primary" id="saveAvailabilityBtn" type="button">저장하기</button></div></div>
-      <p class="form-msg" id="availabilityMsg" aria-live="polite"></p>
+      ${controls}
       <p class="availability-mobile-hint">휴대폰에서는 시간표를 좌우로 밀어 다른 평일을 확인하세요.</p>
       <div class="availability-scroll"><div class="availability-grid${data.unavailable ? " is-unavailable" : ""}" id="availabilityGrid" role="grid" aria-label="${weekRange} 월요일부터 금요일까지 오전 10시 이후 1시간 단위 가능 시간">${cells}</div></div>
     </section>${piSummary}</div>`;
 }
 
-async function renderAvailability(view) {
-  const response = await fetch("/api/availability");
+async function renderAvailability(view, weekStart = "") {
+  const generation = ++AVAILABILITY_RENDER_GENERATION;
+  const query = weekStart ? `?week=${encodeURIComponent(weekStart)}` : "";
+  const response = await fetch(`/api/availability${query}`);
+  if (generation !== AVAILABILITY_RENDER_GENERATION) return null;
   if (!response.ok) throw new Error("availability load failed");
   const data = await response.json();
+  if (generation !== AVAILABILITY_RENDER_GENERATION) return null;
   view.innerHTML = availabilityGridHtml(data);
+  view.querySelectorAll("[data-availability-week]").forEach(button => {
+    button.onclick = () => renderAvailability(view, button.dataset.availabilityWeek);
+  });
+  if (!data.editable) return generation;
   const selected = new Set((data.slots || []).filter(s => s.day < AVAILABILITY_DAYS.length && s.hour >= AVAILABILITY_START_HOUR).map(s => `${s.day}-${s.hour}`));
   const grid = document.getElementById("availabilityGrid");
   const unavailableInput = document.getElementById("availabilityUnavailable");
@@ -728,8 +755,10 @@ async function renderAvailability(view) {
     }).sort((a, b) => a.day - b.day || a.hour - b.hour);
     const unavailable = unavailableInput.checked;
     const save = await fetch("/api/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekStart: data.week.start, slots: unavailable ? [] : slots, unavailable }) });
+    if (generation !== AVAILABILITY_RENDER_GENERATION) return;
     if (save.status === 409) {
-      await renderAvailability(view);
+      const refreshedGeneration = await renderAvailability(view);
+      if (refreshedGeneration !== AVAILABILITY_RENDER_GENERATION) return;
       const refreshedMessage = document.getElementById("availabilityMsg");
       refreshedMessage.className = "form-msg error";
       refreshedMessage.textContent = "조사 주간이 바뀌어 최신 다음 주 시간표를 불러왔습니다. 다시 선택해 주세요.";
@@ -737,11 +766,13 @@ async function renderAvailability(view) {
     }
     if (!save.ok) { message.className = "form-msg error"; message.textContent = "저장하지 못했습니다. 잠시 후 다시 시도해 주세요."; return; }
     const successText = unavailable ? "다음 주 참여가 어렵다는 응답을 저장했습니다." : "다음 주 가능 시간을 저장했습니다.";
-    await renderAvailability(view);
+    const refreshedGeneration = await renderAvailability(view);
+    if (refreshedGeneration !== AVAILABILITY_RENDER_GENERATION) return;
     const refreshedMessage = document.getElementById("availabilityMsg");
     refreshedMessage.className = "form-msg ok";
     refreshedMessage.textContent = successText;
   };
+  return generation;
 }
 
 // ---------------- 뷰: 자료실 ----------------

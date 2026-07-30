@@ -93,6 +93,33 @@ describe('weekly availability domain', () => {
     }
   });
 
+  it('keeps each member response and slots when a later week is submitted', () => {
+    const db = testDb();
+    try {
+      expect(replaceAvailabilityInTransaction(db, 1, '2026-07-27', [
+        { day: 0, hour: 10 },
+      ], false)).toBe(true);
+      expect(replaceAvailabilityInTransaction(db, 1, '2026-08-03', [
+        { day: 2, hour: 18 },
+      ], false)).toBe(true);
+
+      expect(readAvailabilityResponseForMember(db, 1, '2026-07-27')).toEqual({
+        responded: true, unavailable: false,
+      });
+      expect(readAvailabilityForMember(db, 1, '2026-07-27')).toEqual([
+        { day: 0, hour: 10 },
+      ]);
+      expect(readAvailabilityResponseForMember(db, 1, '2026-08-03')).toEqual({
+        responded: true, unavailable: false,
+      });
+      expect(readAvailabilityForMember(db, 1, '2026-08-03')).toEqual([
+        { day: 2, hour: 18 },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
   it('builds a PI summary from active members and names for each overlapping slot', () => {
     const db = testDb();
     const weekStart = '2026-07-27';

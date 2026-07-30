@@ -5,6 +5,7 @@ import {
   readAvailabilityForMember,
   readAvailabilityResponseForMember,
   readAvailabilitySummary,
+  readAvailabilityWeekStarts,
   replaceAvailabilityInTransaction,
   type AvailabilitySlot,
 } from '../db/repositories/availability.ts';
@@ -18,6 +19,7 @@ export class AvailabilityInputError extends Error {
 
 export type AvailabilityPayload = { weekStart: string; slots: AvailabilitySlot[]; unavailable: boolean };
 export type AvailabilityWeek = { start: string; end: string; days: string[] };
+export type AvailabilityWeekOption = AvailabilityWeek & { current: boolean };
 
 function isoDate(value: Date) {
   return value.toISOString().slice(0, 10);
@@ -32,6 +34,16 @@ export function nextWeekWindow(now = new Date()): AvailabilityWeek {
   const daysUntilNextMonday = ((8 - koreanToday.getUTCDay()) % 7) || 7;
   const monday = new Date(koreanToday);
   monday.setUTCDate(monday.getUTCDate() + daysUntilNextMonday);
+  const days = Array.from({ length: 5 }, (_, offset) => {
+    const date = new Date(monday);
+    date.setUTCDate(date.getUTCDate() + offset);
+    return isoDate(date);
+  });
+  return { start: days[0], end: days[4], days };
+}
+
+function availabilityWeekFromStart(start: string): AvailabilityWeek {
+  const monday = new Date(`${start}T00:00:00Z`);
   const days = Array.from({ length: 5 }, (_, offset) => {
     const date = new Date(monday);
     date.setUTCDate(date.getUTCDate() + offset);
@@ -75,13 +87,24 @@ export function parseAvailabilityPayload(input: unknown): AvailabilityPayload {
   return { weekStart, slots, unavailable };
 }
 
-export function getWeeklyAvailability(member: MemberPublic) {
+export function getWeeklyAvailability(member: MemberPublic, requestedWeekStart?: string) {
   const conn = getDb();
-  const week = nextWeekWindow();
+  const currentWeek = nextWeekWindow();
+  const weekStarts = [...new Set([currentWeek.start, ...readAvailabilityWeekStarts(conn)])]
+    .sort((a, b) => b.localeCompare(a));
+  const selectedWeekStart = requestedWeekStart || currentWeek.start;
+  if (!weekStarts.includes(selectedWeekStart)) {
+    throw new AvailabilityInputError('availability week not found', 404);
+  }
+  const week = availabilityWeekFromStart(selectedWeekStart);
   const response = readAvailabilityResponseForMember(conn, member.id, week.start);
   return {
     member: { id: member.id, name: member.name, role: member.role },
     week,
+    weeks: weekStarts.map((start): AvailabilityWeekOption => ({
+      ...availabilityWeekFromStart(start), current: start === currentWeek.start,
+    })),
+    editable: week.start === currentWeek.start,
     responded: response.responded,
     unavailable: response.unavailable,
     slots: readAvailabilityForMember(conn, member.id, week.start),

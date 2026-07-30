@@ -14,6 +14,7 @@ const MIGRATION_IDS = [
   '006_weekly_availability',
   '007_availability_after_ten',
   '008_next_week_availability_responses',
+  '009_availability_week_history',
 ];
 const CANONICAL_TABLES = [
   'audit_log',
@@ -210,15 +211,21 @@ describe('canonical pre-deploy migrations', () => {
     runMigrations(db);
     db.prepare("INSERT INTO members (id,name,password_hash,api_key) VALUES (1,'member','hash','key')").run();
 
-    db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,10)').run();
-    expect(db.prepare('SELECT member_id,day_of_week,hour FROM weekly_availability').get()).toEqual({
-      member_id: 1, day_of_week: 0, hour: 10,
+    db.prepare(`INSERT INTO availability_responses (member_id,week_start,unavailable)
+      VALUES (1,'2026-07-27',0)`).run();
+    db.prepare(`INSERT INTO weekly_availability (member_id,week_start,day_of_week,hour)
+      VALUES (1,'2026-07-27',0,10)`).run();
+    expect(db.prepare('SELECT member_id,week_start,day_of_week,hour FROM weekly_availability').get()).toEqual({
+      member_id: 1, week_start: '2026-07-27', day_of_week: 0, hour: 10,
     });
-    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,5,9)').run())
+    expect(() => db.prepare(`INSERT INTO weekly_availability
+      (member_id,week_start,day_of_week,hour) VALUES (1,'2026-07-27',5,10)`).run())
       .toThrow(/check constraint/i);
-    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,24)').run())
+    expect(() => db.prepare(`INSERT INTO weekly_availability
+      (member_id,week_start,day_of_week,hour) VALUES (1,'2026-07-27',0,24)`).run())
       .toThrow(/check constraint/i);
-    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,0,10)').run())
+    expect(() => db.prepare(`INSERT INTO weekly_availability
+      (member_id,week_start,day_of_week,hour) VALUES (1,'2026-07-27',0,10)`).run())
       .toThrow(/unique constraint/i);
     db.prepare('DELETE FROM members WHERE id=1').run();
     expect(db.prepare('SELECT COUNT(*) AS count FROM weekly_availability').get()).toEqual({ count: 0 });
@@ -248,10 +255,13 @@ describe('canonical pre-deploy migrations', () => {
 
     expect(runMigrations(db)).toEqual([
       '007_availability_after_ten', '008_next_week_availability_responses',
+      '009_availability_week_history',
     ]);
-    expect(db.prepare('SELECT day_of_week AS day,hour FROM weekly_availability').all())
-      .toEqual([{ day: 0, hour: 10 }]);
-    expect(() => db.prepare('INSERT INTO weekly_availability (member_id,day_of_week,hour) VALUES (1,1,9)').run())
+    expect(db.prepare('SELECT week_start,day_of_week AS day,hour FROM weekly_availability').all())
+      .toEqual([{ week_start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), day: 0, hour: 10 }]);
+    const migratedWeek = (db.prepare('SELECT week_start FROM availability_responses WHERE member_id=1').get() as { week_start: string }).week_start;
+    expect(() => db.prepare(`INSERT INTO weekly_availability
+      (member_id,week_start,day_of_week,hour) VALUES (1,?,1,9)`).run(migratedWeek))
       .toThrow(/check constraint/i);
     expect(db.prepare('SELECT member_id,week_start,unavailable FROM availability_responses').get())
       .toEqual({ member_id: 1, week_start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), unavailable: 0 });

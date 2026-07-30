@@ -66,6 +66,10 @@ describe('weekly availability API', () => {
       week: { start: '2026-07-27', end: '2026-07-31', days: [
         '2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31',
       ] },
+      weeks: [{ start: '2026-07-27', end: '2026-07-31', current: true, days: [
+        '2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31',
+      ] }],
+      editable: true,
       responded: true,
       unavailable: false,
       slots: [{ day: 0, hour: 10 }, { day: 2, hour: 18 }],
@@ -92,6 +96,33 @@ describe('weekly availability API', () => {
         unavailableNames: [],
         slots: [{ day: 0, hour: 10, count: 1, names: ['김학생'] }],
       },
+    });
+  });
+
+  it('lists stored weeks and returns a selected prior week as read-only', async () => {
+    await PUT(new Request('http://next.test/api/availability', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekStart: '2026-07-27', unavailable: false, slots: [{ day: 0, hour: 10 }] }),
+    }));
+
+    vi.setSystemTime(new Date('2026-07-30T12:00:00Z'));
+    await PUT(new Request('http://next.test/api/availability', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weekStart: '2026-08-03', unavailable: false, slots: [{ day: 2, hour: 18 }] }),
+    }));
+
+    const history = await GET(new Request('http://next.test/api/availability?week=2026-07-27'));
+    expect(history.status).toBe(200);
+    expect(await history.json()).toMatchObject({
+      week: { start: '2026-07-27', end: '2026-07-31' },
+      editable: false,
+      weeks: [
+        { start: '2026-08-03', end: '2026-08-07', current: true },
+        { start: '2026-07-27', end: '2026-07-31', current: false },
+      ],
+      responded: true,
+      unavailable: false,
+      slots: [{ day: 0, hour: 10 }],
     });
   });
 

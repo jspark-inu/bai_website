@@ -9,10 +9,18 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request?: Request) {
   const auth = await requireApiMember();
   if (!auth.ok) return auth.error;
-  return privateJsonResponse(getWeeklyAvailability(auth.member));
+  const weekStart = request ? new URL(request.url).searchParams.get('week') || undefined : undefined;
+  try {
+    return privateJsonResponse(getWeeklyAvailability(auth.member, weekStart));
+  } catch (error) {
+    if (error instanceof AvailabilityInputError) {
+      return privateJsonResponse({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 }
 
 export async function PUT(request: Request) {

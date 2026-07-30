@@ -11,6 +11,13 @@ export type AvailabilitySummary = {
 };
 export type AvailabilityResponse = { responded: boolean; unavailable: boolean };
 
+export function readAvailabilityWeekStarts(conn: Database.Database): string[] {
+  return (conn.prepare(`SELECT DISTINCT week_start
+    FROM availability_responses
+    ORDER BY week_start DESC`).all() as Array<{ week_start: string }>)
+    .map(({ week_start }) => week_start);
+}
+
 export function readAvailabilityForMember(
   conn: Database.Database,
   memberId: number,
@@ -18,8 +25,7 @@ export function readAvailabilityForMember(
 ): AvailabilitySlot[] {
   return conn.prepare(`SELECT wa.day_of_week AS day,wa.hour
     FROM weekly_availability wa
-    JOIN availability_responses ar ON ar.member_id=wa.member_id
-    WHERE wa.member_id=? AND ar.week_start=? AND ar.unavailable=0 AND wa.hour>=10
+    WHERE wa.member_id=? AND wa.week_start=? AND wa.hour>=10
     ORDER BY wa.day_of_week,wa.hour`).all(memberId, weekStart) as AvailabilitySlot[];
 }
 
@@ -43,17 +49,16 @@ export function replaceAvailabilityInTransaction(
   const active = conn.prepare("SELECT 1 FROM members WHERE id=? AND status='active'").get(memberId);
   if (!active) return false;
 
-  conn.prepare('DELETE FROM weekly_availability WHERE member_id=?').run(memberId);
+  conn.prepare('DELETE FROM weekly_availability WHERE member_id=? AND week_start=?').run(memberId, weekStart);
   conn.prepare(`INSERT INTO availability_responses (member_id,week_start,unavailable,updated_at)
     VALUES (?,?,?,datetime('now'))
-    ON CONFLICT(member_id) DO UPDATE SET
-      week_start=excluded.week_start,
+    ON CONFLICT(member_id,week_start) DO UPDATE SET
       unavailable=excluded.unavailable,
       updated_at=excluded.updated_at`).run(memberId, weekStart, unavailable ? 1 : 0);
   const insert = conn.prepare(`INSERT INTO weekly_availability
-    (member_id,day_of_week,hour,updated_at) VALUES (?,?,?,datetime('now'))`);
+    (member_id,week_start,day_of_week,hour,updated_at) VALUES (?,?,?,?,datetime('now'))`);
   if (!unavailable) {
-    for (const slot of slots) insert.run(memberId, slot.day, slot.hour);
+    for (const slot of slots) insert.run(memberId, weekStart, slot.day, slot.hour);
   }
   return true;
 }
@@ -74,8 +79,8 @@ export function readAvailabilitySummary(conn: Database.Database, weekStart: stri
   const rows = conn.prepare(`SELECT wa.day_of_week AS day,wa.hour,m.name
     FROM weekly_availability wa
     JOIN members m ON m.id=wa.member_id
-    JOIN availability_responses ar ON ar.member_id=wa.member_id
-    WHERE m.status='active' AND ar.week_start=? AND ar.unavailable=0 AND wa.hour>=10
+    JOIN availability_responses ar ON ar.member_id=wa.member_id AND ar.week_start=wa.week_start
+    WHERE m.status='active' AND wa.week_start=? AND ar.unavailable=0 AND wa.hour>=10
     ORDER BY wa.day_of_week,wa.hour,m.name`).all(weekStart) as Array<AvailabilitySlot & { name: string }>;
 
   const slots: AvailabilitySummarySlot[] = [];
